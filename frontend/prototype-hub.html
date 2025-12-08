@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRBot - Prototype Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(16, 185, 129, 0.2); }
+    </style>
+</head>
+<body class="text-white font-sans">
+
+<nav class="bg-slate-900 border-b border-slate-700">
+    <div class="max-w-7xl mx-auto px-6 py-6">
+        <h1 class="text-3xl font-black">
+            <i class="fas fa-rocket text-emerald-400 mr-2"></i>
+            CRBot Prototype Hub
+        </h1>
+        <p class="text-gray-400 mt-2">Interactive UI Prototype - Click to Explore</p>
+    </div>
+</nav>
+
+<div class="max-w-7xl mx-auto px-6 py-12">
+    
+    <!-- Main Prototype -->
+    <div class="mb-12">
+        <h2 class="text-2xl font-bold mb-6 text-emerald-400">
+            <i class="fas fa-star mr-2"></i>Main Application
+        </h2>
+        <div class="grid grid-cols-1 gap-6">
+            <a href="dashboard-prototype.html" class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-8 border border-slate-700 card-hover text-center hover:text-emerald-300">
+                <i class="fas fa-cube text-5xl text-emerald-400 mb-4"></i>
+                <h3 class="text-2xl font-bold mb-2">Full Dashboard Prototype</h3>
+                <p class="text-gray-400 mb-4">6 Pages • Interactive • TailwindCSS</p>
+                <span class="inline-block bg-emerald-600 px-4 py-2 rounded-lg font-bold">
+                    <i class="fas fa-arrow-right mr-2"></i>Open Now →
+                </span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Page Features -->
+    <div class="mb-12">
+        <h2 class="text-2xl font-bold mb-6">
+            <i class="fas fa-map mr-2"></i>What's Included
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            
+            <!-- Dashboard -->
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 card-hover">
+                <div class="text-3xl mb-3">📊</div>
+                <h3 class="text-lg font-bold mb-2">Dashboard</h3>
+                <p class="text-gray-400 text-sm mb-3">Real-time portfolio metrics, equity curve, recent trades</p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="text-xs bg-emerald-900 text-emerald-300 px-2 py-1 rounded">KPI Cards</span>
+                    <span class="text-xs bg-emerald-900 text-emerald-300 px-2 py-1 rounded">Charts</span>
+                    <span class="text-xs bg-emerald-900 text-emerald-300 px-2 py-1 rounded">Tables</span>
+                </div>
+            </div>
+
+            <!-- Markets -->
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 card-hover">
+                <div class="text-3xl mb-3">📈</div>
+                <h3 class="text-lg font-bold mb-2">Markets & Analysis</h3>
+                <p class="text-gray-400 text-sm mb-3">Price charts, technical indicators, Elliott Wave analysis</p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="text-xs bg-blue-900 text-blue-300 px-2 py-1 rounded">Charts</span>
+                    <span class="text-xs bg-blue-900 text-blue-300 px-2 py-1 rounded">Indicators</span>
+                    <span class="text-xs bg-blue-900 text-blue-300 px-2 py-1 rounded">Elliott Wave</span>
+                </div>
+            </div>
+
+            <!-- Bot Manager -->
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 card-hover">
+                <div class="text-3xl mb-3">🤖</div>
+                <h3 class="text-lg font-bold mb-2">Bot Manager</h3>
+                <p class="text-gray-400 text-sm mb-3">Active bots, create new bots, manage strategies</p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="text-xs bg-purple-900 text-purple-300 px-2 py-1 rounded">Bot Status</span>
+                    <span class="text-xs bg-purple-900 text-purple-300 px-2 py-1 rounded">Metrics</span>
+                    <span class="text-xs bg-purple-900 text-purple-300 px-2 py-1 rounded">Forms</span>
+                </div>
+            </div>
+
+            <!-- Reports -->
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 card-hover">
+                <div class="text-3xl mb-3">📋</div>
+                <h3 class="text-lg font-bold mb-2">Reports & Analytics</h3>
+                <p class="text-gray-400 text-sm mb-3">Dashboard, trades list, strategy comparison, performance</p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="text-xs bg-orange-900 text-orange-300 px-2 py-1 rounded">4 Tabs</span>
+                    <span class="text-xs bg-orange-900 text-orange-300 px-2 py-1 rounded">Tables</span>
+                    <span class="text-xs bg-orange-900 text-orange-300 px-2 py-1 rounded">Charts</span>
+                </div>
+            </div>
+
+            <!-- Risk Management -->
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 card-hover">
+                <div class="text-3xl mb-3">🛡️</div>
+                <h3 class="text-lg font-bold mb-2">Risk Management</h3>
+                <p class="text-gray-400 text-sm mb-3">Risk status, circuit breakers, active alerts</p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="text-xs bg-red-900 text-red-300 px-2 py-1 rounded">Status</span>
+                    <span class="text-xs bg-red-900 text-red-300 px-2 py-1 rounded">Alerts</span>
+                    <span class="text-xs bg-red-900 text-red-300 px-2 py-1 rounded">Progress</span>
+                </div>
+            </div>
+
+            <!-- Settings -->
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 card-hover">
+                <div class="text-3xl mb-3">⚙️</div>
+                <h3 class="text-lg font-bold mb-2">Settings & Config</h3>
+                <p class="text-gray-400 text-sm mb-3">Account info, API keys, exchange connections</p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="text-xs bg-gray-900 text-gray-300 px-2 py-1 rounded">Forms</span>
+                    <span class="text-xs bg-gray-900 text-gray-300 px-2 py-1 rounded">Config</span>
+                    <span class="text-xs bg-gray-900 text-gray-300 px-2 py-1 rounded">Status</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Features Highlight -->
+    <div class="mb-12">
+        <h2 class="text-2xl font-bold mb-6">
+            <i class="fas fa-sparkles mr-2"></i>Features & Technology
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                <h3 class="text-lg font-bold text-emerald-400 mb-4">UI/UX Design</h3>
+                <ul class="space-y-2 text-sm text-gray-300">
+                    <li>✨ TailwindCSS styling with dark mode</li>
+                    <li>🎨 Modern gradient backgrounds</li>
+                    <li>📱 Responsive mobile-friendly layout</li>
+                    <li>✅ Interactive navigation</li>
+                    <li>🎯 Smooth transitions & animations</li>
+                    <li>📊 Professional color scheme</li>
+                </ul>
+            </div>
+
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                <h3 class="text-lg font-bold text-blue-400 mb-4">Interactive Elements</h3>
+                <ul class="space-y-2 text-sm text-gray-300">
+                    <li>📈 Chart.js graphs with real data</li>
+                    <li>🔘 Clickable tabs & navigation</li>
+                    <li>📋 Data tables with hover effects</li>
+                    <li>⚡ Status indicators & badges</li>
+                    <li>📊 Progress bars & metrics</li>
+                    <li>🎪 Modular component design</li>
+                </ul>
+            </div>
+
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                <h3 class="text-lg font-bold text-purple-400 mb-4">Performance</h3>
+                <ul class="space-y-2 text-sm text-gray-300">
+                    <li>⚡ Single-page app architecture</li>
+                    <li>🚀 Fast page switching</li>
+                    <li>📦 Lightweight dependencies</li>
+                    <li>🔄 Lazy chart initialization</li>
+                    <li>💾 No database required</li>
+                    <li>📲 Desktop & mobile optimized</li>
+                </ul>
+            </div>
+
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                <h3 class="text-lg font-bold text-orange-400 mb-4">Developer Ready</h3>
+                <ul class="space-y-2 text-sm text-gray-300">
+                    <li>🔧 Clean, readable HTML structure</li>
+                    <li>📝 Well-organized JavaScript</li>
+                    <li>🎯 Easy to customize</li>
+                    <li>🔗 CDN dependencies</li>
+                    <li>📚 Modular component system</li>
+                    <li>🚀 Ready for API integration</li>
+                </ul>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Getting Started -->
+    <div class="bg-gradient-to-r from-emerald-900/20 to-blue-900/20 rounded-xl p-8 border border-slate-700 mb-12">
+        <h2 class="text-2xl font-bold mb-4">
+            <i class="fas fa-play-circle mr-2"></i>Getting Started
+        </h2>
+        <ol class="space-y-3 text-gray-300 mb-6">
+            <li class="flex gap-3">
+                <span class="font-bold text-emerald-400">1.</span>
+                <span>Click "Open Now" button to launch the prototype</span>
+            </li>
+            <li class="flex gap-3">
+                <span class="font-bold text-emerald-400">2.</span>
+                <span>Use sidebar navigation to explore all 6 pages</span>
+            </li>
+            <li class="flex gap-3">
+                <span class="font-bold text-emerald-400">3.</span>
+                <span>Click on tabs and buttons to interact with UI</span>
+            </li>
+            <li class="flex gap-3">
+                <span class="font-bold text-emerald-400">4.</span>
+                <span>Test responsiveness by resizing your browser</span>
+            </li>
+        </ol>
+        <a href="dashboard-prototype.html" class="inline-block bg-emerald-600 hover:bg-emerald-700 px-8 py-3 rounded-lg font-bold">
+            <i class="fas fa-arrow-right mr-2"></i>Launch Prototype Now
+        </a>
+    </div>
+
+    <!-- Tech Stack -->
+    <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 mb-12">
+        <h3 class="text-lg font-bold mb-4">
+            <i class="fas fa-code mr-2"></i>Technology Stack
+        </h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="text-center p-4 bg-slate-700 rounded-lg">
+                <div class="text-2xl mb-2">🎨</div>
+                <p class="text-sm font-bold">TailwindCSS</p>
+                <p class="text-xs text-gray-400">Styling</p>
+            </div>
+            <div class="text-center p-4 bg-slate-700 rounded-lg">
+                <div class="text-2xl mb-2">📊</div>
+                <p class="text-sm font-bold">Chart.js</p>
+                <p class="text-xs text-gray-400">Charting</p>
+            </div>
+            <div class="text-center p-4 bg-slate-700 rounded-lg">
+                <div class="text-2xl mb-2">⚡</div>
+                <p class="text-sm font-bold">JavaScript</p>
+                <p class="text-xs text-gray-400">Interactivity</p>
+            </div>
+            <div class="text-center p-4 bg-slate-700 rounded-lg">
+                <div class="text-2xl mb-2">🎯</div>
+                <p class="text-sm font-bold">Font Awesome</p>
+                <p class="text-xs text-gray-400">Icons</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Next Steps -->
+    <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <h3 class="text-lg font-bold mb-4">
+            <i class="fas fa-rocket mr-2"></i>Next Steps
+        </h3>
+        <p class="text-gray-300 mb-4">After exploring the prototype, you can:</p>
+        <ul class="space-y-2 text-gray-300">
+            <li>✅ Use this as a design reference for backend API integration</li>
+            <li>✅ Customize colors and styling to match your brand</li>
+            <li>✅ Replace sample data with real API calls</li>
+            <li>✅ Add WebSocket for real-time data updates</li>
+            <li>✅ Integrate with FastAPI backend endpoints</li>
+            <li>✅ Deploy as production frontend</li>
+        </ul>
+    </div>
+
+</div>
+
+<footer class="bg-slate-900 border-t border-slate-700 mt-12 py-6">
+    <div class="max-w-7xl mx-auto px-6 text-center text-gray-400 text-sm">
+        <p>CRBot Platform © 2025 • Interactive Prototype • 
+            <a href="#" class="text-emerald-400 hover:text-emerald-300">Documentation</a> • 
+            <a href="#" class="text-emerald-400 hover:text-emerald-300">GitHub</a>
+        </p>
+    </div>
+</footer>
+
+</body>
+</html>

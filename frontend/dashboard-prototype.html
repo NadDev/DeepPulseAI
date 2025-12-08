@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRBot - Crypto Trading Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { transition: all 0.3s ease; }
+        .card-hover { @apply hover:shadow-2xl hover:scale-105; }
+        .gradient-primary { background: linear-gradient(135deg, #10B981 0%, #059669 100%); }
+        .gradient-danger { background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); }
+        .profit { color: #10B981; }
+        .loss { color: #EF4444; }
+        .chart-container { position: relative; width: 100%; height: 300px; }
+        @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .pulse-dot { animation: pulse-dot 2s infinite; }
+        .tab-active { @apply border-b-4 border-emerald-500 text-emerald-600; }
+        .tab-inactive { @apply text-gray-500 hover:text-gray-700; }
+    </style>
+</head>
+<body class="bg-slate-950 text-white font-sans">
+
+<!-- HEADER -->
+<nav class="bg-slate-900 border-b border-slate-700 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <div class="text-3xl font-black gradient-primary bg-clip-text text-transparent">
+                ⚡ CRBot
+            </div>
+            <span class="text-sm text-emerald-400">Crypto Trading Bot Platform</span>
+        </div>
+        <div class="flex items-center gap-6">
+            <div class="hidden md:flex items-center gap-1 bg-slate-800 px-3 py-2 rounded-lg">
+                <span class="text-xs text-gray-400">Status:</span>
+                <span class="pulse-dot w-2 h-2 bg-emerald-500 rounded-full mx-1"></span>
+                <span class="text-sm font-semibold text-emerald-400">LIVE</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <button class="p-2 hover:bg-slate-800 rounded-lg">
+                    <i class="fas fa-bell text-xl"></i>
+                </button>
+                <button class="p-2 hover:bg-slate-800 rounded-lg">
+                    <i class="fas fa-user-circle text-2xl"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<!-- MAIN CONTAINER -->
+<div class="flex h-screen overflow-hidden">
+
+<!-- SIDEBAR -->
+<aside class="w-64 bg-slate-900 border-r border-slate-700 overflow-y-auto hidden md:flex flex-col">
+    <div class="flex-1 p-6">
+        <div class="space-y-2">
+            <a href="#dashboard" onclick="showPage('dashboard')" class="sidebar-link active w-full text-left px-4 py-3 rounded-lg font-medium transition group bg-emerald-600 text-white flex items-center gap-3 whitespace-nowrap">
+                <i class="fas fa-chart-line text-lg text-emerald-200 flex-shrink-0"></i>
+                <span class="overflow-hidden text-ellipsis">Dashboard</span>
+            </a>
+            <a href="#markets" onclick="showPage('markets')" class="sidebar-link w-full text-left px-4 py-3 rounded-lg font-medium hover:bg-slate-800 transition group flex items-center gap-3 whitespace-nowrap">
+                <i class="fas fa-globe text-lg text-blue-400 flex-shrink-0"></i>
+                <span class="group-hover:text-blue-400 overflow-hidden text-ellipsis">Markets</span>
+            </a>
+            <a href="#bots" onclick="showPage('bots')" class="sidebar-link w-full text-left px-4 py-3 rounded-lg font-medium hover:bg-slate-800 transition group flex items-center gap-3 whitespace-nowrap">
+                <i class="fas fa-robot text-lg text-purple-400 flex-shrink-0"></i>
+                <span class="group-hover:text-purple-400 overflow-hidden text-ellipsis">Bots</span>
+            </a>
+            <a href="#reports" onclick="showPage('reports')" class="sidebar-link w-full text-left px-4 py-3 rounded-lg font-medium hover:bg-slate-800 transition group flex items-center gap-3 whitespace-nowrap">
+                <i class="fas fa-chart-bar text-lg text-orange-400 flex-shrink-0"></i>
+                <span class="group-hover:text-orange-400 overflow-hidden text-ellipsis">Reports</span>
+            </a>
+            <a href="#risk" onclick="showPage('risk')" class="sidebar-link w-full text-left px-4 py-3 rounded-lg font-medium hover:bg-slate-800 transition group flex items-center gap-3 whitespace-nowrap">
+                <i class="fas fa-shield text-lg text-red-400 flex-shrink-0"></i>
+                <span class="group-hover:text-red-400 overflow-hidden text-ellipsis">Risk</span>
+            </a>
+            <a href="#settings" onclick="showPage('settings')" class="sidebar-link w-full text-left px-4 py-3 rounded-lg font-medium hover:bg-slate-800 transition group flex items-center gap-3 whitespace-nowrap">
+                <i class="fas fa-cog text-lg text-gray-400 flex-shrink-0"></i>
+                <span class="group-hover:text-gray-400 overflow-hidden text-ellipsis">Settings</span>
+            </a>
+        </div>
+    </div>
+    <div class="p-6 border-t border-slate-700">
+        <div class="text-xs text-gray-500">
+            <p class="mb-2">📊 Total Trades: <span class="text-emerald-400 font-bold">120</span></p>
+            <p class="mb-2">📈 Win Rate: <span class="text-emerald-400 font-bold">54%</span></p>
+            <p>💰 Monthly P&L: <span class="text-emerald-400 font-bold">+$18,500</span></p>
+        </div>
+    </div>
+</aside>
+
+<!-- CONTENT -->
+<main class="flex-1 overflow-y-auto">
+
+<!-- ============ DASHBOARD PAGE ============ -->
+<div id="dashboard" class="page-content p-6 md:p-8">
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700 card-hover">
+            <div class="flex justify-between items-start mb-4">
+                <span class="text-sm text-gray-400">Portfolio Value</span>
+                <i class="fas fa-wallet text-emerald-400 text-2xl"></i>
+            </div>
+            <h3 class="text-3xl font-bold mb-2">$145,230.50</h3>
+            <p class="text-sm"><span class="profit">↑ +$5,120</span> <span class="text-gray-500">(+3.6%)</span></p>
+        </div>
+
+        <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700 card-hover">
+            <div class="flex justify-between items-start mb-4">
+                <span class="text-sm text-gray-400">Daily P&L</span>
+                <i class="fas fa-coins text-blue-400 text-2xl"></i>
+            </div>
+            <h3 class="text-3xl font-bold profit mb-2">+$2,450</h3>
+            <p class="text-sm text-gray-500">+2.5% today</p>
+        </div>
+
+        <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700 card-hover">
+            <div class="flex justify-between items-start mb-4">
+                <span class="text-sm text-gray-400">Win Rate</span>
+                <i class="fas fa-target text-purple-400 text-2xl"></i>
+            </div>
+            <h3 class="text-3xl font-bold mb-2">58.3%</h3>
+            <p class="text-sm text-gray-500">45/77 trades won</p>
+        </div>
+
+        <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700 card-hover">
+            <div class="flex justify-between items-start mb-4">
+                <span class="text-sm text-gray-400">Max Drawdown</span>
+                <i class="fas fa-chart-area text-orange-400 text-2xl"></i>
+            </div>
+            <h3 class="text-3xl font-bold loss mb-2">-18.5%</h3>
+            <p class="text-sm text-gray-500">92.5% to limit</p>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <!-- Equity Curve -->
+        <div class="lg:col-span-2 bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <h3 class="text-lg font-bold mb-4">Equity Curve (30 days)</h3>
+            <div class="chart-container">
+                <canvas id="equityChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Portfolio Breakdown -->
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <h3 class="text-lg font-bold mb-4">Portfolio Breakdown</h3>
+            <div class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <span class="text-sm">BTC Position</span>
+                    <div class="flex items-center gap-2">
+                        <div class="w-24 h-2 bg-slate-700 rounded-full overflow-hidden">
+                            <div class="h-full w-1/3 bg-emerald-500"></div>
+                        </div>
+                        <span class="text-sm font-bold">35%</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-sm">ETH Position</span>
+                    <div class="flex items-center gap-2">
+                        <div class="w-24 h-2 bg-slate-700 rounded-full overflow-hidden">
+                            <div class="h-full w-1/2 bg-blue-500"></div>
+                        </div>
+                        <span class="text-sm font-bold">50%</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-sm">Alts</span>
+                    <div class="flex items-center gap-2">
+                        <div class="w-24 h-2 bg-slate-700 rounded-full overflow-hidden">
+                            <div class="h-full w-1/4 bg-purple-500"></div>
+                        </div>
+                        <span class="text-sm font-bold">15%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Trades -->
+    <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <h3 class="text-lg font-bold mb-4 flex justify-between items-center">
+            Recent Trades
+            <a href="#" onclick="showPage('reports')" class="text-sm text-emerald-400 hover:text-emerald-300">View All →</a>
+        </h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="text-gray-400 border-b border-slate-700">
+                    <tr>
+                        <th class="text-left py-3">Date</th>
+                        <th class="text-left py-3">Symbol</th>
+                        <th class="text-right py-3">Entry</th>
+                        <th class="text-right py-3">Exit</th>
+                        <th class="text-right py-3">P&L</th>
+                        <th class="text-center py-3">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="border-b border-slate-700 hover:bg-slate-700/50">
+                        <td class="py-3">Dec 5</td>
+                        <td class="font-bold">BTC/USD</td>
+                        <td class="text-right">$50,000</td>
+                        <td class="text-right">$51,200</td>
+                        <td class="text-right profit font-bold">+$1,200</td>
+                        <td class="text-center"><span class="text-emerald-400">✅</span></td>
+                    </tr>
+                    <tr class="border-b border-slate-700 hover:bg-slate-700/50">
+                        <td class="py-3">Dec 5</td>
+                        <td class="font-bold">ETH/USD</td>
+                        <td class="text-right">$3,200</td>
+                        <td class="text-right">$3,100</td>
+                        <td class="text-right loss font-bold">-$80</td>
+                        <td class="text-center"><span class="text-red-400">❌</span></td>
+                    </tr>
+                    <tr class="border-b border-slate-700 hover:bg-slate-700/50">
+                        <td class="py-3">Dec 5</td>
+                        <td class="font-bold">XRP/USD</td>
+                        <td class="text-right">$2.50</td>
+                        <td class="text-right">OPEN</td>
+                        <td class="text-right profit font-bold">+$120</td>
+                        <td class="text-center"><span class="text-yellow-400">⏳</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ============ MARKETS PAGE ============ -->
+<div id="markets" class="page-content hidden p-6 md:p-8">
+    <!-- Search & Filters -->
+    <div class="mb-6 flex flex-col md:flex-row gap-4">
+        <input type="text" placeholder="Search symbol..." class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 focus:border-emerald-500 outline-none text-white">
+        <select class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 focus:border-emerald-500 outline-none text-white">
+            <option>1h</option>
+            <option selected>4h</option>
+            <option>1d</option>
+        </select>
+    </div>
+
+    <!-- Chart Section -->
+    <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 mb-6">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold">BTC/USD - $51,200.50</h3>
+            <span class="text-emerald-400 font-bold">↑ +2.5%</span>
+        </div>
+        <div class="chart-container">
+            <canvas id="priceChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Technical Indicators -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <h3 class="text-lg font-bold mb-4">Technical Indicators</h3>
+            <div class="space-y-3">
+                <div class="flex justify-between items-center pb-3 border-b border-slate-700">
+                    <span class="text-gray-400">RSI (14)</span>
+                    <div class="flex items-center gap-2">
+                        <div class="w-20 h-2 bg-slate-700 rounded-full">
+                            <div class="h-full w-2/3 bg-orange-500 rounded-full"></div>
+                        </div>
+                        <span class="font-bold">68</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center pb-3 border-b border-slate-700">
+                    <span class="text-gray-400">MACD</span>
+                    <span class="text-emerald-400 font-bold">Bullish ↑</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Bollinger Bands</span>
+                    <span class="text-orange-400 font-bold">High Vol</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <h3 class="text-lg font-bold mb-4">Elliott Wave Analysis</h3>
+            <div class="space-y-3">
+                <p class="text-sm text-gray-400">Wave Status: <span class="text-emerald-400 font-bold">Wave 5 (Impulse)</span></p>
+                <p class="text-sm text-gray-400">Support Level: <span class="text-emerald-400 font-bold">$50,100</span></p>
+                <p class="text-sm text-gray-400">Resistance Level: <span class="text-orange-400 font-bold">$52,000</span></p>
+                <p class="text-sm text-gray-400">Trend Analysis: <span class="text-emerald-400 font-bold">BULLISH 📈</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Cryptos Table -->
+    <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <h3 class="text-lg font-bold mb-4">Top Cryptocurrencies</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="text-gray-400 border-b border-slate-700">
+                    <tr>
+                        <th class="text-left py-3">Symbol</th>
+                        <th class="text-right py-3">Price</th>
+                        <th class="text-right py-3">24h Change</th>
+                        <th class="text-right py-3">Market Cap</th>
+                        <th class="text-right py-3">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="border-b border-slate-700 hover:bg-slate-700/50">
+                        <td class="py-3 font-bold">BTC/USD</td>
+                        <td class="text-right">$51,200</td>
+                        <td class="text-right profit">+2.5%</td>
+                        <td class="text-right">$1,024B</td>
+                        <td class="text-right"><button class="text-emerald-400 hover:text-emerald-300">Trade</button></td>
+                    </tr>
+                    <tr class="border-b border-slate-700 hover:bg-slate-700/50">
+                        <td class="py-3 font-bold">ETH/USD</td>
+                        <td class="text-right">$3,250</td>
+                        <td class="text-right profit">+1.8%</td>
+                        <td class="text-right">$390B</td>
+                        <td class="text-right"><button class="text-emerald-400 hover:text-emerald-300">Trade</button></td>
+                    </tr>
+                    <tr class="border-b border-slate-700 hover:bg-slate-700/50">
+                        <td class="py-3 font-bold">XRP/USD</td>
+                        <td class="text-right">$2.50</td>
+                        <td class="text-right profit">+3.2%</td>
+                        <td class="text-right">$135B</td>
+                        <td class="text-right"><button class="text-emerald-400 hover:text-emerald-300">Trade</button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ============ BOTS PAGE ============ -->
+<div id="bots" class="page-content hidden p-6 md:p-8">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold">Bot Manager</h2>
+        <button class="bg-emerald-600 hover:bg-emerald-700 px-6 py-2 rounded-lg font-bold flex items-center gap-2">
+            <i class="fas fa-plus"></i> New Bot
+        </button>
+    </div>
+
+    <!-- Active Bots -->
+    <div class="space-y-4">
+        <!-- Bot 1 -->
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-emerald-500">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 class="text-lg font-bold flex items-center gap-2">
+                        <span class="pulse-dot w-3 h-3 bg-emerald-500"></span>
+                        TrendFollowing_BTC
+                    </h3>
+                    <p class="text-gray-400 text-sm">Strategy: Trend Following | Symbol: BTC/USD | 4h</p>
+                </div>
+                <span class="text-xs bg-emerald-900 text-emerald-300 px-3 py-1 rounded-full">RUNNING</span>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4 py-4 border-t border-b border-slate-700">
+                <div>
+                    <p class="text-xs text-gray-400">Trades</p>
+                    <p class="font-bold">12</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400">Win Rate</p>
+                    <p class="font-bold profit">66%</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400">Today P&L</p>
+                    <p class="font-bold profit">+$1,200</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400">Risk/Trade</p>
+                    <p class="font-bold">1.5%</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400">Position</p>
+                    <p class="font-bold">$50k</p>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button class="flex-1 bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium">⏸ Pause</button>
+                <button class="flex-1 bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium">✏️ Edit</button>
+                <button class="flex-1 bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium">📋 Logs</button>
+            </div>
+        </div>
+
+        <!-- Bot 2 -->
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 hover:border-blue-500">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 class="text-lg font-bold flex items-center gap-2">
+                        <span class="pulse-dot w-3 h-3 bg-emerald-500"></span>
+                        Breakout_ETH
+                    </h3>
+                    <p class="text-gray-400 text-sm">Strategy: Breakout | Symbol: ETH/USD | 1h</p>
+                </div>
+                <span class="text-xs bg-emerald-900 text-emerald-300 px-3 py-1 rounded-full">RUNNING</span>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4 py-4 border-t border-b border-slate-700">
+                <div>
+                    <p class="text-xs text-gray-400">Trades</p>
+                    <p class="font-bold">8</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400">Win Rate</p>
+                    <p class="font-bold">50%</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400">Today P&L</p>
+                    <p class="font-bold profit">+$450</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400">Risk/Trade</p>
+                    <p class="font-bold">1.0%</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400">Position</p>
+                    <p class="font-bold">$30k</p>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button class="flex-1 bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium">⏸ Pause</button>
+                <button class="flex-1 bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium">✏️ Edit</button>
+                <button class="flex-1 bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium">📋 Logs</button>
+            </div>
+        </div>
+
+        <!-- Bot 3 - Paused -->
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 opacity-75 hover:opacity-100">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 class="text-lg font-bold flex items-center gap-2">
+                        <span class="w-3 h-3 bg-yellow-500 rounded-full"></span>
+                        ElliottWave_XRP
+                    </h3>
+                    <p class="text-gray-400 text-sm">Strategy: Elliott Wave | Symbol: XRP/USD | 1d</p>
+                </div>
+                <span class="text-xs bg-yellow-900 text-yellow-300 px-3 py-1 rounded-full">PAUSED</span>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4 py-4 border-t border-b border-slate-700">
+                <div>
+                    <p class="text-xs text-gray-400">Trades</p>
+                    <p class="font-bold">3</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400">Win Rate</p>
+                    <p class="font-bold profit">100%</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400">Total P&L</p>
+                    <p class="font-bold profit">+$800</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400">Risk/Trade</p>
+                    <p class="font-bold">2.0%</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400">Position</p>
+                    <p class="font-bold">$15k</p>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button class="flex-1 bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium">▶️ Resume</button>
+                <button class="flex-1 bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium">✏️ Edit</button>
+                <button class="flex-1 bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium">📋 Logs</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ REPORTS PAGE ============ -->
+<div id="reports" class="page-content hidden p-6 md:p-8">
+    <!-- Tabs -->
+    <div class="flex gap-8 mb-6 border-b border-slate-700 overflow-x-auto">
+        <button class="report-tab tab-active pb-4 whitespace-nowrap" onclick="showReportTab('dashboard-tab')">
+            <i class="fas fa-chart-line mr-2"></i>Dashboard
+        </button>
+        <button class="report-tab tab-inactive pb-4 whitespace-nowrap" onclick="showReportTab('trades-tab')">
+            <i class="fas fa-exchange mr-2"></i>Trades
+        </button>
+        <button class="report-tab tab-inactive pb-4 whitespace-nowrap" onclick="showReportTab('strategies-tab')">
+            <i class="fas fa-chess mr-2"></i>Strategies
+        </button>
+        <button class="report-tab tab-inactive pb-4 whitespace-nowrap" onclick="showReportTab('performance-tab')">
+            <i class="fas fa-chart-bar mr-2"></i>Performance
+        </button>
+    </div>
+
+    <!-- Dashboard Tab -->
+    <div id="dashboard-tab" class="report-tab-content">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                <p class="text-gray-400 text-sm mb-2">Total Trades</p>
+                <h3 class="text-3xl font-bold">120</h3>
+                <p class="text-xs text-gray-500 mt-2">Last 30 days</p>
+            </div>
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                <p class="text-gray-400 text-sm mb-2">Win Rate</p>
+                <h3 class="text-3xl font-bold profit">54%</h3>
+                <p class="text-xs text-gray-500 mt-2">65/120 wins</p>
+            </div>
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                <p class="text-gray-400 text-sm mb-2">Profit Factor</p>
+                <h3 class="text-3xl font-bold profit">1.7x</h3>
+                <p class="text-xs text-gray-500 mt-2">$65k / $38k</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 bg-slate-800 rounded-xl p-6 border border-slate-700">
+                <h3 class="text-lg font-bold mb-4">Monthly Performance</h3>
+                <div class="chart-container">
+                    <canvas id="performanceChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                <h3 class="text-lg font-bold mb-4">By Strategy</h3>
+                <div class="space-y-3">
+                    <div class="p-3 bg-slate-700 rounded-lg">
+                        <p class="text-sm text-gray-400">Trend Following</p>
+                        <p class="font-bold text-emerald-400">+$25,000</p>
+                        <p class="text-xs text-gray-500">45% of P&L</p>
+                    </div>
+                    <div class="p-3 bg-slate-700 rounded-lg">
+                        <p class="text-sm text-gray-400">Breakout</p>
+                        <p class="font-bold text-emerald-400">+$12,000</p>
+                        <p class="text-xs text-gray-500">22% of P&L</p>
+                    </div>
+                    <div class="p-3 bg-slate-700 rounded-lg">
+                        <p class="text-sm text-gray-400">Elliott Wave</p>
+                        <p class="font-bold text-emerald-400">+$8,500</p>
+                        <p class="text-xs text-gray-500">16% of P&L</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trades Tab -->
+    <div id="trades-tab" class="report-tab-content hidden">
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="text-gray-400 border-b border-slate-700">
+                        <tr>
+                            <th class="text-left py-3">Date</th>
+                            <th class="text-left py-3">Symbol</th>
+                            <th class="text-right py-3">Entry</th>
+                            <th class="text-right py-3">Exit</th>
+                            <th class="text-right py-3">P&L</th>
+                            <th class="text-center py-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="border-b border-slate-700 hover:bg-slate-700/50 cursor-pointer">
+                            <td class="py-3">2025-12-05</td>
+                            <td class="font-bold">BTC/USD</td>
+                            <td class="text-right">$50,000</td>
+                            <td class="text-right">$51,200</td>
+                            <td class="text-right profit font-bold">+$1,200</td>
+                            <td class="text-center"><span class="text-emerald-400">✅</span></td>
+                        </tr>
+                        <tr class="border-b border-slate-700 hover:bg-slate-700/50 cursor-pointer">
+                            <td class="py-3">2025-12-05</td>
+                            <td class="font-bold">ETH/USD</td>
+                            <td class="text-right">$3,200</td>
+                            <td class="text-right">$3,100</td>
+                            <td class="text-right loss font-bold">-$80</td>
+                            <td class="text-center"><span class="text-red-400">❌</span></td>
+                        </tr>
+                        <tr class="border-b border-slate-700 hover:bg-slate-700/50 cursor-pointer">
+                            <td class="py-3">2025-12-05</td>
+                            <td class="font-bold">XRP/USD</td>
+                            <td class="text-right">$2.50</td>
+                            <td class="text-right">OPEN</td>
+                            <td class="text-right profit font-bold">+$120</td>
+                            <td class="text-center"><span class="text-yellow-400">⏳</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Strategies Tab -->
+    <div id="strategies-tab" class="report-tab-content hidden">
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="text-gray-400 border-b border-slate-700">
+                        <tr>
+                            <th class="text-left py-3">Strategy</th>
+                            <th class="text-right py-3">Trades</th>
+                            <th class="text-right py-3">Win %</th>
+                            <th class="text-right py-3">P&L</th>
+                            <th class="text-right py-3">Sharpe</th>
+                            <th class="text-center py-3">Rating</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="border-b border-slate-700 hover:bg-slate-700/50 cursor-pointer">
+                            <td class="font-bold py-3">Trend Following</td>
+                            <td class="text-right">45</td>
+                            <td class="text-right profit font-bold">65%</td>
+                            <td class="text-right profit font-bold">+$25,000</td>
+                            <td class="text-right">1.85</td>
+                            <td class="text-center">⭐⭐⭐⭐⭐</td>
+                        </tr>
+                        <tr class="border-b border-slate-700 hover:bg-slate-700/50 cursor-pointer">
+                            <td class="font-bold py-3">Breakout</td>
+                            <td class="text-right">32</td>
+                            <td class="text-right font-bold">58%</td>
+                            <td class="text-right profit font-bold">+$12,000</td>
+                            <td class="text-right">1.42</td>
+                            <td class="text-center">⭐⭐⭐⭐</td>
+                        </tr>
+                        <tr class="border-b border-slate-700 hover:bg-slate-700/50 cursor-pointer">
+                            <td class="font-bold py-3">Elliott Wave</td>
+                            <td class="text-right">28</td>
+                            <td class="text-right font-bold">50%</td>
+                            <td class="text-right profit font-bold">+$8,500</td>
+                            <td class="text-right">0.95</td>
+                            <td class="text-center">⭐⭐⭐</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Tab -->
+    <div id="performance-tab" class="report-tab-content hidden">
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <h3 class="text-lg font-bold mb-4">Key Metrics</h3>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div class="p-4 bg-slate-700 rounded-lg">
+                    <p class="text-xs text-gray-400">Sharpe Ratio</p>
+                    <p class="font-bold text-lg">1.42</p>
+                </div>
+                <div class="p-4 bg-slate-700 rounded-lg">
+                    <p class="text-xs text-gray-400">Sortino Ratio</p>
+                    <p class="font-bold text-lg">1.85</p>
+                </div>
+                <div class="p-4 bg-slate-700 rounded-lg">
+                    <p class="text-xs text-gray-400">Max Drawdown</p>
+                    <p class="font-bold text-lg loss">-18.5%</p>
+                </div>
+                <div class="p-4 bg-slate-700 rounded-lg">
+                    <p class="text-xs text-gray-400">Avg Trade</p>
+                    <p class="font-bold text-lg profit">+$416</p>
+                </div>
+                <div class="p-4 bg-slate-700 rounded-lg">
+                    <p class="text-xs text-gray-400">Best Trade</p>
+                    <p class="font-bold text-lg profit">+$5,200</p>
+                </div>
+                <div class="p-4 bg-slate-700 rounded-lg">
+                    <p class="text-xs text-gray-400">Worst Trade</p>
+                    <p class="font-bold text-lg loss">-$2,100</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ RISK PAGE ============ -->
+<div id="risk" class="page-content hidden p-6 md:p-8">
+    <h2 class="text-2xl font-bold mb-6">Risk Management & Alerts</h2>
+
+    <!-- Risk Status -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <h3 class="text-lg font-bold mb-4">Current Risk Status</h3>
+            <div class="space-y-3">
+                <div class="flex justify-between items-center pb-3 border-b border-slate-700">
+                    <span class="text-gray-400">Overall Portfolio Risk</span>
+                    <span class="text-yellow-400 font-bold">🟡 MODERATE</span>
+                </div>
+                <div class="flex justify-between items-center pb-3 border-b border-slate-700">
+                    <span class="text-gray-400">Current Drawdown</span>
+                    <span class="text-orange-400 font-bold">-18.5%</span>
+                </div>
+                <div class="flex justify-between items-center pb-3 border-b border-slate-700">
+                    <span class="text-gray-400">Daily Loss</span>
+                    <span class="text-emerald-400 font-bold">-$450</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">Positions Open</span>
+                    <span class="font-bold">5/5 (AT LIMIT)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <h3 class="text-lg font-bold mb-4">Circuit Breakers</h3>
+            <div class="space-y-3">
+                <div>
+                    <div class="flex justify-between mb-2">
+                        <span class="text-sm text-gray-400">Max Drawdown (-20%)</span>
+                        <span class="font-bold">92.5%</span>
+                    </div>
+                    <div class="w-full h-2 bg-slate-700 rounded-full">
+                        <div class="h-full w-11/12 bg-orange-500 rounded-full"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between mb-2">
+                        <span class="text-sm text-gray-400">Daily Loss (-5%)</span>
+                        <span class="font-bold">9%</span>
+                    </div>
+                    <div class="w-full h-2 bg-slate-700 rounded-full">
+                        <div class="h-full w-1/5 bg-emerald-500 rounded-full"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between mb-2">
+                        <span class="text-sm text-gray-400">Max Positions (5)</span>
+                        <span class="font-bold">100%</span>
+                    </div>
+                    <div class="w-full h-2 bg-slate-700 rounded-full">
+                        <div class="h-full w-full bg-orange-500 rounded-full"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alerts -->
+    <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <h3 class="text-lg font-bold mb-4">Active Alerts (Last 24h)</h3>
+        <div class="space-y-3">
+            <div class="p-4 bg-red-900/20 border border-red-700 rounded-lg">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="font-bold text-red-400">🔴 CRITICAL - 14:30</span>
+                    <span class="text-xs text-gray-400">RESOLVED ✓</span>
+                </div>
+                <p class="text-sm text-gray-300">Drawdown approached -18% limit. Position sizes reduced by 50%.</p>
+            </div>
+
+            <div class="p-4 bg-yellow-900/20 border border-yellow-700 rounded-lg">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="font-bold text-yellow-400">🟡 WARNING - 13:45</span>
+                    <span class="text-xs text-gray-400">ACTIVE ⚠️</span>
+                </div>
+                <p class="text-sm text-gray-300">Correlation spike detected. 3 BTC-correlated positions opened simultaneously.</p>
+            </div>
+
+            <div class="p-4 bg-blue-900/20 border border-blue-700 rounded-lg">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="font-bold text-blue-400">ℹ️ INFO - 12:00</span>
+                    <span class="text-xs text-gray-400">INFO</span>
+                </div>
+                <p class="text-sm text-gray-300">Grid Trading bot paused. Sideways market detected.</p>
+            </div>
+
+            <div class="p-4 bg-emerald-900/20 border border-emerald-700 rounded-lg">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="font-bold text-emerald-400">🟢 SUCCESS - 11:15</span>
+                    <span class="text-xs text-gray-400">COMPLETED ✓</span>
+                </div>
+                <p class="text-sm text-gray-300">3 Take Profit levels hit. Total profit locked: +$450.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ SETTINGS PAGE ============ -->
+<div id="settings" class="page-content hidden p-6 md:p-8">
+    <h2 class="text-2xl font-bold mb-6">Settings</h2>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Settings Menu -->
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 h-fit">
+            <div class="space-y-2">
+                <button class="settings-tab w-full text-left px-4 py-3 rounded-lg font-medium bg-emerald-600 text-white">
+                    <i class="fas fa-user mr-3"></i>Account
+                </button>
+                <button class="settings-tab w-full text-left px-4 py-3 rounded-lg font-medium hover:bg-slate-700">
+                    <i class="fas fa-key mr-3"></i>API Keys
+                </button>
+                <button class="settings-tab w-full text-left px-4 py-3 rounded-lg font-medium hover:bg-slate-700">
+                    <i class="fas fa-bell mr-3"></i>Notifications
+                </button>
+                <button class="settings-tab w-full text-left px-4 py-3 rounded-lg font-medium hover:bg-slate-700">
+                    <i class="fas fa-sliders-h mr-3"></i>Preferences
+                </button>
+                <button class="settings-tab w-full text-left px-4 py-3 rounded-lg font-medium hover:bg-slate-700">
+                    <i class="fas fa-lock mr-3"></i>Security
+                </button>
+            </div>
+        </div>
+
+        <!-- Account Settings -->
+        <div class="lg:col-span-2 bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <h3 class="text-lg font-bold mb-4">Account Information</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">Email</label>
+                    <input type="email" value="user@example.com" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white" readonly>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">Account Created</label>
+                    <input type="text" value="October 15, 2024" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white" readonly>
+                </div>
+                <div class="pt-4 border-t border-slate-700">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm">Account Status</span>
+                        <span class="text-emerald-400 font-bold">VERIFIED ✓</span>
+                    </div>
+                    <div class="flex items-center justify-between mt-2">
+                        <span class="text-sm">Two-Factor Auth</span>
+                        <span class="text-emerald-400 font-bold">ENABLED ✓</span>
+                    </div>
+                </div>
+                <div class="pt-4 flex gap-2">
+                    <button class="flex-1 bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg font-bold">Edit Profile</button>
+                    <button class="flex-1 bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg font-bold">Change Password</button>
+                </div>
+            </div>
+
+            <div class="mt-6 pt-6 border-t border-slate-700">
+                <h3 class="text-lg font-bold mb-4">Exchange Connections</h3>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center p-4 bg-slate-700 rounded-lg">
+                        <div>
+                            <p class="font-bold">🟢 Binance</p>
+                            <p class="text-xs text-gray-400">CONNECTED</p>
+                        </div>
+                        <button class="text-sm text-emerald-400 hover:text-emerald-300">Manage</button>
+                    </div>
+                    <div class="flex justify-between items-center p-4 bg-slate-700 rounded-lg">
+                        <div>
+                            <p class="font-bold">⚫ Kraken</p>
+                            <p class="text-xs text-gray-400">NOT CONNECTED</p>
+                        </div>
+                        <button class="text-sm text-blue-400 hover:text-blue-300">Connect</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</main>
+
+</div>
+
+<!-- SCRIPTS -->
+<script>
+function showPage(pageId) {
+    // Hide all pages
+    document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
+    
+    // Show selected page
+    document.getElementById(pageId).classList.remove('hidden');
+    
+    // Update sidebar
+    document.querySelectorAll('.sidebar-link').forEach(link => {
+        link.classList.remove('active', 'bg-emerald-600', 'text-white');
+    });
+    event.target.closest('.sidebar-link').classList.add('active', 'bg-emerald-600', 'text-white');
+    
+    // Initialize charts if needed
+    if (pageId === 'dashboard') initDashboardCharts();
+    if (pageId === 'markets') initMarketsCharts();
+    if (pageId === 'reports') initReportsCharts();
+}
+
+function showReportTab(tabId) {
+    document.querySelectorAll('.report-tab-content').forEach(t => t.classList.add('hidden'));
+    document.getElementById(tabId).classList.remove('hidden');
+    
+    document.querySelectorAll('.report-tab').forEach(t => {
+        t.classList.remove('tab-active');
+        t.classList.add('tab-inactive');
+    });
+    event.target.closest('.report-tab').classList.remove('tab-inactive');
+    event.target.closest('.report-tab').classList.add('tab-active');
+}
+
+function initDashboardCharts() {
+    const equityCtx = document.getElementById('equityChart');
+    if (equityCtx && !equityCtx.chart) {
+        equityCtx.chart = new Chart(equityCtx, {
+            type: 'line',
+            data: {
+                labels: ['Day 1', 'Day 5', 'Day 10', 'Day 15', 'Day 20', 'Day 25', 'Today'],
+                datasets: [{
+                    label: 'Portfolio Value',
+                    data: [130000, 132000, 125000, 135000, 140000, 142000, 145230],
+                    borderColor: '#10B981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#10B981'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        grid: { color: '#334155', drawBorder: false },
+                        ticks: { color: '#94a3b8' }
+                    },
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+    }
+}
+
+function initMarketsCharts() {
+    const priceCtx = document.getElementById('priceChart');
+    if (priceCtx && !priceCtx.chart) {
+        priceCtx.chart = new Chart(priceCtx, {
+            type: 'line',
+            data: {
+                labels: ['12:00', '14:00', '16:00', '18:00', '20:00', '22:00', 'Now'],
+                datasets: [{
+                    label: 'BTC Price',
+                    data: [49800, 50200, 50500, 50800, 51000, 51100, 51200],
+                    borderColor: '#3B82F6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#3B82F6'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        grid: { color: '#334155' },
+                        ticks: { color: '#94a3b8' }
+                    },
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+    }
+}
+
+function initReportsCharts() {
+    const perfCtx = document.getElementById('performanceChart');
+    if (perfCtx && !perfCtx.chart) {
+        perfCtx.chart = new Chart(perfCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'],
+                datasets: [{
+                    label: 'Monthly Return',
+                    data: [5, 8, 3, 12, 18, 7, 14, 11, 20, 15],
+                    backgroundColor: '#10B981',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+    }
+}
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', initDashboardCharts);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRBot - Crypto Trading Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { transition: all 0.3s ease; }
+        .card-hover { @apply hover:shadow-2xl hover:scale-105; }
+        .gradient-primary { background: linear-gradient(135deg, #10B981 0%, #059669 100%); }
+        .gradient-danger { background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); }
+        .profit { color: #10B981; }
+        .loss { color: #EF4444; }
+        .chart-container { position: relative; width: 100%; height: 300px; }
+        @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .pulse-dot { animation: pulse-dot 2s infinite; }
+        .tab-active { @apply border-b-4 border-emerald-500 text-emerald-600; }
+        .tab-inactive { @apply text-gray-500 hover:text-gray-700; }
+        .loading { @apply opacity-50 pointer-events-none; }
+        .badge-success { @apply bg-emerald-900 text-emerald-100 px-3 py-1 rounded-full text-sm; }
+        .badge-danger { @apply bg-red-900 text-red-100 px-3 py-1 rounded-full text-sm; }
+        .badge-warning { @apply bg-amber-900 text-amber-100 px-3 py-1 rounded-full text-sm; }
+    </style>
+</head>
+<body class="bg-slate-950 text-white font-sans">
+
+<!-- SIDEBAR -->
+<div class="flex h-screen">
+    <div class="w-56 bg-slate-900 border-r border-slate-700 p-6 overflow-y-auto">
+        <div class="flex items-center gap-2 mb-8">
+            <div class="text-2xl font-black gradient-primary bg-clip-text text-transparent">CRBot</div>
+        </div>
+        
+        <nav class="space-y-3">
+            <button onclick="showPage('dashboard')" class="sidebar-link w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 bg-emerald-600 text-white">
+                <i class="fas fa-chart-line text-lg"></i>
+                <span>Dashboard</span>
+            </button>
+            <button onclick="showPage('markets')" class="sidebar-link w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800">
+                <i class="fas fa-globe text-lg"></i>
+                <span>Markets</span>
+            </button>
+            <button onclick="showPage('bots')" class="sidebar-link w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800">
+                <i class="fas fa-robot text-lg"></i>
+                <span>Bots</span>
+            </button>
+            <button onclick="showPage('reports')" class="sidebar-link w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800">
+                <i class="fas fa-chart-bar text-lg"></i>
+                <span>Reports</span>
+            </button>
+            <button onclick="showPage('risk')" class="sidebar-link w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800">
+                <i class="fas fa-shield-alt text-lg"></i>
+                <span>Risk</span>
+            </button>
+            <hr class="border-slate-700 my-4">
+            <button class="sidebar-link w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800">
+                <i class="fas fa-cog text-lg"></i>
+                <span>Settings</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="flex-1 flex flex-col">
+        <!-- HEADER -->
+        <nav class="bg-slate-900 border-b border-slate-700 px-8 py-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold">CRBot Trading Platform</h1>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 bg-slate-800 px-3 py-2 rounded-lg">
+                    <span class="text-xs text-gray-400">API:</span>
+                    <span id="api-indicator" class="pulse-dot w-2 h-2 bg-red-500 rounded-full"></span>
+                    <span id="api-text" class="text-sm font-semibold text-red-400">OFFLINE</span>
+                </div>
+                <button class="p-2 hover:bg-slate-800 rounded-lg">
+                    <i class="fas fa-bell text-xl"></i>
+                </button>
+            </div>
+        </nav>
+
+        <!-- PAGES CONTAINER -->
+        <div class="flex-1 overflow-y-auto bg-slate-950 p-8">
+            
+            <!-- DASHBOARD PAGE -->
+            <div id="dashboard" class="page-content">
+                <div class="space-y-6">
+                    <h2 class="text-3xl font-bold">Dashboard</h2>
+                    
+                    <!-- KPI Cards -->
+                    <div class="grid grid-cols-4 gap-4">
+                        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <div class="flex justify-between items-start mb-4">
+                                <span class="text-sm text-gray-400">Portfolio Value</span>
+                                <i class="fas fa-wallet text-emerald-500 text-xl"></i>
+                            </div>
+                            <div id="kpi-portfolio" class="text-3xl font-bold">-</div>
+                            <div class="text-xs text-gray-500 mt-2">Total assets</div>
+                        </div>
+                        
+                        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <div class="flex justify-between items-start mb-4">
+                                <span class="text-sm text-gray-400">Daily P&L</span>
+                                <i class="fas fa-trending-up text-emerald-500 text-xl"></i>
+                            </div>
+                            <div id="kpi-daily-pnl" class="text-3xl font-bold">-</div>
+                            <div class="text-xs text-gray-500 mt-2">Today's return</div>
+                        </div>
+                        
+                        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <div class="flex justify-between items-start mb-4">
+                                <span class="text-sm text-gray-400">Win Rate</span>
+                                <i class="fas fa-check-circle text-emerald-500 text-xl"></i>
+                            </div>
+                            <div id="kpi-win-rate" class="text-3xl font-bold">-</div>
+                            <div class="text-xs text-gray-500 mt-2">Success ratio</div>
+                        </div>
+                        
+                        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <div class="flex justify-between items-start mb-4">
+                                <span class="text-sm text-gray-400">Max Drawdown</span>
+                                <i class="fas fa-arrow-down text-red-500 text-xl"></i>
+                            </div>
+                            <div id="kpi-drawdown" class="text-3xl font-bold">-</div>
+                            <div class="text-xs text-gray-500 mt-2">Max loss</div>
+                        </div>
+                    </div>
+
+                    <!-- Equity Chart -->
+                    <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                        <h3 class="text-xl font-bold mb-4">Equity Curve (30 days)</h3>
+                        <div class="chart-container">
+                            <canvas id="equityChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Active Bots & Recent Trades -->
+                    <div class="grid grid-cols-2 gap-6">
+                        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <h3 class="text-xl font-bold mb-4">Active Bots</h3>
+                            <div id="active-bots" class="space-y-3">
+                                <div class="text-gray-400">Loading...</div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <h3 class="text-xl font-bold mb-4">Recent Trades</h3>
+                            <div id="recent-trades" class="space-y-2 text-sm">
+                                <div class="text-gray-400">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MARKETS PAGE -->
+            <div id="markets" class="page-content hidden">
+                <div class="space-y-6">
+                    <h2 class="text-3xl font-bold">Markets</h2>
+                    
+                    <!-- Crypto Prices -->
+                    <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                        <h3 class="text-xl font-bold mb-4">Top Cryptocurrencies</h3>
+                        <div id="crypto-prices" class="grid grid-cols-3 gap-4">
+                            <div class="text-gray-400">Loading prices...</div>
+                        </div>
+                    </div>
+
+                    <!-- Price Chart -->
+                    <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold">BTC/USD Chart</h3>
+                            <select id="chart-interval" class="bg-slate-700 px-3 py-1 rounded text-sm">
+                                <option value="1h">1H</option>
+                                <option value="4h">4H</option>
+                                <option value="1d" selected>1D</option>
+                            </select>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="priceChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Market Stats -->
+                    <div class="grid grid-cols-3 gap-6">
+                        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <div class="text-gray-400 text-sm mb-2">24h Volume</div>
+                            <div class="text-2xl font-bold">$<span id="volume-24h">0</span>B</div>
+                        </div>
+                        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <div class="text-gray-400 text-sm mb-2">Market Cap</div>
+                            <div class="text-2xl font-bold">$<span id="market-cap">0</span>T</div>
+                        </div>
+                        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <div class="text-gray-400 text-sm mb-2">Dominance</div>
+                            <div class="text-2xl font-bold"><span id="dominance">0</span>%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BOTS PAGE -->
+            <div id="bots" class="page-content hidden">
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-3xl font-bold">Bots Management</h2>
+                        <button onclick="createNewBot()" class="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg font-semibold">
+                            <i class="fas fa-plus mr-2"></i>New Bot
+                        </button>
+                    </div>
+
+                    <!-- Bots List -->
+                    <div id="bots-list" class="space-y-4">
+                        <div class="text-gray-400 text-center py-8">Loading bots...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- REPORTS PAGE -->
+            <div id="reports" class="page-content hidden">
+                <div class="space-y-6">
+                    <h2 class="text-3xl font-bold">Reports & Analytics</h2>
+
+                    <!-- Performance Metrics -->
+                    <div class="grid grid-cols-4 gap-4">
+                        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <div class="text-gray-400 text-sm mb-2">Total Trades</div>
+                            <div id="report-total-trades" class="text-3xl font-bold">-</div>
+                        </div>
+                        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <div class="text-gray-400 text-sm mb-2">Win Rate</div>
+                            <div id="report-win-rate" class="text-3xl font-bold">-</div>
+                        </div>
+                        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <div class="text-gray-400 text-sm mb-2">Profit Factor</div>
+                            <div id="report-profit-factor" class="text-3xl font-bold">-</div>
+                        </div>
+                        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <div class="text-gray-400 text-sm mb-2">Sharpe Ratio</div>
+                            <div id="report-sharpe" class="text-3xl font-bold">-</div>
+                        </div>
+                    </div>
+
+                    <!-- Trades Report Table -->
+                    <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                        <h3 class="text-xl font-bold mb-4">All Trades</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead class="border-b border-slate-700">
+                                    <tr>
+                                        <th class="text-left py-3 px-4 text-gray-400">Symbol</th>
+                                        <th class="text-left py-3 px-4 text-gray-400">Type</th>
+                                        <th class="text-left py-3 px-4 text-gray-400">Entry</th>
+                                        <th class="text-left py-3 px-4 text-gray-400">Exit</th>
+                                        <th class="text-left py-3 px-4 text-gray-400">P&L</th>
+                                        <th class="text-left py-3 px-4 text-gray-400">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="trades-report-table">
+                                    <tr><td colspan="6" class="text-center py-4 text-gray-400">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Strategies Performance -->
+                    <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                        <h3 class="text-xl font-bold mb-4">Strategies Performance</h3>
+                        <div id="strategies-performance" class="space-y-3">
+                            <div class="text-gray-400">Loading strategies...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RISK PAGE -->
+            <div id="risk" class="page-content hidden">
+                <div class="space-y-6">
+                    <h2 class="text-3xl font-bold">Risk Management</h2>
+
+                    <!-- Risk Metrics -->
+                    <div class="grid grid-cols-3 gap-6">
+                        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <div class="text-gray-400 text-sm mb-2">Max Drawdown</div>
+                            <div id="risk-max-dd" class="text-3xl font-bold text-red-400">-</div>
+                            <div class="text-xs text-gray-500 mt-2">Max historical loss</div>
+                        </div>
+                        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <div class="text-gray-400 text-sm mb-2">Daily Risk</div>
+                            <div id="risk-daily" class="text-3xl font-bold">-</div>
+                            <div class="text-xs text-gray-500 mt-2">Today's exposure</div>
+                        </div>
+                        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                            <div class="text-gray-400 text-sm mb-2">Leverage</div>
+                            <div id="risk-leverage" class="text-3xl font-bold">1x</div>
+                            <div class="text-xs text-gray-500 mt-2">Position multiplier</div>
+                        </div>
+                    </div>
+
+                    <!-- Risk Events -->
+                    <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                        <h3 class="text-xl font-bold mb-4">Risk Alerts</h3>
+                        <div id="risk-events" class="space-y-3">
+                            <div class="text-gray-400">No alerts</div>
+                        </div>
+                    </div>
+
+                    <!-- Position Sizing -->
+                    <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                        <h3 class="text-xl font-bold mb-4">Position Sizing</h3>
+                        <div class="space-y-4">
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Kelly Criterion:</span>
+                                <span id="position-kelly" class="font-semibold">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Fixed % Risk:</span>
+                                <span id="position-fixed" class="font-semibold">2%</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">ATR Multiplier:</span>
+                                <span id="position-atr" class="font-semibold">2x</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const API_BASE_URL = 'http://127.0.0.1:8002';
+let chartsRegistry = {};
+
+// ===================== API CALLS =====================
+async function apiCall(endpoint) {
+  try {
+    console.log(`Fetching: ${API_BASE_URL}${endpoint}`);
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      mode: 'cors'
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    console.log(`Success [${endpoint}]:`, data);
+    updateApiStatus(true);
+    return data;
+  } catch (error) {
+    console.error(`API Error on ${endpoint}:`, error);
+    updateApiStatus(false);
+    return null;
+  }
+}
+
+function updateApiStatus(isOnline) {
+  const indicator = document.getElementById('api-indicator');
+  const text = document.getElementById('api-text');
+  if (isOnline) {
+    indicator.classList.remove('bg-red-500');
+    indicator.classList.add('bg-emerald-500');
+    text.textContent = 'ONLINE';
+    text.classList.remove('text-red-400');
+    text.classList.add('text-emerald-400');
+  } else {
+    indicator.classList.remove('bg-emerald-500');
+    indicator.classList.add('bg-red-500');
+    text.textContent = 'OFFLINE';
+    text.classList.remove('text-emerald-400');
+    text.classList.add('text-red-400');
+  }
+}
+
+// ===================== PAGE NAVIGATION =====================
+function showPage(pageName) {
+  document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
+  document.getElementById(pageName).classList.remove('hidden');
+  
+  document.querySelectorAll('.sidebar-link').forEach(link => {
+    link.classList.remove('bg-emerald-600', 'text-white');
+  });
+  
+  event.target.closest('.sidebar-link').classList.add('bg-emerald-600', 'text-white');
+  
+  // Load page-specific data
+  if (pageName === 'dashboard') loadDashboard();
+  else if (pageName === 'markets') loadMarkets();
+  else if (pageName === 'bots') loadBots();
+  else if (pageName === 'reports') loadReports();
+  else if (pageName === 'risk') loadRisk();
+}
+
+// ===================== DASHBOARD =====================
+async function loadDashboard() {
+  const summary = await apiCall('/api/portfolio/summary');
+  if (summary) {
+    document.getElementById('kpi-portfolio').textContent = `$${summary.portfolio_value.toLocaleString('en-US', {maximumFractionDigits: 2})}`;
+    document.getElementById('kpi-daily-pnl').textContent = `$${summary.daily_pnl.toLocaleString('en-US', {maximumFractionDigits: 2})}`;
+    document.getElementById('kpi-win-rate').textContent = `${summary.win_rate.toFixed(1)}%`;
+    document.getElementById('kpi-drawdown').textContent = `${summary.max_drawdown.toFixed(1)}%`;
+  }
+
+  const equityCurve = await apiCall('/api/portfolio/equity-curve?days=30');
+  if (equityCurve && equityCurve.data) {
+    drawEquityChart(equityCurve.data);
+  }
+
+  const tradesData = await apiCall('/api/trades?limit=5');
+  if (tradesData) {
+    updateRecentTrades(tradesData.trades);
+  }
+
+  const botsData = await apiCall('/api/bots/list');
+  if (botsData) {
+    updateActiveBots(botsData.bots);
+  }
+}
+
+function drawEquityChart(data) {
+  const dates = data.map(d => new Date(d.date).toLocaleDateString('fr-FR'));
+  const values = data.map(d => d.value || 0);
+
+  const ctx = document.getElementById('equityChart');
+  if (chartsRegistry.equity) chartsRegistry.equity.destroy();
+  
+  chartsRegistry.equity = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: dates,
+      datasets: [{
+        label: 'Equity',
+        data: values,
+        borderColor: '#10B981',
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 2,
+        pointBackgroundColor: '#10B981'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: false, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+        x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+      }
+    }
+  });
+}
+
+function updateActiveBots(bots) {
+  const container = document.getElementById('active-bots');
+  if (!bots || bots.length === 0) {
+    container.innerHTML = '<div class="text-gray-400">No active bots</div>';
+    return;
+  }
+  container.innerHTML = bots.slice(0, 3).map(bot => `
+    <div class="bg-slate-700 p-3 rounded flex justify-between items-center">
+      <div>
+        <div class="font-semibold">${bot.name}</div>
+        <div class="text-xs text-gray-400">${bot.strategy}</div>
+      </div>
+      <span class="badge-success">${bot.status}</span>
+    </div>
+  `).join('');
+}
+
+function updateRecentTrades(trades) {
+  const container = document.getElementById('recent-trades');
+  if (!trades || trades.length === 0) {
+    container.innerHTML = '<div class="text-gray-400">No trades yet</div>';
+    return;
+  }
+  container.innerHTML = trades.slice(0, 5).map(t => `
+    <div class="flex justify-between items-center bg-slate-700 p-2 rounded">
+      <span>${t.symbol} ${t.side}</span>
+      <span class="${t.pnl >= 0 ? 'profit' : 'loss'}">${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(2)}</span>
+    </div>
+  `).join('');
+}
+
+// ===================== MARKETS =====================
+async function loadMarkets() {
+  const prices = await apiCall('/api/crypto/prices');
+  if (prices && prices.prices) {
+    const container = document.getElementById('crypto-prices');
+    container.innerHTML = Object.values(prices.prices).map(p => `
+      <div class="bg-slate-700 rounded p-4 text-center">
+        <div class="text-sm text-gray-400">${p.symbol.replace('USDT', '')}</div>
+        <div class="text-2xl font-bold mt-2">$${parseFloat(p.price).toLocaleString('en-US', {maximumFractionDigits: 2})}</div>
+      </div>
+    `).join('');
+  }
+
+  // Demo market stats
+  document.getElementById('volume-24h').textContent = '28';
+  document.getElementById('market-cap').textContent = '1.2';
+  document.getElementById('dominance').textContent = '42';
+
+  // Demo price chart
+  drawPriceChart();
+}
+
+function drawPriceChart() {
+  const ctx = document.getElementById('priceChart');
+  if (chartsRegistry.price) chartsRegistry.price.destroy();
+
+  const labels = Array.from({length: 30}, (_, i) => `${i}h`);
+  const data = Array.from({length: 30}, () => 42000 + Math.random() * 2000);
+
+  chartsRegistry.price = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'BTC/USD',
+        data: data,
+        borderColor: '#10B981',
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        fill: true,
+        tension: 0.4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: false, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+        x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+      }
+    }
+  });
+}
+
+// ===================== BOTS =====================
+async function loadBots() {
+  const botsData = await apiCall('/api/bots/list');
+  if (!botsData) {
+    document.getElementById('bots-list').innerHTML = '<div class="text-gray-400">Error loading bots</div>';
+    return;
+  }
+
+  const bots = botsData.bots || [];
+  if (bots.length === 0) {
+    document.getElementById('bots-list').innerHTML = '<div class="text-gray-400 text-center py-8">No bots yet. Create your first bot!</div>';
+    return;
+  }
+
+  document.getElementById('bots-list').innerHTML = bots.map(bot => `
+    <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+      <div class="flex justify-between items-start mb-4">
+        <div>
+          <h3 class="text-xl font-bold">${bot.name}</h3>
+          <p class="text-sm text-gray-400">${bot.strategy} Strategy</p>
+        </div>
+        <span class="badge-${bot.status === 'ACTIVE' ? 'success' : 'warning'}">${bot.status}</span>
+      </div>
+      <div class="grid grid-cols-4 gap-4 mb-4">
+        <div>
+          <div class="text-xs text-gray-400">Trades</div>
+          <div class="text-lg font-semibold">${bot.total_trades || 0}</div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-400">Win Rate</div>
+          <div class="text-lg font-semibold">${(bot.win_rate || 0).toFixed(1)}%</div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-400">P&L</div>
+          <div class="text-lg font-semibold ${(bot.total_pnl || 0) >= 0 ? 'profit' : 'loss'}">$${(bot.total_pnl || 0).toLocaleString('en-US', {maximumFractionDigits: 2})}</div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-400">Drawdown</div>
+          <div class="text-lg font-semibold text-red-400">${(bot.max_drawdown || 0).toFixed(1)}%</div>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button class="flex-1 bg-emerald-600 hover:bg-emerald-700 py-2 rounded text-sm font-semibold">Start</button>
+        <button class="flex-1 bg-slate-700 hover:bg-slate-600 py-2 rounded text-sm font-semibold">Edit</button>
+        <button class="flex-1 bg-red-600 hover:bg-red-700 py-2 rounded text-sm font-semibold">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function createNewBot() {
+  alert('Bot creation modal would appear here');
+}
+
+// ===================== REPORTS =====================
+async function loadReports() {
+  const summary = await apiCall('/api/portfolio/summary');
+  if (summary) {
+    document.getElementById('report-total-trades').textContent = '0';
+    document.getElementById('report-win-rate').textContent = `${summary.win_rate.toFixed(1)}%`;
+    document.getElementById('report-profit-factor').textContent = '1.45';
+    document.getElementById('report-sharpe').textContent = '1.32';
+  }
+
+  const tradesData = await apiCall('/api/reports/trades');
+  if (tradesData) {
+    const tbody = document.getElementById('trades-report-table');
+    if (!tradesData.trades || tradesData.trades.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-gray-400">No trades</td></tr>';
+    } else {
+      tbody.innerHTML = tradesData.trades.map(t => `
+        <tr class="border-b border-slate-700 hover:bg-slate-700">
+          <td class="py-3 px-4">${t.symbol}</td>
+          <td class="py-3 px-4"><span class="badge-${t.side === 'LONG' ? 'success' : 'danger'}">${t.side}</span></td>
+          <td class="py-3 px-4">$${parseFloat(t.entry_price).toFixed(2)}</td>
+          <td class="py-3 px-4">${t.exit_price ? '$' + parseFloat(t.exit_price).toFixed(2) : '-'}</td>
+          <td class="py-3 px-4 ${t.pnl >= 0 ? 'profit' : 'loss'}">$${t.pnl.toFixed(2)}</td>
+          <td class="py-3 px-4"><span class="badge-${t.status === 'CLOSED' ? 'success' : 'warning'}">${t.status}</span></td>
+        </tr>
+      `).join('');
+    }
+  }
+
+  const strategies = await apiCall('/api/reports/strategies');
+  if (strategies) {
+    const container = document.getElementById('strategies-performance');
+    if (!strategies.strategies || strategies.strategies.length === 0) {
+      container.innerHTML = '<div class="text-gray-400">No strategy data</div>';
+    } else {
+      container.innerHTML = strategies.strategies.map(s => `
+        <div class="bg-slate-700 p-4 rounded flex justify-between">
+          <span>${s.strategy_name}</span>
+          <div class="text-right">
+            <div class="font-semibold">${(s.win_rate || 0).toFixed(1)}% win rate</div>
+            <div class="text-sm text-gray-400">${s.total_trades || 0} trades</div>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+}
+
+// ===================== RISK =====================
+async function loadRisk() {
+  const summary = await apiCall('/api/portfolio/summary');
+  if (summary) {
+    document.getElementById('risk-max-dd').textContent = `${summary.max_drawdown.toFixed(1)}%`;
+    document.getElementById('risk-daily').textContent = `$${summary.daily_pnl.toLocaleString('en-US', {maximumFractionDigits: 2})}`;
+    document.getElementById('position-kelly').textContent = '1.5%';
+  }
+
+  const riskEvents = await apiCall('/api/risk-events');
+  if (riskEvents && riskEvents.events && riskEvents.events.length > 0) {
+    const container = document.getElementById('risk-events');
+    container.innerHTML = riskEvents.events.map(e => `
+      <div class="bg-${e.level === 'HIGH' ? 'red' : 'amber'}-900 p-3 rounded">
+        <div class="flex justify-between">
+          <span class="font-semibold">${e.event_type}</span>
+          <span class="text-xs">${new Date(e.created_at).toLocaleDateString()}</span>
+        </div>
+        <div class="text-sm text-gray-200">${e.description}</div>
+      </div>
+    `).join('');
+  }
+}
+
+// ===================== INIT =====================
+window.addEventListener('load', () => {
+  loadDashboard();
+  setInterval(loadDashboard, 10000); // Refresh every 10s
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,194 @@
+version: '3.8'
+
+services:
+  # ===================== DATABASE =====================
+  postgres:
+    image: postgres:15-alpine
+    container_name: crbot-postgres
+    environment:
+      POSTGRES_DB: crbot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_dev_password
+      POSTGRES_INITDB_ARGS: "-c shared_buffers=256MB -c max_connections=200"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./database/init-data.sql:/docker-entrypoint-initdb.d/02-init-data.sql
+    networks:
+      - crbot_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ===================== CACHE LAYER =====================
+  redis:
+    image: redis:7-alpine
+    container_name: crbot-redis
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - crbot_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ===================== FASTAPI BACKEND =====================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: crbot-backend
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres_dev_password@postgres:5432/crbot
+      REDIS_URL: redis://redis:6379/0
+      BINANCE_API_KEY: ${BINANCE_API_KEY:-dummy_key}
+      BINANCE_API_SECRET: ${BINANCE_API_SECRET:-dummy_secret}
+      ENVIRONMENT: development
+      DEBUG: "True"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - crbot_network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+  # ===================== REACT FRONTEND =====================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: crbot-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: http://localhost:8000
+      NODE_ENV: development
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - crbot_network
+    restart: unless-stopped
+
+  # ===================== DATABASE ADMIN =====================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: crbot-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@crbot.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - crbot_network
+    restart: unless-stopped
+
+  # ===================== MONITORING - PROMETHEUS =====================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: crbot-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./docker/prometheus-alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    networks:
+      - crbot_network
+    restart: unless-stopped
+
+  # ===================== MONITORING - GRAFANA =====================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: crbot-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./docker/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+    depends_on:
+      - prometheus
+    networks:
+      - crbot_network
+    restart: unless-stopped
+
+  # ===================== MONITORING - NODE EXPORTER =====================
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: crbot-node-exporter
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - crbot_network
+    restart: unless-stopped
+
+  # ===================== LOGGING - OPTIONAL =====================
+  # Décommenter si vous voulez centraliser les logs
+  # loki:
+  #   image: grafana/loki:latest
+  #   container_name: crbot-loki
+  #   ports:
+  #     - "3100:3100"
+  #   volumes:
+  #     - ./docker/loki-config.yml:/etc/loki/local-config.yml
+  #     - loki_data:/loki
+  #   command: -config.file=/etc/loki/local-config.yml
+  #   networks:
+  #     - crbot_network
+  #   restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  # loki_data:
+  #   driver: local
+
+networks:
+  crbot_network:
+    driver: bridge

@@ -1,0 +1,149 @@
+.crypto-list {
+  animation: fadeIn 0.5s ease-in;
+}
+
+.search-bar {
+  background: white;
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.search-bar svg {
+  color: #a0aec0;
+}
+
+.search-bar input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 1rem;
+  color: #2d3748;
+}
+
+.search-bar input::placeholder {
+  color: #a0aec0;
+}
+
+.markets-table {
+  background: white;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  overflow-x: auto;
+}
+
+.markets-table .table-header,
+.markets-table .table-row {
+  display: grid;
+  grid-template-columns: 50px 2fr 1fr 1fr 1fr 1fr 1.2fr 1.2fr;
+  gap: 1rem;
+  padding: 1rem;
+  align-items: center;
+}
+
+.markets-table .table-header {
+  font-weight: 600;
+  color: #718096;
+  border-bottom: 2px solid #e2e8f0;
+  font-size: 0.875rem;
+}
+
+.markets-table .table-row {
+  text-decoration: none;
+  color: inherit;
+  border-bottom: 1px solid #f7fafc;
+  transition: all 0.2s ease;
+}
+
+.markets-table .table-row:hover {
+  background: #f7fafc;
+  transform: scale(1.01);
+}
+
+.col-rank {
+  color: #a0aec0;
+  font-weight: 500;
+}
+
+.col-name {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.col-name img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+
+.col-name .name {
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.col-name .symbol {
+  color: #a0aec0;
+  font-size: 0.875rem;
+  margin-left: 0.5rem;
+}
+
+.col-price {
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.col-change-1h,
+.col-change-24h,
+.col-change-7d {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 600;
+}
+
+.positive {
+  color: #48bb78;
+}
+
+.negative {
+  color: #f56565;
+}
+
+.col-volume,
+.col-market-cap {
+  color: #4a5568;
+}
+
+@media (max-width: 1200px) {
+  .markets-table .table-header,
+  .markets-table .table-row {
+    grid-template-columns: 40px 1.5fr 1fr 1fr 1fr 1fr;
+  }
+
+  .col-change-1h,
+  .col-volume {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .markets-table .table-header,
+  .markets-table .table-row {
+    grid-template-columns: 30px 1fr 0.8fr 0.8fr;
+  }
+
+  .col-change-7d,
+  .col-market-cap {
+    display: none;
+  }
+
+  .col-name .symbol {
+    display: none;
+  }
+}
