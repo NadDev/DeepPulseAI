@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRBot - Crypto Charts & Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- FEATURE 6.1: i18n System -->
+    <script src="/i18n/i18n.js"></script>
+    <style>
+        * { transition: all 0.3s ease; }
+        .card-hover { @apply hover:shadow-2xl hover:scale-105; }
+        .gradient-primary { background: linear-gradient(135deg, #10B981 0%, #059669 100%); }
+        .gradient-danger { background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); }
+        .profit { color: #10B981; }
+        .loss { color: #EF4444; }
+        .chart-container { position: relative; width: 100%; height: 350px; }
+        .info-container { position: relative; width: 100%; height: 200px; }
+        @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .pulse-dot { animation: pulse-dot 2s infinite; }
+        .tab-active { @apply border-b-4 border-emerald-500 text-emerald-600; }
+        .tab-inactive { @apply text-gray-500 hover:text-gray-700; }
+        .loading { @apply opacity-50 pointer-events-none; }
+        .trend-badge-bullish { @apply bg-emerald-900 text-emerald-200 px-3 py-1 rounded-full text-sm font-semibold; }
+        .trend-badge-bearish { @apply bg-red-900 text-red-200 px-3 py-1 rounded-full text-sm font-semibold; }
+        .trend-badge-neutral { @apply bg-gray-700 text-gray-200 px-3 py-1 rounded-full text-sm font-semibold; }
+    </style>
+</head>
+<body class="bg-slate-950 text-white font-sans">
+
+<!-- HEADER -->
+<nav class="bg-slate-900 border-b border-slate-700 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <div class="text-3xl font-black gradient-primary bg-clip-text text-transparent">
+                ₿ CRBot Charts
+            </div>
+            <span class="text-sm text-emerald-400">Advanced Analysis</span>
+        </div>
+        <div class="flex items-center gap-6">
+            <!-- FEATURE 6.1: Language Selector -->
+            <div class="flex items-center gap-2">
+                <label class="text-sm text-gray-400" data-i18n="common.language">Language</label>
+                <select id="language-selector" class="bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm font-semibold text-emerald-400">
+                    <option value="en">English</option>
+                    <option value="fr">Français</option>
+                    <option value="de" disabled>Deutsch (soon)</option>
+                    <option value="es" disabled>Español (soon)</option>
+                    <option value="zh" disabled>中文 (soon)</option>
+                </select>
+            </div>
+            <!-- Crypto Selector -->
+            <div class="flex items-center gap-2">
+                <label class="text-sm text-gray-400" data-i18n="charts.select_crypto">Select Crypto:</label>
+                <select id="crypto-selector" class="bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm font-semibold text-emerald-400">
+                    <option value="BTC">Bitcoin (BTC)</option>
+                    <option value="ETH">Ethereum (ETH)</option>
+                    <option value="BNB">Binance (BNB)</option>
+                    <option value="ADA">Cardano (ADA)</option>
+                    <option value="DOGE">Dogecoin (DOGE)</option>
+                    <option value="XRP">Ripple (XRP)</option>
+                    <option value="SOL">Solana (SOL)</option>
+                    <option value="POLYGON">Polygon (POLYGON)</option>
+                </select>
+            </div>
+            <div id="api-status" class="flex items-center gap-1 bg-slate-800 px-3 py-2 rounded-lg">
+                <span class="text-xs text-gray-400">API:</span>
+                <span id="api-indicator" class="pulse-dot w-2 h-2 bg-red-500 rounded-full mx-1"></span>
+                <span id="api-text" class="text-sm font-semibold text-red-400">OFFLINE</span>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<div class="max-w-7xl mx-auto p-6">
+
+    <!-- FEATURE 3.1 + 4.1: Crypto Info Bar -->
+    <div id="crypto-info" class="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div>
+                <p class="text-gray-400 text-sm">Current Price</p>
+                <h3 id="crypto-price" class="text-2xl font-bold text-emerald-400">-</h3>
+            </div>
+            <div>
+                <p class="text-gray-400 text-sm">24h Change</p>
+                <h3 id="crypto-change" class="text-2xl font-bold">-</h3>
+            </div>
+            <div>
+                <p class="text-gray-400 text-sm">Market Trend</p>
+                <div id="crypto-trend" class="text-sm font-semibold mt-1">-</div>
+            </div>
+            <div>
+                <p class="text-gray-400 text-sm">Sentiment</p>
+                <h3 id="crypto-sentiment" class="text-2xl font-bold">-</h3>
+            </div>
+            <div>
+                <p class="text-gray-400 text-sm">Market Cap</p>
+                <h3 id="crypto-market-cap" class="text-lg font-bold">-</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- FEATURE 2.1: Multi-Chart Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        
+        <!-- Chart 1: Candlestick Chart -->
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-6">
+            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                <i class="fas fa-bars text-emerald-400"></i>
+                Candlestick Chart
+            </h3>
+            <div class="chart-container">
+                <canvas id="candleChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Chart 2: Volume Bars -->
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-6">
+            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                <i class="fas fa-chart-column text-blue-400"></i>
+                Volume Analysis
+            </h3>
+            <div class="chart-container">
+                <canvas id="volumeChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Chart 3: Moving Averages -->
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-6">
+            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                <i class="fas fa-wave-square text-purple-400"></i>
+                Price & Moving Averages
+            </h3>
+            <div class="chart-container">
+                <canvas id="maChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Chart 4: Price Distribution -->
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-6">
+            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                <i class="fas fa-chart-pie text-orange-400"></i>
+                Price Range Distribution
+            </h3>
+            <div class="chart-container">
+                <canvas id="distributionChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- FEATURE 4.1: Crypto Analysis Metrics -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- Reputation Meter -->
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-6">
+            <h3 class="text-lg font-bold mb-4">Reputation Score</h3>
+            <div class="space-y-4">
+                <div>
+                    <div class="flex justify-between mb-2">
+                        <span class="text-sm text-gray-400">Overall</span>
+                        <span id="reputation-score" class="text-sm font-bold text-emerald-400">-</span>
+                    </div>
+                    <div class="w-full bg-slate-700 rounded-full h-3">
+                        <div id="reputation-bar" class="bg-emerald-500 h-3 rounded-full" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="text-xs text-gray-500 space-y-1">
+                    <p>✓ Active community</p>
+                    <p>✓ Market cap tracked</p>
+                    <p id="mentions-info">✓ Social mentions tracked</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Social Mentions -->
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-6">
+            <h3 class="text-lg font-bold mb-4">Social Activity</h3>
+            <div class="space-y-3">
+                <div class="bg-slate-700 rounded p-4">
+                    <p class="text-gray-400 text-sm">24h Mentions</p>
+                    <p id="social-mentions" class="text-2xl font-bold text-blue-400">-</p>
+                </div>
+                <div class="bg-slate-700 rounded p-4">
+                    <p class="text-gray-400 text-sm">Sentiment</p>
+                    <p id="sentiment-label" class="text-lg font-bold mt-1">-</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Market Metrics -->
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-6">
+            <h3 class="text-lg font-bold mb-4">Market Metrics</h3>
+            <div class="space-y-3">
+                <div class="flex justify-between items-center bg-slate-700 rounded p-3">
+                    <span class="text-gray-400">24h High</span>
+                    <span id="metric-high" class="font-bold text-emerald-400">-</span>
+                </div>
+                <div class="flex justify-between items-center bg-slate-700 rounded p-3">
+                    <span class="text-gray-400">24h Low</span>
+                    <span id="metric-low" class="font-bold text-red-400">-</span>
+                </div>
+                <div class="flex justify-between items-center bg-slate-700 rounded p-3">
+                    <span class="text-gray-400">Volume 24h</span>
+                    <span id="metric-volume" class="font-bold text-blue-400">-</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+const API_BASE_URL = 'http://127.0.0.1:8000';
+
+// ===================== FEATURE 3.1: CRYPTO SELECTOR =====================
+document.getElementById('crypto-selector').addEventListener('change', (e) => {
+    const selectedCrypto = e.target.value;
+    sessionStorage.setItem('selectedCrypto', selectedCrypto);
+    console.log(`🪙 Selected Crypto: ${selectedCrypto}`);
+    loadCryptoData(selectedCrypto);
+});
+
+// Initialize with stored or default crypto
+const initialCrypto = sessionStorage.getItem('selectedCrypto') || 'BTC';
+document.getElementById('crypto-selector').value = initialCrypto;
+
+// ===================== API CALLS =====================
+async function apiCall(endpoint) {
+    try {
+        console.log(`Fetching: ${API_BASE_URL}${endpoint}`);
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            mode: 'cors'
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        console.log(`✅ Success [${endpoint}]:`, data);
+        return data;
+    } catch (error) {
+        console.error(`❌ API Error on ${endpoint}:`, error);
+        return null;
+    }
+}
+
+// ===================== FEATURE 3.1: Load Crypto Data =====================
+async function loadCryptoData(symbol) {
+    console.log(`📊 Loading data for ${symbol}...`);
+    
+    // Load crypto current data (FEATURE 3.1)
+    const cryptoData = await apiCall(`/api/crypto/${symbol}/data`);
+    if (cryptoData) {
+        document.getElementById('crypto-price').textContent = `$${cryptoData.price?.toLocaleString('en-US', {maximumFractionDigits: 2}) || '-'}`;
+        document.getElementById('metric-high').textContent = `$${cryptoData.high_24h?.toLocaleString('en-US', {maximumFractionDigits: 2}) || '-'}`;
+        document.getElementById('metric-low').textContent = `$${cryptoData.low_24h?.toLocaleString('en-US', {maximumFractionDigits: 2}) || '-'}`;
+        
+        const change = cryptoData.change_24h || 0;
+        const changeEl = document.getElementById('crypto-change');
+        changeEl.textContent = `${change > 0 ? '+' : ''}${change.toFixed(2)}%`;
+        changeEl.className = change > 0 ? 'text-2xl font-bold profit' : 'text-2xl font-bold loss';
+        
+        const volume = cryptoData.volume_24h || 0;
+        document.getElementById('metric-volume').textContent = `$${(volume / 1e6).toFixed(1)}M`;
+    }
+    
+    // Load FEATURE 4.1: Crypto Analysis Data
+    const analysis = await apiCall(`/api/crypto/${symbol}/analysis`);
+    if (analysis) {
+        // Trend
+        const trendEl = document.getElementById('crypto-trend');
+        const trendClass = analysis.trend === 'bullish' ? 'trend-badge-bullish' : 
+                          analysis.trend === 'bearish' ? 'trend-badge-bearish' : 
+                          'trend-badge-neutral';
+        trendEl.innerHTML = `<span class="${trendClass}">${analysis.trend.toUpperCase()}</span>`;
+        
+        // Sentiment
+        const sentiment = analysis.sentiment_score || 0;
+        const sentimentLabel = sentiment > 0.3 ? '😊 Positive' : sentiment < -0.3 ? '😞 Negative' : '😐 Neutral';
+        document.getElementById('crypto-sentiment').textContent = sentimentLabel;
+        document.getElementById('sentiment-label').textContent = sentimentLabel;
+        
+        // Market Cap
+        const marketCap = analysis.market_cap || 0;
+        document.getElementById('crypto-market-cap').textContent = marketCap > 0 
+            ? `$${(marketCap / 1e9).toFixed(2)}B` 
+            : '-';
+        
+        // Social Mentions & Reputation
+        document.getElementById('social-mentions').textContent = analysis.social_mentions_count?.toLocaleString() || '-';
+        document.getElementById('mentions-info').textContent = `✓ ${analysis.social_mentions_count || 0} mentions`;
+        
+        const reputation = (analysis.reputation_score || 0.5) * 100;
+        document.getElementById('reputation-score').textContent = `${reputation.toFixed(0)}%`;
+        document.getElementById('reputation-bar').style.width = `${reputation}%`;
+        
+        // Update API status
+        updateAPIStatus(true);
+    } else {
+        updateAPIStatus(false);
+    }
+    
+    // Load chart data
+    const chartData = await apiCall(`/api/crypto/chart?symbol=${symbol}USDT&interval=1h`);
+    if (chartData && chartData.candles) {
+        updateCharts(chartData.candles);
+    }
+}
+
+// ===================== FEATURE 2.1: CHART UPDATES =====================
+const charts = {};
+
+function updateCharts(candles) {
+    const labels = candles.map((_, i) => `${i}h ago`).reverse();
+    const closes = candles.map(c => c.close).reverse();
+    const volumes = candles.map(c => c.volume).reverse();
+    const opens = candles.map(c => c.open).reverse();
+    const highs = candles.map(c => c.high).reverse();
+    const lows = candles.map(c => c.low).reverse();
+    
+    // Destroy existing charts
+    Object.values(charts).forEach(chart => chart?.destroy?.());
+    
+    // Chart 1: Candlestick (simulated with line chart)
+    const candleCtx = document.getElementById('candleChart');
+    charts.candle = new Chart(candleCtx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Open',
+                data: opens,
+                borderColor: '#8B5CF6',
+                backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                borderWidth: 1,
+                pointRadius: 1
+            }, {
+                label: 'Close',
+                data: closes,
+                borderColor: '#10B981',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                borderWidth: 2,
+                fill: false,
+                pointRadius: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: '#94a3b8' } } },
+            scales: {
+                y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+            }
+        }
+    });
+    
+    // Chart 2: Volume Bars
+    const volumeCtx = document.getElementById('volumeChart');
+    charts.volume = new Chart(volumeCtx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Volume',
+                data: volumes,
+                backgroundColor: volumes.map((v, i) => closes[i] > opens[i] ? '#10B981' : '#EF4444'),
+                borderRadius: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+            }
+        }
+    });
+    
+    // Chart 3: Moving Averages
+    const maCtx = document.getElementById('maChart');
+    const sma20 = calculateMA(closes, 20);
+    const sma50 = calculateMA(closes, 50);
+    
+    charts.ma = new Chart(maCtx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Price',
+                data: closes,
+                borderColor: '#10B981',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                borderWidth: 2,
+                fill: false,
+                tension: 0.4
+            }, {
+                label: 'SMA 20',
+                data: sma20,
+                borderColor: '#F59E0B',
+                borderDash: [5, 5],
+                fill: false,
+                tension: 0.4
+            }, {
+                label: 'SMA 50',
+                data: sma50,
+                borderColor: '#8B5CF6',
+                borderDash: [5, 5],
+                fill: false,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: '#94a3b8' } } },
+            scales: {
+                y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+            }
+        }
+    });
+    
+    // Chart 4: Price Distribution
+    const distCtx = document.getElementById('distributionChart');
+    const min = Math.min(...closes);
+    const max = Math.max(...closes);
+    const range = max - min;
+    const buckets = [0, 0, 0, 0, 0];
+    closes.forEach(price => {
+        const bucket = Math.floor(((price - min) / range) * 4.99);
+        buckets[bucket]++;
+    });
+    
+    charts.dist = new Chart(distCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['0-20%', '20-40%', '40-60%', '60-80%', '80-100%'],
+            datasets: [{
+                data: buckets,
+                backgroundColor: ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EF4444'],
+                borderColor: '#1e293b',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { color: '#94a3b8' } }
+            }
+        }
+    });
+}
+
+function calculateMA(data, period) {
+    return data.map((_, i) => {
+        if (i < period - 1) return null;
+        const sum = data.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+        return sum / period;
+    });
+}
+
+function updateAPIStatus(isOnline) {
+    const indicator = document.getElementById('api-indicator');
+    const text = document.getElementById('api-text');
+    if (isOnline) {
+        indicator.className = 'pulse-dot w-2 h-2 bg-emerald-500 rounded-full mx-1';
+        text.className = 'text-sm font-semibold text-emerald-400';
+        text.textContent = 'LIVE';
+    } else {
+        indicator.className = 'pulse-dot w-2 h-2 bg-red-500 rounded-full mx-1';
+        text.className = 'text-sm font-semibold text-red-400';
+        text.textContent = 'OFFLINE';
+    }
+}
+
+// ===================== FEATURE 6.1: Language Management =====================
+document.getElementById('language-selector').addEventListener('change', (e) => {
+    const selectedLanguage = e.target.value;
+    i18n.setLanguage(selectedLanguage);
+    console.log(`Language changed to: ${selectedLanguage}`);
+});
+
+// ===================== INITIALIZATION =====================
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize language from localStorage
+    const savedLanguage = localStorage.getItem('crbot_language') || 'en';
+    document.getElementById('language-selector').value = savedLanguage;
+    
+    loadCryptoData(initialCrypto);
+    // Auto-refresh every 20 seconds
+    setInterval(() => {
+        const selected = document.getElementById('crypto-selector').value;
+        loadCryptoData(selected);
+    }, 20000);
+});
+</script>
+
+</body>
+</html>

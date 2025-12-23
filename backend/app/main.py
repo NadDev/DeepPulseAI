@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import logging
 
 # Import routes
-from app.routes import health, portfolio, crypto, bots, reports, risk, trades, translations
+from app.routes import health, portfolio, crypto, bots, reports, risk, trades, translations, ml, auth
 from app.config import settings
 from app.db.database import Base, engine
 
@@ -20,7 +20,7 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("🚀 CRBot API Starting...")
     Base.metadata.create_all(bind=engine)
-    logger.info("✅ Database tables created")
+    logger.info("[OK] Database tables created")
     yield
     # Shutdown
     logger.info("🛑 CRBot API Shutting down...")
@@ -43,6 +43,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth.router)  # Auth routes first
 app.include_router(health.router)
 app.include_router(portfolio.router)
 app.include_router(crypto.router)
@@ -51,6 +52,7 @@ app.include_router(reports.router)
 app.include_router(risk.router)
 app.include_router(trades.router)
 app.include_router(translations.router)
+app.include_router(ml.router)
 
 @app.get("/")
 async def root():

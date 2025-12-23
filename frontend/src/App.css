@@ -1,53 +1,45 @@
 .app {
   min-height: 100vh;
-  background: transparent;
-}
-
-.navbar {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.nav-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1rem 2rem;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: row; /* Sidebar | Main Content */
 }
 
-.logo {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #667eea;
+.main-wrapper {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  height: 100vh;
 }
 
-.logo-icon {
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2rem;
+  background-color: var(--bg-dark);
+}
+
+.placeholder-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+}
+
+.placeholder-page h2 {
   font-size: 2rem;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
 }
 
-.nav-menu {
-  display: flex;
-  list-style: none;
-  gap: 2rem;
+@media (max-width: 768px) {
+  .content {
+    padding: 1rem;
+  }
 }
 
-.nav-menu a {
-  text-decoration: none;
-  color: #4a5568;
-  font-weight: 500;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-}
 
 .nav-menu a:hover {
   background: #f7fafc;

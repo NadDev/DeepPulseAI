@@ -6,8 +6,13 @@ pydantic-settings==2.1.0
 
 # Database
 psycopg2-binary==2.9.9
+asyncpg==0.29.0
 sqlalchemy==2.0.23
 alembic==1.13.0
+
+# Supabase
+supabase==2.10.0
+email-validator==2.1.0
 
 # Redis & Caching
 redis==5.0.1

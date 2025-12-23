@@ -30,18 +30,20 @@
 }
 
 .stat-card {
-  background: white;
+  background: var(--bg-card);
   border-radius: 16px;
   padding: 1.5rem;
   display: flex;
   gap: 1rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .stat-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 12px rgba(0, 0, 0, 0.3);
+  border-color: var(--primary);
 }
 
 .stat-icon {
@@ -52,6 +54,19 @@
   align-items: center;
   justify-content: center;
   color: white;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.stat-icon.primary {
+  background: var(--info);
+}
+
+.stat-icon.success {
+  background: var(--primary);
+}
+
+.stat-icon.danger {
+  background: var(--danger);
 }
 
 .stat-content {
@@ -60,36 +75,37 @@
 
 .stat-label {
   font-size: 0.875rem;
-  color: #718096;
+  color: var(--text-secondary);
   margin-bottom: 0.5rem;
 }
 
 .stat-value {
   font-size: 1.75rem;
   font-weight: 700;
-  color: #2d3748;
+  color: var(--text-primary);
 }
 
 .stat-value.positive {
-  color: #48bb78;
+  color: var(--primary);
 }
 
 .stat-value.negative {
-  color: #f56565;
+  color: var(--danger);
 }
 
 .section {
-  background: white;
+  background: var(--bg-card);
   border-radius: 16px;
   padding: 2rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
   margin-bottom: 2rem;
 }
 
 .section-title {
   font-size: 1.5rem;
   font-weight: 600;
-  color: #2d3748;
+  color: var(--text-primary);
   margin-bottom: 1.5rem;
 }
 

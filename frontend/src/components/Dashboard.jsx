@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react'
 import { cryptoAPI } from '../services/api'
 import { TrendingUp, TrendingDown, Wallet, DollarSign } from 'lucide-react'
+import RecentTrades from './RecentTrades'
+import ActiveBots from './ActiveBots'
+import EquityChart from './EquityChart'
 import './Dashboard.css'
+import './DashboardGrid.css'
 
 function Dashboard() {
   const [topCryptos, setTopCryptos] = useState([])
@@ -28,24 +32,18 @@ function Dashboard() {
       setTopCryptos(cryptos.slice(0, 10))
       setPortfolio(portfolioData)
 
-      // Calculate portfolio stats
-      let totalValue = 0
-      let totalChange = 0
-
-      portfolioData.forEach(item => {
-        const crypto = cryptos.find(c => c.id === item.coin_id)
-        if (crypto) {
-          const currentValue = item.amount * crypto.current_price
-          const purchaseValue = item.amount * item.purchase_price
-          totalValue += currentValue
-          totalChange += ((currentValue - purchaseValue) / purchaseValue) * 100
-        }
-      })
+      // Calculate portfolio stats from summary object
+      // Backend returns: { portfolio_value, cash_balance, daily_pnl, total_pnl, ... }
+      const totalValue = portfolioData.portfolio_value || 0
+      const dailyPnl = portfolioData.daily_pnl || 0
+      // Calculate approximate daily change %
+      const previousValue = totalValue - dailyPnl
+      const totalChange = previousValue !== 0 ? (dailyPnl / previousValue) * 100 : 0
 
       setStats({
         totalValue,
-        totalChange: portfolioData.length > 0 ? totalChange / portfolioData.length : 0,
-        totalCoins: portfolioData.length
+        totalChange,
+        totalCoins: 0 // Summary doesn't provide holding count yet
       })
     } catch (error) {
       console.error('Error loading dashboard data:', error)
@@ -79,7 +77,7 @@ function Dashboard() {
 
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-icon" style={{background: '#667eea'}}>
+          <div className="stat-icon primary">
             <Wallet size={24} />
           </div>
           <div className="stat-content">
@@ -89,7 +87,7 @@ function Dashboard() {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon" style={{background: stats.totalChange >= 0 ? '#48bb78' : '#f56565'}}>
+          <div className={`stat-icon ${stats.totalChange >= 0 ? 'success' : 'danger'}`}>
             {stats.totalChange >= 0 ? <TrendingUp size={24} /> : <TrendingDown size={24} />}
           </div>
           <div className="stat-content">
@@ -110,6 +108,20 @@ function Dashboard() {
           </div>
         </div>
       </div>
+
+
+
+      <div className="dashboard-grid">
+        <div className="chart-section">
+          <EquityChart />
+        </div>
+        
+        <div className="bots-section-wrapper">
+          <ActiveBots />
+        </div>
+      </div>
+
+      <RecentTrades />
 
       <div className="section">
         <h2 className="section-title">Top 10 Cryptomonnaies</h2>

@@ -33,6 +33,38 @@ async def get_dashboard_report(db: Session = Depends(get_db)):
         "last_updated": datetime.utcnow().isoformat(),
     }
 
+@router.get("/equity-curve")
+async def get_equity_curve(days: int = 30, db: Session = Depends(get_db)):
+    """Get equity curve data for charts"""
+    # In a real app, this would query a PortfolioHistory table
+    # For now, we generate realistic data based on current portfolio value
+    
+    portfolio = db.query(Portfolio).first()
+    current_value = portfolio.total_value if portfolio else 100000
+    
+    data = []
+    import random
+    
+    # Generate data points working backwards
+    value = current_value
+    now = datetime.utcnow()
+    
+    for i in range(days):
+        date = now - timedelta(days=i)
+        # Random daily change between -2% and +2.5%
+        change_pct = random.uniform(-0.02, 0.025)
+        
+        data.append({
+            "date": date.strftime("%Y-%m-%d"),
+            "value": round(value, 2),
+            "pnl": round(value * change_pct, 2)
+        })
+        
+        # Previous day's value
+        value = value / (1 + change_pct)
+    
+    return list(reversed(data))
+
 @router.get("/trades")
 async def get_trades_report(
     limit: int = 50,

@@ -1,0 +1,127 @@
+.portfolio-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 16px;
+  margin-bottom: 30px;
+}
+
+@media (max-width: 1800px) {
+  .portfolio-summary-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 1200px) {
+  .portfolio-summary-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .portfolio-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .portfolio-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.summary-card {
+  background: #1e293b;
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid #334155;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  border-color: #475569;
+}
+
+.summary-card.total-value {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border-color: #6366f1;
+}
+
+.summary-card.total-value .card-icon {
+  background: rgba(99, 102, 241, 0.2);
+  color: #818cf8;
+}
+
+.card-icon {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 10px;
+  background: #334155;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.card-icon.positive {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.card-icon.negative {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.card-label {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.card-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.card-value.positive {
+  color: #4ade80;
+}
+
+.card-value.negative {
+  color: #f87171;
+}
+
+.card-subtitle {
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-top: 2px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1.2;
+}

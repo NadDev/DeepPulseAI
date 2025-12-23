@@ -1,0 +1,336 @@
+.technical-indicators {
+  background: var(--card-bg, #1e293b);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border-color, #334155);
+}
+
+.technical-indicators.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.indicators-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color, #334155);
+}
+
+.indicators-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary, #f1f5f9);
+  margin: 0;
+}
+
+.symbol-badge {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.indicators-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+/* Indicator Card Base */
+.indicator-card {
+  background: var(--card-bg-darker, #0f172a);
+  border-radius: 10px;
+  padding: 1rem;
+  border: 1px solid var(--border-color, #334155);
+  transition: all 0.3s ease;
+}
+
+.indicator-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.indicator-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #94a3b8);
+  margin-bottom: 0.75rem;
+}
+
+.indicator-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary, #f1f5f9);
+  margin-bottom: 0.5rem;
+}
+
+.indicator-interpretation {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #94a3b8);
+}
+
+/* RSI Specific */
+.indicator-card.rsi.overbought {
+  border-color: #ef4444;
+}
+.indicator-card.rsi.overbought .indicator-value {
+  color: #ef4444;
+}
+
+.indicator-card.rsi.oversold {
+  border-color: #10b981;
+}
+.indicator-card.rsi.oversold .indicator-value {
+  color: #10b981;
+}
+
+.rsi-gauge {
+  position: relative;
+  height: 8px;
+  background: linear-gradient(to right, #10b981 0%, #10b981 30%, #f59e0b 30%, #f59e0b 70%, #ef4444 70%, #ef4444 100%);
+  border-radius: 4px;
+  margin-top: 0.75rem;
+}
+
+.rsi-needle {
+  position: absolute;
+  top: -3px;
+  width: 4px;
+  height: 14px;
+  background: white;
+  border-radius: 2px;
+  transform: translateX(-50%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.rsi-zones {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  color: var(--text-secondary, #94a3b8);
+  margin-top: 0.25rem;
+}
+
+/* MACD Specific */
+.indicator-card.macd.bullish {
+  border-color: #10b981;
+}
+
+.indicator-card.macd.bearish {
+  border-color: #ef4444;
+}
+
+.macd-values {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.macd-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+}
+
+.macd-row .label {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.macd-row .value {
+  color: var(--text-primary, #f1f5f9);
+  font-weight: 500;
+  font-family: 'Monaco', 'Consolas', monospace;
+}
+
+.macd-row .value.positive {
+  color: #10b981;
+}
+
+.macd-row .value.negative {
+  color: #ef4444;
+}
+
+/* Bollinger Bands */
+.bollinger-values {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.band {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+}
+
+.band .label {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.band .value {
+  font-weight: 500;
+  font-family: 'Monaco', 'Consolas', monospace;
+}
+
+.band.upper .value {
+  color: #ef4444;
+}
+
+.band.middle .value {
+  color: #f59e0b;
+}
+
+.band.lower .value {
+  color: #10b981;
+}
+
+/* EMA Specific */
+.indicator-card.ema.bullish {
+  border-color: #10b981;
+}
+
+.indicator-card.ema.bearish {
+  border-color: #ef4444;
+}
+
+.ema-values {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.ema-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+}
+
+.ema-row .label {
+  color: var(--text-secondary, #94a3b8);
+}
+
+.ema-row .value {
+  color: var(--text-primary, #f1f5f9);
+  font-weight: 600;
+}
+
+/* Sentiment Card */
+.indicator-card.sentiment.bullish {
+  border-color: #10b981;
+}
+
+.indicator-card.sentiment.bearish {
+  border-color: #ef4444;
+}
+
+.sentiment-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary, #f1f5f9);
+  margin-bottom: 0.25rem;
+}
+
+.sentiment-score {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #94a3b8);
+  margin-bottom: 0.5rem;
+}
+
+.sentiment-sources {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.7rem;
+  color: var(--text-secondary, #64748b);
+}
+
+/* Fear & Greed Index */
+.indicator-card.fear-greed {
+  text-align: center;
+}
+
+.indicator-card.fear-greed.extreme-fear {
+  border-color: #ef4444;
+}
+.indicator-card.fear-greed.extreme-fear .fear-greed-value {
+  color: #ef4444;
+}
+
+.indicator-card.fear-greed.fear {
+  border-color: #f97316;
+}
+.indicator-card.fear-greed.fear .fear-greed-value {
+  color: #f97316;
+}
+
+.indicator-card.fear-greed.greed {
+  border-color: #84cc16;
+}
+.indicator-card.fear-greed.greed .fear-greed-value {
+  color: #84cc16;
+}
+
+.indicator-card.fear-greed.extreme-greed {
+  border-color: #10b981;
+}
+.indicator-card.fear-greed.extreme-greed .fear-greed-value {
+  color: #10b981;
+}
+
+.fear-greed-value {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--text-primary, #f1f5f9);
+}
+
+.fear-greed-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary, #94a3b8);
+  margin-bottom: 0.75rem;
+}
+
+.fear-greed-gauge {
+  position: relative;
+  height: 8px;
+  background: linear-gradient(to right, #ef4444 0%, #f97316 25%, #f59e0b 50%, #84cc16 75%, #10b981 100%);
+  border-radius: 4px;
+  margin-top: 0.5rem;
+}
+
+.fear-greed-needle {
+  position: absolute;
+  top: -4px;
+  width: 6px;
+  height: 16px;
+  background: white;
+  border-radius: 3px;
+  transform: translateX(-50%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .indicators-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .indicators-grid {
+    grid-template-columns: 1fr;
+  }
+}

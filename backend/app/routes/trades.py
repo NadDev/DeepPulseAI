@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from app.db.database import get_db
 from app.models.database_models import Trade, Bot
+from app.auth.supabase_auth import get_current_user, get_optional_user, UserResponse
 from pydantic import BaseModel
 from typing import Optional, List
 
@@ -23,6 +24,7 @@ class TradeCreateRequest(BaseModel):
 class TradeResponse(BaseModel):
     """Response model for trade"""
     id: int
+    user_id: Optional[str] = None
     bot_id: str
     symbol: str
     side: str
@@ -42,7 +44,8 @@ class TradeResponse(BaseModel):
 @router.post("/create", response_model=TradeResponse)
 async def create_trade(
     trade_req: TradeCreateRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[UserResponse] = Depends(get_optional_user)
 ):
     """
     FEATURE 1.1: Create a trade with risk limits
@@ -87,8 +90,9 @@ async def create_trade(
                 detail="Trailing stop must be between 0 and 100"
             )
     
-    # Create trade
+    # Create trade with user_id
     trade = Trade(
+        user_id=current_user.id if current_user else None,
         bot_id=trade_req.bot_id,
         symbol=trade_req.symbol,
         side=trade_req.side,
@@ -115,10 +119,15 @@ async def get_trades(
     status: Optional[str] = None,
     bot_id: Optional[str] = None,
     limit: int = 50,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[UserResponse] = Depends(get_optional_user)
 ):
-    """Get trades with optional filters"""
+    """Get trades with optional filters (filtered by user if authenticated)"""
     query = db.query(Trade)
+    
+    # Filter by user_id if authenticated
+    if current_user:
+        query = query.filter(Trade.user_id == current_user.id)
     
     if symbol:
         query = query.filter(Trade.symbol == symbol.upper())
@@ -131,9 +140,19 @@ async def get_trades(
     return trades
 
 @router.get("/{trade_id}", response_model=TradeResponse)
-async def get_trade(trade_id: int, db: Session = Depends(get_db)):
+async def get_trade(
+    trade_id: int, 
+    db: Session = Depends(get_db),
+    current_user: Optional[UserResponse] = Depends(get_optional_user)
+):
     """Get a specific trade"""
-    trade = db.query(Trade).filter(Trade.id == trade_id).first()
+    query = db.query(Trade).filter(Trade.id == trade_id)
+    
+    # Filter by user_id if authenticated
+    if current_user:
+        query = query.filter(Trade.user_id == current_user.id)
+    
+    trade = query.first()
     if not trade:
         raise HTTPException(status_code=404, detail="Trade not found")
     return trade
@@ -142,10 +161,17 @@ async def get_trade(trade_id: int, db: Session = Depends(get_db)):
 async def close_trade(
     trade_id: int,
     exit_price: float,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[UserResponse] = Depends(get_optional_user)
 ):
     """Close a trade and calculate P&L"""
-    trade = db.query(Trade).filter(Trade.id == trade_id).first()
+    query = db.query(Trade).filter(Trade.id == trade_id)
+    
+    # Filter by user_id if authenticated
+    if current_user:
+        query = query.filter(Trade.user_id == current_user.id)
+    
+    trade = query.first()
     if not trade:
         raise HTTPException(status_code=404, detail="Trade not found")
     

@@ -1,12 +1,14 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
+import uuid
 from app.db.database import Base
 
 class Portfolio(Base):
     __tablename__ = "portfolios"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String(50), unique=True, index=True)
+    user_id = Column(UUID(as_uuid=True), unique=True, index=True, nullable=False)
     total_value = Column(Float, default=100000.0)
     cash_balance = Column(Float, default=100000.0)
     daily_pnl = Column(Float, default=0.0)
@@ -19,7 +21,8 @@ class Portfolio(Base):
 class Trade(Base):
     __tablename__ = "trades"
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String(50), primary_key=True, index=True)
+    user_id = Column(UUID(as_uuid=True), index=True, nullable=False)  # Supabase user UUID
     bot_id = Column(String(50), index=True)
     symbol = Column(String(20), index=True)
     side = Column(String(10))  # BUY or SELL
@@ -43,15 +46,19 @@ class Bot(Base):
     __tablename__ = "bots"
     
     id = Column(String(50), primary_key=True, index=True)
+    user_id = Column(UUID(as_uuid=True), index=True, nullable=False)  # Supabase user UUID
     name = Column(String(100))
-    strategy = Column(String(50))
-    status = Column(String(20))  # ACTIVE, INACTIVE, PAUSED
+    strategy = Column(String(50))  # trend_following, breakout, mean_reversion
+    status = Column(String(20))  # ACTIVE, INACTIVE, PAUSED, ERROR
+    config = Column(Text, nullable=True)  # JSON config for strategy parameters
+    paper_trading = Column(Boolean, default=True)  # Paper trading mode
     risk_percent = Column(Float, default=2.0)
     max_drawdown = Column(Float, default=20.0)
     is_live = Column(Boolean, default=False)
     total_trades = Column(Integer, default=0)
     win_rate = Column(Float, default=0.0)
     total_pnl = Column(Float, default=0.0)
+    symbols = Column(Text, nullable=True)  # JSON array of symbols to trade
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
