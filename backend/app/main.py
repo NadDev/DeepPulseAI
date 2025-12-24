@@ -12,15 +12,15 @@ from app.db.database import Base, engine
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Create tables on startup
-Base.metadata.create_all(bind=engine)
+# Note: Tables are already created via supabase_schema.sql in production
+# Don't create tables on startup - they should exist in Supabase
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("🚀 CRBot API Starting...")
-    Base.metadata.create_all(bind=engine)
-    logger.info("[OK] Database tables created")
+    # Tables should already exist in Supabase PostgreSQL
+    logger.info("[OK] Database connection ready")
     yield
     # Shutdown
     logger.info("🛑 CRBot API Shutting down...")

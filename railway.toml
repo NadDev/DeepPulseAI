@@ -1,0 +1,7 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+# Railway will use the CMD from Dockerfile
+# It automatically maps PORT env variable
