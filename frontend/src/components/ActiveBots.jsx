@@ -34,32 +34,32 @@ function ActiveBots() {
       <div className="bots-list">
         {bots.length > 0 ? (
           bots.map((bot) => (
-            <div key={bot.id} className={`bot-card ${bot.is_live ? 'live' : 'stopped'}`}>
+            <div key={bot.id} className={`bot-card ${bot.status === 'RUNNING' ? 'live' : 'stopped'}`}>
               <div className="bot-header">
                 <div className="bot-info">
                   <h3>{bot.name}</h3>
                   <span className="strategy-tag">{bot.strategy}</span>
                 </div>
-                <div className={`status-badge ${bot.is_live ? 'active' : 'inactive'}`}>
-                  {bot.is_live ? <Play size={12} /> : <Pause size={12} />}
-                  {bot.is_live ? 'LIVE' : 'STOPPED'}
+                <div className={`status-badge ${bot.status === 'RUNNING' ? 'active' : 'inactive'}`}>
+                  {bot.status === 'RUNNING' ? <Play size={12} /> : <Pause size={12} />}
+                  {bot.status === 'RUNNING' ? 'RUNNING' : 'STOPPED'}
                 </div>
               </div>
               
               <div className="bot-stats">
                 <div className="stat">
                   <span className="label">Win Rate</span>
-                  <span className="value">{(bot.win_rate * 100).toFixed(1)}%</span>
+                  <span className="value">{(bot.win_rate || 0).toFixed(1)}%</span>
                 </div>
                 <div className="stat">
                   <span className="label">Total PnL</span>
-                  <span className={`value ${bot.total_pnl >= 0 ? 'green' : 'red'}`}>
-                    ${bot.total_pnl.toFixed(2)}
+                  <span className={`value ${(bot.total_pnl || 0) >= 0 ? 'green' : 'red'}`}>
+                    ${(bot.total_pnl || 0).toFixed(2)}
                   </span>
                 </div>
                 <div className="stat">
                   <span className="label">Trades</span>
-                  <span className="value">{bot.total_trades}</span>
+                  <span className="value">{bot.total_trades || 0}</span>
                 </div>
               </div>
             </div>

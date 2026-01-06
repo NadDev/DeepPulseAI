@@ -158,8 +158,10 @@ const BotManager = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
+      case 'RUNNING': return 'status-active';
       case 'ACTIVE': return 'status-active';
       case 'PAUSED': return 'status-paused';
+      case 'IDLE': return 'status-inactive';
       case 'INACTIVE': return 'status-inactive';
       case 'ERROR': return 'status-error';
       default: return 'status-inactive';
@@ -214,7 +216,7 @@ const BotManager = () => {
                   </span>
                 </div>
                 <div className="bot-actions">
-                  {bot.status === 'INACTIVE' && (
+                  {(bot.status === 'IDLE' || bot.status === 'INACTIVE' || bot.status === 'PAUSED' || bot.status === 'ERROR') && bot.status !== 'RUNNING' && (
                     <button 
                       className="btn-icon btn-success"
                       onClick={() => handleStartBot(bot.id)}
@@ -223,7 +225,7 @@ const BotManager = () => {
                       <Play size={16} />
                     </button>
                   )}
-                  {bot.status === 'ACTIVE' && (
+                  {(bot.status === 'RUNNING' || bot.status === 'ACTIVE') && (
                     <>
                       <button 
                         className="btn-icon btn-warning"
@@ -241,7 +243,7 @@ const BotManager = () => {
                       </button>
                     </>
                   )}
-                  {bot.status !== 'ACTIVE' && (
+                  {bot.status !== 'RUNNING' && bot.status !== 'ACTIVE' && (
                     <>
                       <button 
                         className="btn-icon"
