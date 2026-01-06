@@ -130,6 +130,39 @@
 - [ ] Integration tests
 - [ ] Performance optimization
 
+---
+
+## 🤖 FUTURE: Agent IA Trading Autonome
+
+> **📄 Étude complète:** [AI_TRADING_AGENT_STUDY.md](./AI_TRADING_AGENT_STUDY.md)
+
+### Concept
+Un agent IA connecté à DeepSeek qui analyse les marchés et gère les bots de manière autonome.
+
+### Coûts Estimés
+| Type | Coût |
+|------|------|
+| Développement | Via agent IA (Cursor/Copilot) |
+| Exploitation mensuelle | **~50€/mois** (DeepSeek + infra) |
+
+### Agents Recommandés pour le Développement
+| Agent | Usage | Coût |
+|-------|-------|------|
+| **Claude (Cursor)** 🏆 | Code Python/FastAPI complexe | $20/mois |
+| **GitHub Copilot** | Intégration VS Code | $10/mois |
+| **Devin** | Développement 100% autonome | $500/mois |
+
+### Phases
+- [ ] Phase 1: MVP Agent (analyse sans action)
+- [ ] Phase 2: Contrôle des bots (start/stop automatique)
+- [ ] Phase 3: Apprentissage continu
+- [ ] Phase 4: Paper trading 3+ mois
+- [ ] Phase 5: Production
+
+### Status: 📋 En réflexion
+
+---
+
 ## 📅 ARCH 5: Broker Integration
 - [ ] Exchange APIs (Binance, etc.)
 - [ ] Order execution layer
