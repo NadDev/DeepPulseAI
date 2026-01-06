@@ -9,9 +9,12 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from app.models.database_models import Bot, Trade, Portfolio
 from app.services.strategies import StrategyRegistry
-from app.services.market_data import MarketDataService
+from app.services.market_data import MarketDataCollector
 from app.services.technical_analysis import TechnicalAnalysis
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class BotEngine:
@@ -20,100 +23,131 @@ class BotEngine:
     Manages active bots, executes strategies, and handles paper trading.
     """
     
-    def __init__(self, db: Session):
-        self.db = db
+    def __init__(self, db_session_factory):
+        """
+        Initialize BotEngine with a session factory for database operations.
+        
+        Args:
+            db_session_factory: A callable that returns a new database session
+        """
+        self.db_session_factory = db_session_factory
         self.active_bots: Dict[str, Dict[str, Any]] = {}
-        self.market_data_service = MarketDataService()
+        self.market_data = MarketDataCollector()
         self.technical_analysis = TechnicalAnalysis()
         self._running = False
-        self._tasks: List[asyncio.Task] = []
+        self._task: Optional[asyncio.Task] = None
     
     async def start(self):
         """Start the bot engine"""
         if self._running:
-            print("⚠️ Bot engine already running")
+            logger.warning("⚠️ Bot engine already running")
             return
         
         self._running = True
-        print("✅ Bot Engine started")
+        logger.info("✅ Bot Engine started")
         
         # Load all active bots from database
         await self.load_active_bots()
         
-        # Start monitoring loop
-        self._tasks.append(asyncio.create_task(self._monitor_loop()))
+        # Start monitoring loop as background task
+        self._task = asyncio.create_task(self._monitor_loop())
     
     async def stop(self):
         """Stop the bot engine"""
         self._running = False
-        print("🛑 Stopping Bot Engine...")
+        logger.info("🛑 Stopping Bot Engine...")
         
-        # Cancel all tasks
-        for task in self._tasks:
-            task.cancel()
+        # Cancel task
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
         
-        # Wait for tasks to complete
-        await asyncio.gather(*self._tasks, return_exceptions=True)
-        self._tasks.clear()
-        
-        print("✅ Bot Engine stopped")
+        logger.info("✅ Bot Engine stopped")
     
     async def load_active_bots(self):
         """Load all active bots from database"""
-        bots = self.db.query(Bot).filter(Bot.status == "ACTIVE").all()
-        
-        for bot in bots:
-            await self.activate_bot(bot.id)
-        
-        print(f"📊 Loaded {len(bots)} active bots")
+        db = self.db_session_factory()
+        try:
+            bots = db.query(Bot).filter(Bot.status == "RUNNING").all()
+            
+            for bot in bots:
+                await self.activate_bot(str(bot.id))
+            
+            logger.info(f"📊 Loaded {len(bots)} active bots")
+        finally:
+            db.close()
     
     async def activate_bot(self, bot_id: str):
         """Activate a bot and start its execution"""
-        bot = self.db.query(Bot).filter(Bot.id == bot_id).first()
-        
-        if not bot:
-            raise ValueError(f"Bot {bot_id} not found")
-        
-        # Parse configuration
-        config = json.loads(bot.config) if bot.config else {}
-        symbols = json.loads(bot.symbols) if bot.symbols else ["BTCUSDT"]
-        
-        # Load strategy
-        strategy = StrategyRegistry.get_strategy(bot.strategy, config)
-        
-        # Store bot state
-        self.active_bots[bot_id] = {
-            "bot": bot,
-            "strategy": strategy,
-            "symbols": symbols,
-            "config": config,
-            "last_check": None
-        }
-        
-        # Update bot status
-        bot.status = "ACTIVE"
-        self.db.commit()
-        
-        print(f"✅ Activated bot: {bot.name} ({bot.strategy})")
+        db = self.db_session_factory()
+        try:
+            bot = db.query(Bot).filter(Bot.id == bot_id).first()
+            
+            if not bot:
+                raise ValueError(f"Bot {bot_id} not found")
+            
+            # Parse configuration - handle both string and dict (PostgreSQL JSONB)
+            if isinstance(bot.config, str):
+                config = json.loads(bot.config) if bot.config else {}
+            else:
+                config = bot.config or {}
+                
+            if isinstance(bot.symbols, str):
+                symbols = json.loads(bot.symbols) if bot.symbols else ["BTCUSDT"]
+            else:
+                symbols = bot.symbols or ["BTCUSDT"]
+            
+            # Load strategy
+            strategy = StrategyRegistry.get_strategy(bot.strategy, config)
+            
+            # Store bot state
+            self.active_bots[str(bot.id)] = {
+                "bot_id": str(bot.id),
+                "user_id": str(bot.user_id),
+                "name": bot.name,
+                "strategy": strategy,
+                "symbols": symbols,
+                "config": config,
+                "paper_trading": bot.paper_trading,
+                "risk_percent": float(bot.risk_percent or 2.0),
+                "last_check": None
+            }
+            
+            # Update bot status
+            bot.status = "RUNNING"
+            db.commit()
+            
+            logger.info(f"✅ Activated bot: {bot.name} ({bot.strategy})")
+        finally:
+            db.close()
     
     async def deactivate_bot(self, bot_id: str):
         """Deactivate a bot and stop its execution"""
         if bot_id not in self.active_bots:
             return
         
-        bot = self.active_bots[bot_id]["bot"]
+        bot_state = self.active_bots[bot_id]
         
         # Remove from active bots
         del self.active_bots[bot_id]
         
         # Update database
-        bot.status = "INACTIVE"
-        self.db.commit()
-        
-        print(f"🛑 Deactivated bot: {bot.name}")
+        db = self.db_session_factory()
+        try:
+            bot = db.query(Bot).filter(Bot.id == bot_id).first()
+            if bot:
+                bot.status = "IDLE"
+                db.commit()
+            logger.info(f"🛑 Deactivated bot: {bot_state['name']}")
+        finally:
+            db.close()
     
     async def _monitor_loop(self):
-        """Main monitoring loop - checks all active bots"""
+        """Main monitoring loop - checks all active bots every 60 seconds"""
+        logger.info("🔄 Bot monitoring loop started")
         while self._running:
             try:
                 # Process each active bot
@@ -121,14 +155,14 @@ class BotEngine:
                     try:
                         await self._process_bot(bot_id)
                     except Exception as e:
-                        print(f"❌ Error processing bot {bot_id}: {str(e)}")
+                        logger.error(f"❌ Error processing bot {bot_id}: {str(e)}")
                         await self._handle_bot_error(bot_id, str(e))
                 
-                # Wait before next iteration (e.g., 1 minute)
+                # Wait before next iteration (60 seconds for paper trading)
                 await asyncio.sleep(60)
             
             except Exception as e:
-                print(f"❌ Error in monitor loop: {str(e)}")
+                logger.error(f"❌ Error in monitor loop: {str(e)}")
                 await asyncio.sleep(5)
     
     async def _process_bot(self, bot_id: str):
@@ -137,7 +171,6 @@ class BotEngine:
         if not bot_state:
             return
         
-        bot = bot_state["bot"]
         strategy = bot_state["strategy"]
         symbols = bot_state["symbols"]
         
@@ -147,185 +180,220 @@ class BotEngine:
                 # Get market data
                 market_data = await self._get_market_data(symbol)
                 
+                if not market_data:
+                    continue
+                
                 # Check for new signals
                 signal = strategy.get_signal_direction(market_data)
                 
+                logger.debug(f"🔍 Bot {bot_state['name']} | {symbol} | Signal: {signal}")
+                
                 if signal == "BUY":
-                    await self._execute_buy(bot, strategy, symbol, market_data)
+                    await self._execute_buy(bot_state, strategy, symbol, market_data)
                 elif signal == "SELL":
-                    await self._execute_sell(bot, strategy, symbol, market_data)
+                    await self._execute_sell(bot_state, strategy, symbol, market_data)
                 
                 # Check open positions for exit signals
-                await self._check_open_positions(bot, strategy, symbol, market_data)
+                await self._check_open_positions(bot_state, strategy, symbol, market_data)
             
             except Exception as e:
-                print(f"❌ Error processing {symbol} for bot {bot.name}: {str(e)}")
+                logger.error(f"❌ Error processing {symbol} for bot {bot_state['name']}: {str(e)}")
         
         bot_state["last_check"] = datetime.utcnow()
     
-    async def _get_market_data(self, symbol: str) -> Dict[str, Any]:
+    async def _get_market_data(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Fetch and prepare market data with indicators"""
-        # Get historical data
-        candles = self.market_data_service.get_historical_data(symbol, interval="1h", limit=100)
-        
-        if not candles:
-            raise ValueError(f"No market data available for {symbol}")
-        
-        # Calculate technical indicators
-        closes = [c['close'] for c in candles]
-        highs = [c['high'] for c in candles]
-        lows = [c['low'] for c in candles]
-        volumes = [c['volume'] for c in candles]
-        
-        # Calculate indicators
-        sma_20 = self.technical_analysis.calculate_sma(closes, 20)
-        sma_50 = self.technical_analysis.calculate_sma(closes, 50)
-        rsi = self.technical_analysis.calculate_rsi(closes, 14)
-        bb = self.technical_analysis.calculate_bollinger_bands(closes, 20, 2)
-        
-        # Find support/resistance (simplified)
-        resistance = max(highs[-20:])
-        support = min(lows[-20:])
-        avg_volume = sum(volumes[-20:]) / 20
-        
-        current = candles[-1]
-        
-        return {
-            "symbol": symbol,
-            "close": current['close'],
-            "high": current['high'],
-            "low": current['low'],
-            "volume": current['volume'],
-            "timestamp": current['timestamp'],
-            "indicators": {
-                "sma_20": sma_20[-1] if sma_20 else None,
-                "sma_50": sma_50[-1] if sma_50 else None,
-                "rsi": rsi[-1] if rsi else None,
-                "bb_upper": bb['upper'][-1] if bb else None,
-                "bb_middle": bb['middle'][-1] if bb else None,
-                "bb_lower": bb['lower'][-1] if bb else None,
-                "resistance": resistance,
-                "support": support,
-                "avg_volume": avg_volume
+        try:
+            # Get historical data from Binance
+            candles = await self.market_data.get_candles(symbol, timeframe="1h", limit=100)
+            
+            if not candles or len(candles) < 20:
+                logger.warning(f"Insufficient market data for {symbol}")
+                return None
+            
+            # Calculate technical indicators
+            closes = [c['close'] for c in candles]
+            highs = [c['high'] for c in candles]
+            lows = [c['low'] for c in candles]
+            volumes = [c['volume'] for c in candles]
+            
+            # Calculate indicators
+            sma_20 = self.technical_analysis.calculate_sma(closes, 20)
+            sma_50 = self.technical_analysis.calculate_sma(closes, 50)
+            rsi = self.technical_analysis.calculate_rsi(closes, 14)
+            bb = self.technical_analysis.calculate_bollinger_bands(closes, 20, 2)
+            
+            # Find support/resistance (simplified)
+            resistance = max(highs[-20:])
+            support = min(lows[-20:])
+            avg_volume = sum(volumes[-20:]) / 20
+            
+            current = candles[-1]
+            
+            return {
+                "symbol": symbol,
+                "close": current['close'],
+                "high": current['high'],
+                "low": current['low'],
+                "volume": current['volume'],
+                "timestamp": current['timestamp'],
+                "indicators": {
+                    "sma_20": sma_20[-1] if sma_20 else None,
+                    "sma_50": sma_50[-1] if sma_50 else None,
+                    "rsi": rsi[-1] if rsi else None,
+                    "bb_upper": bb['upper'][-1] if bb else None,
+                    "bb_middle": bb['middle'][-1] if bb else None,
+                    "bb_lower": bb['lower'][-1] if bb else None,
+                    "resistance": resistance,
+                    "support": support,
+                    "avg_volume": avg_volume
+                }
             }
-        }
+        except Exception as e:
+            logger.error(f"Error getting market data for {symbol}: {e}")
+            return None
     
-    async def _execute_buy(self, bot: Bot, strategy: Any, symbol: str, market_data: Dict[str, Any]):
-        """Execute a BUY trade"""
-        # Check if already have open position
-        open_position = self.db.query(Trade).filter(
-            Trade.bot_id == bot.id,
-            Trade.symbol == symbol,
-            Trade.status == "OPEN",
-            Trade.side == "BUY"
-        ).first()
-        
-        if open_position:
-            print(f"⚠️ Already have open BUY position for {symbol}")
-            return
-        
-        # Get portfolio
-        portfolio = self.db.query(Portfolio).filter(Portfolio.user_id == "default").first()
-        if not portfolio:
-            print("❌ Portfolio not found")
-            return
-        
-        # Calculate position size
-        current_price = market_data['close']
-        stop_loss = strategy.get_stop_loss(current_price, "BUY", market_data)
-        risk_amount = portfolio.cash_balance * (bot.risk_percent / 100)
-        quantity = strategy.calculate_position_size(risk_amount, current_price, stop_loss)
-        
-        cost = quantity * current_price
-        
-        # Check if enough balance (paper trading)
-        if bot.paper_trading:
-            if cost > portfolio.cash_balance:
-                print(f"⚠️ Insufficient balance for {symbol} BUY")
+    async def _execute_buy(self, bot_state: Dict[str, Any], strategy: Any, symbol: str, market_data: Dict[str, Any]):
+        """Execute a BUY trade (paper trading)"""
+        db = self.db_session_factory()
+        try:
+            bot_id = bot_state["bot_id"]
+            user_id = bot_state["user_id"]
+            
+            # Check if already have open position
+            open_position = db.query(Trade).filter(
+                Trade.bot_id == bot_id,
+                Trade.symbol == symbol,
+                Trade.status == "OPEN",
+                Trade.side == "BUY"
+            ).first()
+            
+            if open_position:
+                logger.debug(f"⚠️ Already have open BUY position for {symbol}")
                 return
             
-            # Deduct from balance
-            portfolio.cash_balance -= cost
-        
-        # Calculate targets
-        take_profit = strategy.get_take_profit(current_price, "BUY", market_data)
-        
-        # Create trade
-        trade = Trade(
-            id=None,  # Auto-increment
-            bot_id=bot.id,
-            symbol=symbol,
-            side="BUY",
-            entry_price=current_price,
-            exit_price=None,
-            quantity=quantity,
-            pnl=None,
-            pnl_percent=None,
-            status="OPEN",
-            entry_time=datetime.utcnow(),
-            exit_time=None,
-            strategy=bot.strategy,
-            stop_loss_price=stop_loss,
-            take_profit_price=take_profit
-        )
-        
-        self.db.add(trade)
-        bot.total_trades += 1
-        self.db.commit()
-        
-        print(f"✅ BUY {symbol} @ {current_price:.2f} | Qty: {quantity:.6f} | SL: {stop_loss:.2f} | TP: {take_profit:.2f if take_profit else 'N/A'}")
+            # Get portfolio
+            portfolio = db.query(Portfolio).filter(Portfolio.user_id == user_id).first()
+            if not portfolio:
+                logger.warning(f"❌ Portfolio not found for user {user_id}")
+                return
+            
+            # Calculate position size
+            current_price = market_data['close']
+            stop_loss = strategy.get_stop_loss(current_price, "BUY", market_data)
+            risk_amount = float(portfolio.cash_balance) * (bot_state["risk_percent"] / 100)
+            quantity = strategy.calculate_position_size(risk_amount, current_price, stop_loss)
+            
+            cost = quantity * current_price
+            
+            # Check if enough balance (paper trading)
+            if bot_state["paper_trading"]:
+                if cost > float(portfolio.cash_balance):
+                    logger.debug(f"⚠️ Insufficient balance for {symbol} BUY")
+                    return
+                
+                # Deduct from balance
+                portfolio.cash_balance = float(portfolio.cash_balance) - cost
+            
+            # Calculate targets
+            take_profit = strategy.get_take_profit(current_price, "BUY", market_data)
+            
+            # Create trade
+            trade = Trade(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                bot_id=bot_id,
+                symbol=symbol,
+                side="BUY",
+                entry_price=current_price,
+                exit_price=None,
+                quantity=quantity,
+                pnl=None,
+                pnl_percent=None,
+                status="OPEN",
+                entry_time=datetime.utcnow(),
+                exit_time=None,
+                strategy=bot_state["strategy"].__class__.__name__,
+                stop_loss_price=stop_loss,
+                take_profit_price=take_profit
+            )
+            
+            db.add(trade)
+            
+            # Update bot stats
+            bot = db.query(Bot).filter(Bot.id == bot_id).first()
+            if bot:
+                bot.total_trades = (bot.total_trades or 0) + 1
+            
+            db.commit()
+            
+            logger.info(f"✅ BUY {symbol} @ {current_price:.2f} | Qty: {quantity:.6f} | SL: {stop_loss:.2f} | TP: {take_profit:.2f if take_profit else 'N/A'}")
+        finally:
+            db.close()
     
-    async def _execute_sell(self, bot: Bot, strategy: Any, symbol: str, market_data: Dict[str, Any]):
+    async def _execute_sell(self, bot_state: Dict[str, Any], strategy: Any, symbol: str, market_data: Dict[str, Any]):
         """Execute a SELL trade (close position)"""
-        # Find open BUY position
-        open_position = self.db.query(Trade).filter(
-            Trade.bot_id == bot.id,
-            Trade.symbol == symbol,
-            Trade.status == "OPEN",
-            Trade.side == "BUY"
-        ).first()
-        
-        if not open_position:
-            print(f"⚠️ No open BUY position to SELL for {symbol}")
-            return
-        
-        # Close position
-        await self._close_position(open_position, market_data['close'], "Signal")
+        db = self.db_session_factory()
+        try:
+            bot_id = bot_state["bot_id"]
+            
+            # Find open BUY position
+            open_position = db.query(Trade).filter(
+                Trade.bot_id == bot_id,
+                Trade.symbol == symbol,
+                Trade.status == "OPEN",
+                Trade.side == "BUY"
+            ).first()
+            
+            if not open_position:
+                logger.debug(f"⚠️ No open BUY position to SELL for {symbol}")
+                return
+            
+            # Close position
+            await self._close_position(db, bot_state, open_position, market_data['close'], "Signal")
+        finally:
+            db.close()
     
-    async def _check_open_positions(self, bot: Bot, strategy: Any, symbol: str, market_data: Dict[str, Any]):
+    async def _check_open_positions(self, bot_state: Dict[str, Any], strategy: Any, symbol: str, market_data: Dict[str, Any]):
         """Check if any open positions should be closed"""
-        open_trades = self.db.query(Trade).filter(
-            Trade.bot_id == bot.id,
-            Trade.symbol == symbol,
-            Trade.status == "OPEN"
-        ).all()
-        
-        current_price = market_data['close']
-        
-        for trade in open_trades:
-            # Check stop loss
-            if trade.stop_loss_price:
-                if trade.side == "BUY" and current_price <= trade.stop_loss_price:
-                    await self._close_position(trade, current_price, "Stop Loss")
-                    continue
+        db = self.db_session_factory()
+        try:
+            bot_id = bot_state["bot_id"]
             
-            # Check take profit
-            if trade.take_profit_price:
-                if trade.side == "BUY" and current_price >= trade.take_profit_price:
-                    await self._close_position(trade, current_price, "Take Profit")
-                    continue
+            open_trades = db.query(Trade).filter(
+                Trade.bot_id == bot_id,
+                Trade.symbol == symbol,
+                Trade.status == "OPEN"
+            ).all()
             
-            # Check strategy exit conditions
-            trade_dict = {
-                "entry_price": trade.entry_price,
-                "side": trade.side,
-                "quantity": trade.quantity
-            }
+            current_price = market_data['close']
             
-            if strategy.should_exit(trade_dict, current_price, market_data):
-                await self._close_position(trade, current_price, "Strategy Exit")
+            for trade in open_trades:
+                # Check stop loss
+                if trade.stop_loss_price:
+                    if trade.side == "BUY" and current_price <= float(trade.stop_loss_price):
+                        await self._close_position(db, bot_state, trade, current_price, "Stop Loss")
+                        continue
+                
+                # Check take profit
+                if trade.take_profit_price:
+                    if trade.side == "BUY" and current_price >= float(trade.take_profit_price):
+                        await self._close_position(db, bot_state, trade, current_price, "Take Profit")
+                        continue
+                
+                # Check strategy exit conditions
+                trade_dict = {
+                    "entry_price": float(trade.entry_price),
+                    "side": trade.side,
+                    "quantity": float(trade.quantity)
+                }
+                
+                if strategy.should_exit(trade_dict, current_price, market_data):
+                    await self._close_position(db, bot_state, trade, current_price, "Strategy Exit")
+        finally:
+            db.close()
     
-    async def _close_position(self, trade: Trade, exit_price: float, reason: str):
+    async def _close_position(self, db: Session, bot_state: Dict[str, Any], trade: Trade, exit_price: float, reason: str):
         """Close an open position"""
         trade.exit_price = exit_price
         trade.exit_time = datetime.utcnow()
@@ -333,24 +401,24 @@ class BotEngine:
         
         # Calculate PnL
         if trade.side == "BUY":
-            trade.pnl = (exit_price - trade.entry_price) * trade.quantity
-            trade.pnl_percent = ((exit_price - trade.entry_price) / trade.entry_price) * 100
+            trade.pnl = (exit_price - float(trade.entry_price)) * float(trade.quantity)
+            trade.pnl_percent = ((exit_price - float(trade.entry_price)) / float(trade.entry_price)) * 100
         
         # Update portfolio (paper trading)
-        bot = self.db.query(Bot).filter(Bot.id == trade.bot_id).first()
-        if bot and bot.paper_trading:
-            portfolio = self.db.query(Portfolio).filter(Portfolio.user_id == "default").first()
+        if bot_state["paper_trading"]:
+            portfolio = db.query(Portfolio).filter(Portfolio.user_id == bot_state["user_id"]).first()
             if portfolio:
-                proceeds = exit_price * trade.quantity
-                portfolio.cash_balance += proceeds
-                portfolio.total_pnl += trade.pnl or 0
+                proceeds = exit_price * float(trade.quantity)
+                portfolio.cash_balance = float(portfolio.cash_balance) + proceeds
+                portfolio.total_pnl = float(portfolio.total_pnl or 0) + (trade.pnl or 0)
         
         # Update bot stats
+        bot = db.query(Bot).filter(Bot.id == bot_state["bot_id"]).first()
         if bot:
-            bot.total_pnl += trade.pnl or 0
+            bot.total_pnl = float(bot.total_pnl or 0) + (trade.pnl or 0)
             
             # Recalculate win rate
-            closed_trades = self.db.query(Trade).filter(
+            closed_trades = db.query(Trade).filter(
                 Trade.bot_id == bot.id,
                 Trade.status == "CLOSED"
             ).all()
@@ -359,20 +427,29 @@ class BotEngine:
                 winning = len([t for t in closed_trades if (t.pnl or 0) > 0])
                 bot.win_rate = (winning / len(closed_trades)) * 100
         
-        self.db.commit()
+        db.commit()
         
         pnl_str = f"+{trade.pnl:.2f}" if trade.pnl and trade.pnl > 0 else f"{trade.pnl:.2f}"
-        print(f"✅ CLOSED {trade.symbol} @ {exit_price:.2f} | PnL: ${pnl_str} ({trade.pnl_percent:.2f}%) | Reason: {reason}")
+        logger.info(f"✅ CLOSED {trade.symbol} @ {exit_price:.2f} | PnL: ${pnl_str} ({trade.pnl_percent:.2f}%) | Reason: {reason}")
     
     async def _handle_bot_error(self, bot_id: str, error: str):
         """Handle bot execution error"""
         if bot_id not in self.active_bots:
             return
         
-        bot = self.active_bots[bot_id]["bot"]
-        bot.status = "ERROR"
-        self.db.commit()
+        bot_state = self.active_bots[bot_id]
         
-        print(f"❌ Bot {bot.name} encountered error: {error}")
-        
-        # Could also create a RiskEvent here for logging
+        db = self.db_session_factory()
+        try:
+            bot = db.query(Bot).filter(Bot.id == bot_id).first()
+            if bot:
+                bot.status = "ERROR"
+                db.commit()
+            
+            logger.error(f"❌ Bot {bot_state['name']} encountered error: {error}")
+        finally:
+            db.close()
+
+
+# Global bot engine instance (will be set in main.py)
+bot_engine: Optional[BotEngine] = None

@@ -10,6 +10,9 @@ from sqlalchemy import desc
 from datetime import datetime
 import json
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/bots", tags=["bots"])
 
@@ -343,7 +346,9 @@ async def start_bot(
     db: Session = Depends(get_db),
     current_user: Optional[UserResponse] = Depends(get_optional_user)
 ):
-    """Start a bot"""
+    """Start a bot - activates trading"""
+    from app.main import _bot_engine
+    
     query = db.query(Bot).filter(Bot.id == bot_id)
     if current_user:
         query = query.filter(Bot.user_id == current_user.id)
@@ -353,11 +358,18 @@ async def start_bot(
     if not bot:
         raise HTTPException(status_code=404, detail="Bot not found")
     
-    bot.status = "ACTIVE"
+    bot.status = "RUNNING"
     bot.updated_at = datetime.utcnow()
     db.commit()
     
-    return {"message": f"Bot {bot.name} started", "status": "ACTIVE"}
+    # Activate bot in the engine
+    if _bot_engine:
+        try:
+            await _bot_engine.activate_bot(str(bot.id))
+        except Exception as e:
+            logger.error(f"Failed to activate bot in engine: {e}")
+    
+    return {"message": f"Bot {bot.name} started", "status": "RUNNING"}
 
 @router.post("/{bot_id}/pause")
 async def pause_bot(
@@ -379,6 +391,14 @@ async def pause_bot(
     bot.updated_at = datetime.utcnow()
     db.commit()
     
+    # Deactivate bot in the engine
+    from app.main import _bot_engine
+    if _bot_engine:
+        try:
+            await _bot_engine.deactivate_bot(str(bot.id))
+        except Exception as e:
+            logger.error(f"Failed to deactivate bot in engine: {e}")
+    
     return {"message": f"Bot {bot.name} paused", "status": "PAUSED"}
 
 @router.post("/{bot_id}/stop")
@@ -387,7 +407,9 @@ async def stop_bot(
     db: Session = Depends(get_db),
     current_user: Optional[UserResponse] = Depends(get_optional_user)
 ):
-    """Stop a bot"""
+    """Stop a bot - deactivates trading"""
+    from app.main import _bot_engine
+    
     query = db.query(Bot).filter(Bot.id == bot_id)
     if current_user:
         query = query.filter(Bot.user_id == current_user.id)
@@ -400,6 +422,13 @@ async def stop_bot(
     bot.status = "IDLE"
     bot.updated_at = datetime.utcnow()
     db.commit()
+    
+    # Deactivate bot in the engine
+    if _bot_engine:
+        try:
+            await _bot_engine.deactivate_bot(str(bot.id))
+        except Exception as e:
+            logger.error(f"Failed to deactivate bot in engine: {e}")
     
     return {"message": f"Bot {bot.name} stopped", "status": "IDLE"}
 

@@ -2,28 +2,48 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
+import asyncio
 
 # Import routes
 from app.routes import health, portfolio, crypto, bots, reports, risk, trades, translations, ml, auth
 from app.config import settings
-from app.db.database import Base, engine
+from app.db.database import Base, engine, SessionLocal
+from app.services.bot_engine import BotEngine, bot_engine
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Global bot engine
+_bot_engine: BotEngine = None
 
 # Note: Tables are already created via supabase_schema.sql in production
 # Don't create tables on startup - they should exist in Supabase
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _bot_engine
+    
     # Startup
     logger.info("🚀 CRBot API Starting...")
     # Tables should already exist in Supabase PostgreSQL
     logger.info("[OK] Database connection ready")
+    
+    # Start Bot Engine
+    try:
+        _bot_engine = BotEngine(SessionLocal)
+        await _bot_engine.start()
+        logger.info("[OK] Bot Engine started")
+    except Exception as e:
+        logger.error(f"[ERROR] Failed to start Bot Engine: {e}")
+    
     yield
+    
     # Shutdown
     logger.info("🛑 CRBot API Shutting down...")
+    if _bot_engine:
+        await _bot_engine.stop()
+        logger.info("[OK] Bot Engine stopped")
 
 # Create FastAPI app
 app = FastAPI(
