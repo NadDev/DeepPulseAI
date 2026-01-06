@@ -85,13 +85,12 @@ class RiskEvent(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(UUID(as_uuid=True), index=True, nullable=False)
-    bot_id = Column(UUID(as_uuid=True), index=True)index=True)
-    bot_id = Column(String(50), index=True)
+    bot_id = Column(UUID(as_uuid=True), index=True)
     event_type = Column(String(50))  # DRAWDOWN_LIMIT, DAILY_LOSS, CORRELATION_HIGH
     severity = Column(String(20))  # INFO, WARNING, CRITICAL
     message = Column(Text)
     action_taken = Column(String(100), nullable=True)
-class SentimentData(Base):
+    created_at = Column(DateTime, server_default=func.now())
     __tablename__ = "sentiment_data"
     
     id = Column(Integer, primary_key=True, index=True)
