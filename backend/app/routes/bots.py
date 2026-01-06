@@ -57,9 +57,16 @@ async def get_bots(
             Trade.status == "OPEN"
         ).count()
         
-        # Parse JSON fields
-        config = json.loads(bot.config) if bot.config else {}
-        symbols = json.loads(bot.symbols) if bot.symbols else []
+        # Parse JSON fields - handle both string and parsed JSON (PostgreSQL JSONB)
+        if isinstance(bot.config, str):
+            config = json.loads(bot.config) if bot.config else {}
+        else:
+            config = bot.config or {}
+            
+        if isinstance(bot.symbols, str):
+            symbols = json.loads(bot.symbols) if bot.symbols else []
+        else:
+            symbols = bot.symbols or []
         
         result.append({
             "id": bot.id,
@@ -107,9 +114,16 @@ async def get_bot(
     
     total_pnl = sum([t.pnl or 0 for t in closed_trades])
     
-    # Parse JSON fields
-    config = json.loads(bot.config) if bot.config else {}
-    symbols = json.loads(bot.symbols) if bot.symbols else []
+    # Parse JSON fields - handle both string and parsed JSON (PostgreSQL JSONB)
+    if isinstance(bot.config, str):
+        config = json.loads(bot.config) if bot.config else {}
+    else:
+        config = bot.config or {}
+        
+    if isinstance(bot.symbols, str):
+        symbols = json.loads(bot.symbols) if bot.symbols else []
+    else:
+        symbols = bot.symbols or []
     
     return {
         "id": bot.id,
