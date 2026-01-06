@@ -15,7 +15,6 @@ class Portfolio(Base):
     total_pnl = Column(Float, default=0.0)
     win_rate = Column(Float, default=0.0)
     max_drawdown = Column(Float, default=0.0)
-    created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 class Trade(Base):
