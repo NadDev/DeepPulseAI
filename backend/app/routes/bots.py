@@ -44,16 +44,10 @@ async def get_available_strategies():
 @router.get("/list")
 async def get_bots(
     db: Session = Depends(get_db),
-    current_user: Optional[UserResponse] = Depends(get_optional_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
-    """Get all bots with their current status and metrics (filtered by user if authenticated)"""
-    query = db.query(Bot)
-    
-    # Filter by user_id if authenticated
-    if current_user:
-        query = query.filter(Bot.user_id == current_user.id)
-    
-    bots = query.all()
+    """Get all bots for current authenticated user"""
+    bots = db.query(Bot).filter(Bot.user_id == current_user.id).all()
     
     result = []
     for bot in bots:
@@ -142,7 +136,7 @@ async def get_bot(
 async def create_bot(
     bot_data: BotCreate, 
     db: Session = Depends(get_db),
-    current_user: Optional[UserResponse] = Depends(get_optional_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """Create a new trading bot"""
     # Validate strategy exists
@@ -162,18 +156,18 @@ async def create_bot(
         )
     
     # Check if bot name already exists for this user
-    existing_query = db.query(Bot).filter(Bot.name == bot_data.name)
-    if current_user:
-        existing_query = existing_query.filter(Bot.user_id == current_user.id)
-    existing_bot = existing_query.first()
+    existing_bot = db.query(Bot).filter(
+        Bot.name == bot_data.name,
+        Bot.user_id == current_user.id
+    ).first()
     
     if existing_bot:
         raise HTTPException(status_code=400, detail="Bot name already exists")
     
-    # Create new bot with user_id
+    # Create new bot with user_id (REQUIRED)
     new_bot = Bot(
-        id=str(uuid.uuid4()),
-        user_id=current_user.id if current_user else None,
+        id=uuid.uuid4(),
+        user_id=current_user.id,
         name=bot_data.name,
         strategy=bot_data.strategy,
         status="INACTIVE",
