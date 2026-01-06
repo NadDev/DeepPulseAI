@@ -20,8 +20,25 @@ class BaseStrategy(ABC):
         Args:
             config: Strategy-specific configuration parameters
         """
-        self.config = config or {}
+        # Start with default config from schema
+        self.config = self._get_default_config()
+        # Override with provided config
+        if config:
+            self.config.update(config)
         self.name = self.__class__.__name__
+    
+    def _get_default_config(self) -> Dict[str, Any]:
+        """Extract default values from config schema"""
+        defaults = {}
+        schema = self.get_config_schema()
+        for key, spec in schema.items():
+            if 'default' in spec:
+                defaults[key] = spec['default']
+        return defaults
+    
+    def get_config_schema(self) -> Dict[str, Any]:
+        """Override in subclass to define configuration schema"""
+        return {}
     
     @abstractmethod
     def validate_signal(self, market_data: Dict[str, Any]) -> bool:

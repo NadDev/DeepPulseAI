@@ -79,8 +79,9 @@ class TrendFollowing(BaseStrategy):
         """Check if we have a valid trend signal"""
         indicators = market_data.get('indicators', {})
         
-        sma_fast = indicators.get(f"sma_{self.config['sma_fast']}")
-        sma_slow = indicators.get(f"sma_{self.config['sma_slow']}")
+        # Use standard SMA periods (20/50)
+        sma_fast = indicators.get('sma_20')
+        sma_slow = indicators.get('sma_50')
         rsi = indicators.get('rsi')
         
         if not all([sma_fast, sma_slow, rsi]):
@@ -93,8 +94,9 @@ class TrendFollowing(BaseStrategy):
         """Determine if we should BUY, SELL, or do nothing"""
         indicators = market_data.get('indicators', {})
         
-        sma_fast = indicators.get(f"sma_{self.config['sma_fast']}")
-        sma_slow = indicators.get(f"sma_{self.config['sma_slow']}")
+        # Use standard SMA periods (20/50)
+        sma_fast = indicators.get('sma_20')
+        sma_slow = indicators.get('sma_50')
         rsi = indicators.get('rsi')
         
         if not all([sma_fast, sma_slow, rsi]):
