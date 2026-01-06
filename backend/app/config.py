@@ -28,10 +28,19 @@ class Settings:
     
     # ========== DATABASE ==========
     # Use Supabase PostgreSQL for both dev and prod
-    DATABASE_URL = os.getenv(
+    # Note: Supabase free tier requires IPv6 - parameters below optimize for that
+    _database_url = os.getenv(
         "DATABASE_URL",
         "postgresql://postgres:admin@localhost:5432/crbot"  # Local fallback for offline dev
     )
+    
+    # Add IPv6 connection parameters if using Supabase (and not localhost)
+    if "supabase.co" in _database_url or "pooler.supabase.com" in _database_url:
+        # Add query parameters for better IPv6 support
+        separator = "&" if "?" in _database_url else "?"
+        DATABASE_URL = f"{_database_url}{separator}sslmode=require&connect_timeout=10"
+    else:
+        DATABASE_URL = _database_url
     
     # ========== REDIS (Caching) ==========
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")

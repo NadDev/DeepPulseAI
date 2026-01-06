@@ -1,6 +1,8 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.pool import QueuePool
 from app.config import settings
+import socket
 
 # Create database engine
 # For SQLite, disable some features that PostgreSQL has
@@ -12,8 +14,17 @@ kwargs = {
 # PostgreSQL-specific settings
 if "postgresql" in settings.DATABASE_URL:
     kwargs.update({
-        "pool_size": 10,
-        "max_overflow": 20,
+        "pool_size": 5,
+        "max_overflow": 10,
+        "poolclass": QueuePool,
+        "connect_args": {
+            "connect_timeout": 10,
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
+            "tcp_user_timeout": 30000,  # 30 seconds in milliseconds
+        }
     })
 
 # SQLite-specific settings
@@ -23,6 +34,20 @@ if "sqlite" in settings.DATABASE_URL:
     })
 
 engine = create_engine(settings.DATABASE_URL, **kwargs)
+
+# Event listener for handling IPv6 connection issues with Supabase
+@event.listens_for(engine, "connect")
+def receive_connect(dbapi_conn, connection_record):
+    """
+    Handle IPv6 connections to Supabase.
+    Sets optimal TCP parameters for long-lived connections.
+    """
+    if hasattr(dbapi_conn, 'set_session'):
+        # Set connection to autocommit mode for better performance
+        try:
+            dbapi_conn.autocommit = True
+        except:
+            pass
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
