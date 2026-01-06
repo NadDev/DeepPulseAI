@@ -21,9 +21,9 @@ class Portfolio(Base):
 class Trade(Base):
     __tablename__ = "trades"
     
-    id = Column(String(50), primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     user_id = Column(UUID(as_uuid=True), index=True, nullable=False)  # Supabase user UUID
-    bot_id = Column(String(50), index=True)
+    bot_id = Column(UUID(as_uuid=True), index=True)
     symbol = Column(String(20), index=True)
     side = Column(String(10))  # BUY or SELL
     entry_price = Column(Float)
@@ -45,7 +45,7 @@ class Trade(Base):
 class Bot(Base):
     __tablename__ = "bots"
     
-    id = Column(String(50), primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     user_id = Column(UUID(as_uuid=True), index=True, nullable=False)  # Supabase user UUID
     name = Column(String(100))
     strategy = Column(String(50))  # trend_following, breakout, mean_reversion
@@ -66,6 +66,7 @@ class StrategyPerformance(Base):
     __tablename__ = "strategy_performance"
     
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(UUID(as_uuid=True), index=True, nullable=False)
     strategy_name = Column(String(50), index=True)
     symbol = Column(String(20), index=True)
     total_trades = Column(Integer, default=0)
@@ -79,21 +80,23 @@ class StrategyPerformance(Base):
     max_drawdown = Column(Float, default=0.0)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-
 class RiskEvent(Base):
     __tablename__ = "risk_events"
     
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    bot_id = Column(UUID(as_uuid=True), index=True)index=True)
     bot_id = Column(String(50), index=True)
     event_type = Column(String(50))  # DRAWDOWN_LIMIT, DAILY_LOSS, CORRELATION_HIGH
     severity = Column(String(20))  # INFO, WARNING, CRITICAL
     message = Column(Text)
     action_taken = Column(String(100), nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
-
 class SentimentData(Base):
     __tablename__ = "sentiment_data"
     
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    symbol = Column(String(20), index=True)
     id = Column(Integer, primary_key=True, index=True)
     symbol = Column(String(20), index=True)
     sentiment_score = Column(Float)  # -1.0 to 1.0

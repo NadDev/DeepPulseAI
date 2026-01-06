@@ -23,11 +23,11 @@ class OrderCreate(BaseModel):
 @router.get("/portfolio/summary")
 async def get_portfolio_summary(
     db: Session = Depends(get_db),
-    current_user: Optional[UserResponse] = Depends(get_optional_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """Get portfolio summary (KPIs)"""
-    # Get portfolio for user (or demo portfolio)
-    user_id = current_user.id if current_user else "user_1"
+    # Get portfolio for user
+    user_id = current_user.id
     portfolio = db.query(Portfolio).filter(Portfolio.user_id == user_id).first()
     
     if not portfolio:
