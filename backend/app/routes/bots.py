@@ -170,7 +170,7 @@ async def create_bot(
         user_id=current_user.id,
         name=bot_data.name,
         strategy=bot_data.strategy,
-        status="INACTIVE",
+        status="IDLE",
         config=json.dumps(bot_data.config),
         symbols=json.dumps(bot_data.symbols),
         paper_trading=bot_data.paper_trading,
@@ -383,11 +383,11 @@ async def stop_bot(
     if not bot:
         raise HTTPException(status_code=404, detail="Bot not found")
     
-    bot.status = "INACTIVE"
+    bot.status = "IDLE"
     bot.updated_at = datetime.utcnow()
     db.commit()
     
-    return {"message": f"Bot {bot.name} stopped", "status": "INACTIVE"}
+    return {"message": f"Bot {bot.name} stopped", "status": "IDLE"}
 
 @router.get("/{bot_id}/performance")
 async def get_bot_performance(bot_id: str, db: Session = Depends(get_db)):
