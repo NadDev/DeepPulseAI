@@ -11,10 +11,36 @@ import {
   Activity,
   DollarSign,
   Target,
-  Settings
+  Settings,
+  X,
+  Search
 } from 'lucide-react';
 import './BotManager.css';
 import { cryptoAPI } from '../services/api';
+
+// Popular trading pairs on Binance
+const POPULAR_SYMBOLS = [
+  { symbol: 'BTCUSDT', name: 'Bitcoin' },
+  { symbol: 'ETHUSDT', name: 'Ethereum' },
+  { symbol: 'SOLUSDT', name: 'Solana' },
+  { symbol: 'BNBUSDT', name: 'BNB' },
+  { symbol: 'XRPUSDT', name: 'XRP' },
+  { symbol: 'ADAUSDT', name: 'Cardano' },
+  { symbol: 'DOGEUSDT', name: 'Dogecoin' },
+  { symbol: 'AVAXUSDT', name: 'Avalanche' },
+  { symbol: 'DOTUSDT', name: 'Polkadot' },
+  { symbol: 'MATICUSDT', name: 'Polygon' },
+  { symbol: 'LINKUSDT', name: 'Chainlink' },
+  { symbol: 'LTCUSDT', name: 'Litecoin' },
+  { symbol: 'ATOMUSDT', name: 'Cosmos' },
+  { symbol: 'UNIUSDT', name: 'Uniswap' },
+  { symbol: 'NEARUSDT', name: 'NEAR Protocol' },
+  { symbol: 'AAVEUSDT', name: 'Aave' },
+  { symbol: 'ARBUSDT', name: 'Arbitrum' },
+  { symbol: 'OPUSDT', name: 'Optimism' },
+  { symbol: 'APTUSDT', name: 'Aptos' },
+  { symbol: 'SUIUSDT', name: 'Sui' },
+];
 
 const BotManager = () => {
   const [bots, setBots] = useState([]);
@@ -350,17 +376,48 @@ const BotManager = () => {
               </div>
 
               <div className="form-group">
-                <label>Symbols (comma-separated)</label>
-                <input
-                  type="text"
-                  value={formData.symbols.join(',')}
-                  onChange={e => setFormData({
-                    ...formData, 
-                    symbols: e.target.value.split(',').map(s => s.trim())
-                  })}
-                  placeholder="BTCUSDT, ETHUSDT"
-                  required
-                />
+                <label>Trading Pairs</label>
+                <div className="symbol-selector">
+                  <div className="selected-symbols">
+                    {formData.symbols.map((symbol, idx) => (
+                      <span key={idx} className="selected-symbol-tag">
+                        {symbol}
+                        <button 
+                          type="button"
+                          onClick={() => setFormData({
+                            ...formData,
+                            symbols: formData.symbols.filter((_, i) => i !== idx)
+                          })}
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="symbol-dropdown">
+                    <select
+                      value=""
+                      onChange={e => {
+                        if (e.target.value && !formData.symbols.includes(e.target.value)) {
+                          setFormData({
+                            ...formData,
+                            symbols: [...formData.symbols, e.target.value]
+                          });
+                        }
+                      }}
+                    >
+                      <option value="">+ Add trading pair...</option>
+                      {POPULAR_SYMBOLS.filter(s => !formData.symbols.includes(s.symbol)).map(s => (
+                        <option key={s.symbol} value={s.symbol}>
+                          {s.symbol} - {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                {formData.symbols.length === 0 && (
+                  <span className="form-error">Select at least one trading pair</span>
+                )}
               </div>
 
               <div className="form-row">
