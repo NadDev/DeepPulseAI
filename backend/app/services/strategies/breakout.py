@@ -59,7 +59,24 @@ class Breakout(BaseStrategy):
         }
     
     def get_description(self) -> str:
-        return "Breakout strategy with volume confirmation and range-based targets"
+        return """🚀 **Breakout Strategy**
+        
+Trades price breakouts from support and resistance levels.
+
+**How it works:**
+- Identifies key support and resistance levels
+- BUY when price breaks above resistance with volume confirmation
+- SELL when price breaks below support with volume confirmation
+- Uses the range size for take profit targets
+
+**Best for:**
+- Consolidating markets ready to move
+- After periods of low volatility
+- News-driven breakouts
+
+**Risk Level:** Medium-High
+**Timeframe:** 1-4 hours
+**Expected Win Rate:** 40-50% (large winners on valid breakouts)"""
     
     def validate_signal(self, market_data: Dict[str, Any]) -> bool:
         """Check if we have sufficient data for breakout detection"""

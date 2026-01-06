@@ -71,7 +71,24 @@ class MeanReversion(BaseStrategy):
         }
     
     def get_description(self) -> str:
-        return "Mean Reversion strategy using Bollinger Bands and RSI"
+        return """🔄 **Mean Reversion Strategy**
+        
+Trades pullbacks expecting price to return to the mean.
+
+**How it works:**
+- Uses Bollinger Bands to identify overbought/oversold conditions
+- BUY when price touches lower band with RSI oversold
+- SELL when price touches upper band with RSI overbought
+- Takes profit when price returns to the middle band
+
+**Best for:**
+- Range-bound markets
+- After overextended moves
+- Stable, liquid assets
+
+**Risk Level:** Medium
+**Timeframe:** 1-4 hours
+**Expected Win Rate:** 55-65% (frequent smaller wins)"""
     
     def validate_signal(self, market_data: Dict[str, Any]) -> bool:
         """Check if we have required indicators"""

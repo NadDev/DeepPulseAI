@@ -73,7 +73,23 @@ class TrendFollowing(BaseStrategy):
         }
     
     def get_description(self) -> str:
-        return "Trend Following strategy using SMA crossover and RSI confirmation"
+        return """📈 **Trend Following Strategy**
+        
+Follows established market trends using moving average crossovers.
+
+**How it works:**
+- BUY when fast SMA (20) crosses above slow SMA (50) with RSI confirmation
+- SELL when fast SMA crosses below slow SMA with RSI confirmation
+- Rides trends until they reverse
+
+**Best for:**
+- Trending markets with clear direction
+- Medium to long-term trades
+- Patience-rewarding setups
+
+**Risk Level:** Medium
+**Timeframe:** 1-4 hours
+**Expected Win Rate:** 45-55% (high R:R ratio compensates)"""
     
     def validate_signal(self, market_data: Dict[str, Any]) -> bool:
         """Check if we have a valid trend signal"""

@@ -375,6 +375,31 @@ const BotManager = () => {
                 </select>
               </div>
 
+              {/* Strategy Description Card */}
+              {formData.strategy && (
+                <div className="strategy-info-card">
+                  <div className="strategy-info-content">
+                    {strategies.find(s => s.name === formData.strategy)?.description?.split('\n').map((line, i) => {
+                      // Parse markdown-like formatting
+                      if (line.startsWith('**') && line.endsWith('**')) {
+                        return <h4 key={i}>{line.replace(/\*\*/g, '')}</h4>;
+                      }
+                      if (line.startsWith('- ')) {
+                        return <li key={i}>{line.substring(2)}</li>;
+                      }
+                      if (line.includes('**')) {
+                        const parts = line.split('**');
+                        return <p key={i}>{parts.map((part, j) => j % 2 === 1 ? <strong key={j}>{part}</strong> : part)}</p>;
+                      }
+                      if (line.trim() === '') {
+                        return null;
+                      }
+                      return <p key={i}>{line}</p>;
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="form-group">
                 <label>Trading Pairs</label>
                 <div className="symbol-selector">
