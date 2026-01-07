@@ -53,7 +53,7 @@
 | Étape | Description | Status |
 |-------|-------------|--------|
 | 1.1 | Créer compte Supabase | ✅ Fait |
-| 1.2 | Créer projet "crbot" | ✅ Fait (`opnouxerbecxofzekwpm.supabase.co`) |
+| 1.2 | Créer projet "crbot" | ✅ Fait (voir .env) |
 | 1.3 | Noter credentials (URL, anon key, service key) | ✅ Fait (`.env` configuré) |
 | 1.4 | Créer compte Timescale Cloud | ✅ Fait |
 | 1.5 | Créer service "crbot-market-data" (Performance $30) | ✅ Fait |
@@ -182,11 +182,11 @@ Un agent IA connecté à DeepSeek qui analyse les marchés et gère les bots de 
 ## 📊 Credentials & Configuration
 
 ### Supabase (Auth)
-- **Project URL**: `https://opnouxerbecxofzekwpm.supabase.co`
+- **Project URL**: See `backend/.env` for configuration
 - **Config**: `backend/.env` et `frontend/.env`
 
 ### Timescale Cloud (Market Data)
-- **Host**: `idfffrs9u1.d4bmrstuve.tsdb.cloud.timescale.com`
+- **Host**: See `backend/.env` for configuration
 - **Port**: `35095`
 - **Database**: `tsdb`
 - **Tables**: `market_data` (hypertable), `trade_history` (hypertable)

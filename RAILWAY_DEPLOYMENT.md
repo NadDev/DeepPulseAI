@@ -18,7 +18,7 @@ Frontend (Vercel) → Backend (Railway) → Supabase PostgreSQL
 
 ### Create Tables in Supabase
 
-1. Go to https://app.supabase.com/project/opnouxerbecxofzekwpm/sql/new
+1. Go to https://app.supabase.com/project/YOUR_PROJECT_ID/sql/new
 2. Copy-paste the content of `../database/supabase_schema.sql`
 3. Click "Run" (Ctrl+Enter)
 4. Wait for all tables to be created
@@ -58,18 +58,18 @@ postgresql://postgres:PASSWORD@db.opnouxerbecxofzekwpm.supabase.co:5432/postgres
 
    ```
    ENV=production
-   SUPABASE_URL=https://opnouxerbecxofzekwpm.supabase.co
-   SUPABASE_ANON_KEY=sb_publishable_QKhstCwE2ToLugAu2gVt6w_vVO7a9nR
-   SUPABASE_SERVICE_KEY=sb_secret_LQUc2jVhsp359jvcf1UZBg_T4irZzlp
-   DATABASE_URL=postgresql://postgres:PASSWORD@db.opnouxerbecxofzekwpm.supabase.co:5432/postgres
-   TIMESCALE_HOST=idfffrs9u1.d4bmrstuve.tsdb.cloud.timescale.com
+   SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
+   SUPABASE_ANON_KEY=your-supabase-anon-key
+   SUPABASE_SERVICE_KEY=your-supabase-service-key
+   DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@db.YOUR_PROJECT_ID.supabase.co:5432/postgres
+   TIMESCALE_HOST=your-timescale-host.tsdb.cloud.timescale.com
    TIMESCALE_PORT=35095
    TIMESCALE_DATABASE=tsdb
    TIMESCALE_USER=tsdbadmin
-   TIMESCALE_PASSWORD=h04aqav18vv5vguc
-   TIMESCALE_URL=postgresql://tsdbadmin:PASSWORD@idfffrs9u1.d4bmrstuve.tsdb.cloud.timescale.com:35095/tsdb?sslmode=require
-   SECRET_KEY=prod-secret-key-change-me
-   API_KEY_ENCRYPTION_KEY=prod-encryption-key-change-me
+   TIMESCALE_PASSWORD=your-timescale-password
+   TIMESCALE_URL=postgresql://tsdbadmin:YOUR_PASSWORD@your-host:35095/tsdb?sslmode=require
+   SECRET_KEY=generate-a-secure-secret-key
+   API_KEY_ENCRYPTION_KEY=generate-a-secure-encryption-key
    ```
 
 4. **Deploy**
@@ -123,9 +123,9 @@ railway status
 Update `frontend/.env.production`:
 
 ```
-VITE_SUPABASE_URL=https://opnouxerbecxofzekwpm.supabase.co
-VITE_SUPABASE_ANON_KEY=sb_publishable_QKhstCwE2ToLugAu2gVt6w_vVO7a9nR
-VITE_API_URL=https://crbot-backend-prod.railway.app
+VITE_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+VITE_API_URL=https://your-railway-backend-url.railway.app
 ```
 
 ## Step 5: Deploy Frontend on Vercel

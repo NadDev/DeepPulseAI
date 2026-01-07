@@ -96,7 +96,7 @@ Backend (FastAPI) → Supabase PostgreSQL
 ### Step 1: Create Tables in Supabase (5 minutes)
 
 ```
-1. Go to: https://app.supabase.com/project/opnouxerbecxofzekwpm/sql/new
+1. Go to: https://app.supabase.com/project/YOUR_PROJECT_ID/sql/new
 2. Copy contents of: database/supabase_schema.sql
 3. Paste into SQL editor
 4. Click "Run" (Ctrl+Enter)
@@ -210,7 +210,7 @@ Expected output:
 
 ## 🔗 Quick Links
 
-- **Supabase Project**: https://app.supabase.com/project/opnouxerbecxofzekwpm
+- **Supabase Project**: https://app.supabase.com/project/YOUR_PROJECT_ID
 - **Railway Dashboard**: https://railway.app/dashboard
 - **Vercel Dashboard**: https://vercel.com/dashboard
 - **GitHub Repo**: https://github.com/NadDev/CRBot

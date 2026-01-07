@@ -14,7 +14,7 @@
 
 **Étapes :**
 
-1. Ouvrez https://app.supabase.com/project/opnouxerbecxofzekwpm/sql/new
+1. Ouvrez https://app.supabase.com/project/YOUR_PROJECT_ID/sql/new
 2. Copiez le contenu du fichier: `database/supabase_schema.sql`
 3. Collez-le dans l'éditeur SQL Supabase
 4. Cliquez "Run" (ou Ctrl+Enter)
@@ -122,18 +122,18 @@ Dans le dashboard Railway, allez à "Variables" et ajoutez :
 
 ```
 ENV=production
-SUPABASE_URL=https://opnouxerbecxofzekwpm.supabase.co
-SUPABASE_ANON_KEY=sb_publishable_QKhstCwE2ToLugAu2gVt6w_vVO7a9nR
-SUPABASE_SERVICE_KEY=sb_secret_LQUc2jVhsp359jvcf1UZBg_T4irZzlp
-DATABASE_URL=postgresql://postgres:dMTGo9xJZw5yFjMG@db.opnouxerbecxofzekwpm.supabase.co:5432/postgres
-TIMESCALE_HOST=idfffrs9u1.d4bmrstuve.tsdb.cloud.timescale.com
+SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
+SUPABASE_ANON_KEY=your-supabase-anon-key
+SUPABASE_SERVICE_KEY=your-supabase-service-key
+DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@db.YOUR_PROJECT_ID.supabase.co:5432/postgres
+TIMESCALE_HOST=your-timescale-host.tsdb.cloud.timescale.com
 TIMESCALE_PORT=35095
 TIMESCALE_DATABASE=tsdb
 TIMESCALE_USER=tsdbadmin
-TIMESCALE_PASSWORD=h04aqav18vv5vguc
-TIMESCALE_URL=postgresql://tsdbadmin:h04aqav18vv5vguc@idfffrs9u1.d4bmrstuve.tsdb.cloud.timescale.com:35095/tsdb?sslmode=require
-SECRET_KEY=change-me-in-production
-API_KEY_ENCRYPTION_KEY=change-me-in-production
+TIMESCALE_PASSWORD=your-timescale-password
+TIMESCALE_URL=postgresql://tsdbadmin:YOUR_PASSWORD@your-host:35095/tsdb?sslmode=require
+SECRET_KEY=generate-a-secure-secret-key
+API_KEY_ENCRYPTION_KEY=generate-a-secure-encryption-key
 ```
 
 **Déployer :**
@@ -156,9 +156,9 @@ API_KEY_ENCRYPTION_KEY=change-me-in-production
 5. Ajoutez les variables d'environnement:
 
 ```
-VITE_SUPABASE_URL=https://opnouxerbecxofzekwpm.supabase.co
-VITE_SUPABASE_ANON_KEY=sb_publishable_QKhstCwE2ToLugAu2gVt6w_vVO7a9nR
-VITE_API_URL=https://crbot-backend-xxxxx.railway.app
+VITE_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+VITE_API_URL=https://your-railway-backend-url.railway.app
 ```
 
 6. Cliquez "Deploy"
@@ -177,13 +177,13 @@ VITE_API_URL=https://crbot-backend-xxxxx.railway.app
                       ▼
 ┌─────────────────────────────────────────────────────────┐
 │ BACKEND (Railway)                                       │
-│ FastAPI - https://crbot-backend-xxxxx.railway.app     │
+│ FastAPI - https://your-backend.railway.app              │
 └─────────────────────┬─────────────────────────────────┘
                       │ SQL Queries
                       ▼
 ┌─────────────────────────────────────────────────────────┐
 │ SUPABASE PostgreSQL                                     │
-│ opnouxerbecxofzekwpm.supabase.co                       │
+│ YOUR_PROJECT_ID.supabase.co                             │
 │ Tables: users, bots, trades, portfolios, etc.          │
 └─────────────────────┬─────────────────────────────────┘
                       │ Auth & Users

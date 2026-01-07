@@ -1,10 +1,58 @@
-﻿.env
+﻿# Environment files - NEVER commit real credentials!
+.env
 .env.local
 .env.*.local
+.env.production
+.env.development
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+*.env
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
 .venv/
+venv/
+ENV/
+env/
+*.egg-info/
+.eggs/
+
+# Node
 node_modules/
 dist/
+build/
+.next/
+
+# IDEs
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
 .DS_Store
-@ | Out-File -Encoding utf8 .gitignore
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Database files
+*.db
+*.sqlite3
+
+# OS
+Thumbs.db
+
+# Secrets (additional protection)
+*.pem
+*.key
+*_rsa
+*_dsa
+*.p12
+credentials.json
+secrets.json
