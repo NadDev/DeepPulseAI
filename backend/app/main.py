@@ -3,12 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 import asyncio
+import os
 
 # Import routes
 from app.routes import health, portfolio, crypto, bots, reports, risk, trades, translations, ml, auth
 from app.config import settings
 from app.db.database import Base, engine, SessionLocal
 from app.services.bot_engine import BotEngine, bot_engine
+from app.services.ai_agent import initialize_ai_agent
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -16,18 +18,32 @@ logger = logging.getLogger(__name__)
 
 # Global bot engine
 _bot_engine: BotEngine = None
+_ai_agent = None
 
 # Note: Tables are already created via supabase_schema.sql in production
 # Don't create tables on startup - they should exist in Supabase
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _bot_engine
+    global _bot_engine, _ai_agent
     
     # Startup
     logger.info("🚀 CRBot API Starting...")
     # Tables should already exist in Supabase PostgreSQL
     logger.info("[OK] Database connection ready")
+    
+    # Initialize AI Agent if enabled
+    if os.getenv("AI_AGENT_ENABLED", "true").lower() == "true":
+        try:
+            api_key = os.getenv("DEEPSEEK_API_KEY")
+            if api_key:
+                _ai_agent = initialize_ai_agent(api_key)
+                await _ai_agent.start()
+                logger.info("[OK] AI Trading Agent initialized")
+            else:
+                logger.warning("⚠️ DEEPSEEK_API_KEY not found - AI Agent disabled")
+        except Exception as e:
+            logger.error(f"[ERROR] Failed to initialize AI Agent: {e}")
     
     # Start Bot Engine
     try:
@@ -41,6 +57,9 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("🛑 CRBot API Shutting down...")
+    if _ai_agent:
+        await _ai_agent.stop()
+        logger.info("[OK] AI Agent stopped")
     if _bot_engine:
         await _bot_engine.stop()
         logger.info("[OK] Bot Engine stopped")
