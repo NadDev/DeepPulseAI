@@ -233,5 +233,51 @@ export const aiAPI = {
       console.error('Error toggling AI Agent:', error);
       throw error;
     }
+  },
+
+  // AI Bot Controller Control
+  startController: async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/ai-agent/controller/start`, {
+        method: 'POST',
+        headers
+      });
+      if (!response.ok) throw new Error('Failed to start AI Bot Controller');
+      return response.json();
+    } catch (error) {
+      console.error('Error starting AI Bot Controller:', error);
+      throw error;
+    }
+  },
+
+  stopController: async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/ai-agent/controller/stop`, {
+        method: 'POST',
+        headers
+      });
+      if (!response.ok) throw new Error('Failed to stop AI Bot Controller');
+      return response.json();
+    } catch (error) {
+      console.error('Error stopping AI Bot Controller:', error);
+      throw error;
+    }
+  },
+
+  toggleController: async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/ai-agent/controller/toggle`, {
+        method: 'POST',
+        headers
+      });
+      if (!response.ok) throw new Error('Failed to toggle AI Bot Controller');
+      return response.json();
+    } catch (error) {
+      console.error('Error toggling AI Bot Controller:', error);
+      throw error;
+    }
   }
 };

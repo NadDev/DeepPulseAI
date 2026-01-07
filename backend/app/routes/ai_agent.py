@@ -838,3 +838,99 @@ async def toggle_ai_agent(
     except Exception as e:
         logger.error(f"Error toggling AI Agent: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================
+# AI Bot Controller Control Endpoints
+# ============================================
+
+@router.post("/controller/start")
+async def start_controller(
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Start the AI Bot Controller"""
+    controller = get_controller()
+    if not controller:
+        raise HTTPException(status_code=503, detail="AI Bot Controller not initialized")
+    
+    try:
+        if controller._running:
+            return {
+                "message": "AI Bot Controller already running",
+                "running": True,
+                "mode": controller.mode
+            }
+        
+        await controller.start()
+        logger.info(f"🚀 AI Bot Controller started by user {current_user.id}")
+        
+        return {
+            "message": "AI Bot Controller started successfully",
+            "running": True,
+            "mode": controller.mode
+        }
+    except Exception as e:
+        logger.error(f"Error starting AI Bot Controller: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/controller/stop")
+async def stop_controller(
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Stop the AI Bot Controller"""
+    controller = get_controller()
+    if not controller:
+        raise HTTPException(status_code=503, detail="AI Bot Controller not initialized")
+    
+    try:
+        if not controller._running:
+            return {
+                "message": "AI Bot Controller already stopped",
+                "running": False,
+                "mode": controller.mode
+            }
+        
+        await controller.stop()
+        logger.info(f"⏸️ AI Bot Controller stopped by user {current_user.id}")
+        
+        return {
+            "message": "AI Bot Controller stopped successfully",
+            "running": False,
+            "mode": controller.mode
+        }
+    except Exception as e:
+        logger.error(f"Error stopping AI Bot Controller: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/controller/toggle")
+async def toggle_controller(
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Toggle AI Bot Controller on/off"""
+    controller = get_controller()
+    if not controller:
+        raise HTTPException(status_code=503, detail="AI Bot Controller not initialized")
+    
+    try:
+        if controller._running:
+            await controller.stop()
+            action = "stopped"
+            running = False
+        else:
+            await controller.start()
+            action = "started"
+            running = True
+        
+        logger.info(f"🔄 AI Bot Controller {action} by user {current_user.id}")
+        
+        return {
+            "message": f"AI Bot Controller {action} successfully",
+            "running": running,
+            "mode": controller.mode,
+            "ai_bots": len(controller.ai_bots)
+        }
+    except Exception as e:
+        logger.error(f"Error toggling AI Bot Controller: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
