@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any, List
 from app.db.database import get_db
 from app.models.database_models import Bot, Trade, StrategyPerformance
 from app.services.strategies import StrategyRegistry
+from app.services import bot_engine as bot_engine_module
 from app.auth.supabase_auth import get_current_user, get_optional_user, UserResponse
 from sqlalchemy import desc
 from datetime import datetime
@@ -15,6 +16,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/bots", tags=["bots"])
+
+# Helper function to get bot engine at runtime
+def get_bot_engine():
+    return bot_engine_module.bot_engine
 
 
 # Pydantic models for request validation
@@ -347,7 +352,7 @@ async def start_bot(
     current_user: Optional[UserResponse] = Depends(get_optional_user)
 ):
     """Start a bot - activates trading"""
-    from app.main import _bot_engine
+    engine = get_bot_engine()
     
     query = db.query(Bot).filter(Bot.id == bot_id)
     if current_user:
@@ -363,9 +368,9 @@ async def start_bot(
     db.commit()
     
     # Activate bot in the engine
-    if _bot_engine:
+    if engine:
         try:
-            await _bot_engine.activate_bot(str(bot.id))
+            await engine.activate_bot(str(bot.id))
         except Exception as e:
             logger.error(f"Failed to activate bot in engine: {e}")
     
@@ -392,10 +397,10 @@ async def pause_bot(
     db.commit()
     
     # Deactivate bot in the engine
-    from app.main import _bot_engine
-    if _bot_engine:
+    engine = get_bot_engine()
+    if engine:
         try:
-            await _bot_engine.deactivate_bot(str(bot.id))
+            await engine.deactivate_bot(str(bot.id))
         except Exception as e:
             logger.error(f"Failed to deactivate bot in engine: {e}")
     
@@ -408,7 +413,7 @@ async def stop_bot(
     current_user: Optional[UserResponse] = Depends(get_optional_user)
 ):
     """Stop a bot - deactivates trading"""
-    from app.main import _bot_engine
+    engine = get_bot_engine()
     
     query = db.query(Bot).filter(Bot.id == bot_id)
     if current_user:
@@ -424,9 +429,9 @@ async def stop_bot(
     db.commit()
     
     # Deactivate bot in the engine
-    if _bot_engine:
+    if engine:
         try:
-            await _bot_engine.deactivate_bot(str(bot.id))
+            await engine.deactivate_bot(str(bot.id))
         except Exception as e:
             logger.error(f"Failed to deactivate bot in engine: {e}")
     
