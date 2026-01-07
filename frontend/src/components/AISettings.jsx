@@ -30,7 +30,17 @@ export default function AISettings() {
       setLoading(true);
       const data = await aiAPI.getConfig();
       if (data && data.config) {
-        setConfig(data.config);
+        // Ensure all numeric values are valid
+        setConfig({
+          ...data.config,
+          max_daily_trades: data.config.max_daily_trades || 5,
+          risk_percentage: data.config.risk_percentage || 2,
+          stop_loss_percentage: data.config.stop_loss_percentage || 5,
+          confidence_threshold: data.config.confidence_threshold || 65,
+          cooldown_minutes: data.config.cooldown_minutes || 30,
+          watchlist_symbols: data.config.watchlist_symbols || ['BTC/USDT', 'ETH/USDT'],
+          enabled: data.config.enabled !== undefined ? data.config.enabled : true
+        });
       }
       setError('');
     } catch (err) {
@@ -42,9 +52,22 @@ export default function AISettings() {
   };
 
   const handleInputChange = (field, value) => {
+    // Protect against NaN for numeric fields
+    let safeValue = value;
+    if (typeof value === 'number' && isNaN(value)) {
+      const defaults = {
+        max_daily_trades: 5,
+        risk_percentage: 2,
+        stop_loss_percentage: 5,
+        confidence_threshold: 65,
+        cooldown_minutes: 30
+      };
+      safeValue = defaults[field] || 0;
+    }
+    
     setConfig(prev => ({
       ...prev,
-      [field]: value
+      [field]: safeValue
     }));
   };
 
@@ -210,7 +233,7 @@ export default function AISettings() {
                   className="slider"
                 />
               </div>
-              <span className="current-value">{config.risk_percentage.toFixed(1)}%</span>
+              <span className="current-value">{config.risk_percentage?.toFixed(1) || '2.0'}%</span>
             </div>
 
             {/* Stop Loss Percentage */}
@@ -239,7 +262,7 @@ export default function AISettings() {
                   className="slider"
                 />
               </div>
-              <span className="current-value">{config.stop_loss_percentage.toFixed(1)}%</span>
+              <span className="current-value">{config.stop_loss_percentage?.toFixed(1) || '5.0'}%</span>
             </div>
 
             {/* Confidence Threshold */}
