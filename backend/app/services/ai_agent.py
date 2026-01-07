@@ -5,7 +5,7 @@ Integrates with DeepSeek LLM to analyze markets and make trading decisions
 import asyncio
 import json
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Callable
 from datetime import datetime
 import httpx
 
@@ -18,13 +18,14 @@ class AITradingAgent:
     Analyzes market data and recommends trading actions
     """
     
-    def __init__(self, api_key: str, model: str = "deepseek-chat"):
+    def __init__(self, api_key: str, model: str = "deepseek-chat", db_session_factory: Callable = None):
         """
         Initialize AI Trading Agent
         
         Args:
             api_key: DeepSeek API key
             model: DeepSeek model to use
+            db_session_factory: Factory for database sessions
         """
         self.api_key = api_key
         self.model = model
@@ -33,6 +34,11 @@ class AITradingAgent:
         self.mode = "observation"  # observation or trading
         self._running = False
         self._task: Optional[asyncio.Task] = None
+        self.db_session_factory = db_session_factory
+        
+        # Configuration
+        self.check_interval = 300  # 5 minutes between analyses
+        self.min_confidence_to_log = 50  # Minimum confidence to store in DB
         
         # Store decision history for learning
         self.decision_history: List[Dict[str, Any]] = []
@@ -61,23 +67,182 @@ class AITradingAgent:
                 pass
     
     async def _monitoring_loop(self):
-        """Main monitoring loop - analyzes markets periodically"""
-        logger.info("🔄 AI Agent monitoring loop started")
+        """
+        Main monitoring loop - analyzes watchlist markets periodically.
+        In observation mode: logs recommendations but doesn't trade.
+        In trading mode: could trigger trades (via AI Bot Controller).
+        """
+        logger.info(f"🔄 AI Agent monitoring loop started (interval: {self.check_interval}s)")
+        
+        # Initial delay to let system stabilize
+        await asyncio.sleep(30)
         
         while self._running:
             try:
-                # Analyze top markets every 5 minutes
-                await asyncio.sleep(300)  # 5 minutes
+                logger.info("🔍 AI Agent: Starting market analysis cycle...")
                 
-                # TODO: Get top symbols from database
-                # symbols = await self.get_top_symbols()
-                # for symbol in symbols:
-                #     await self.analyze_symbol(symbol)
+                # Get watchlist symbols from database
+                symbols = await self._get_watchlist_symbols()
+                
+                if not symbols:
+                    logger.info("📋 No symbols in watchlist to analyze")
+                else:
+                    logger.info(f"📊 Analyzing {len(symbols)} symbols from watchlist")
+                    
+                    for symbol in symbols:
+                        if not self._running:
+                            break
+                            
+                        try:
+                            # Fetch market data and indicators
+                            data = await self._fetch_market_data(symbol)
+                            
+                            if data:
+                                # Analyze with AI
+                                analysis = await self.analyze_market(
+                                    symbol=symbol,
+                                    market_data={
+                                        "close": data["close"],
+                                        "high": data["high"],
+                                        "low": data["low"],
+                                        "volume": data["volume"],
+                                        "change_24h": data.get("change_24h", 0)
+                                    },
+                                    indicators=data["indicators"]
+                                )
+                                
+                                # Log recommendation
+                                action = analysis.get("action", "NONE")
+                                confidence = analysis.get("confidence", 0)
+                                
+                                if action in ["BUY", "SELL"] and confidence >= self.min_confidence_to_log:
+                                    logger.info(f"💡 {symbol}: {action} signal (confidence: {confidence}%)")
+                                    
+                                    # Store decision in DB (for observation mode)
+                                    if self.mode == "observation":
+                                        await self._store_decision(analysis)
+                                
+                                # Small delay between analyses to avoid rate limits
+                                await asyncio.sleep(2)
+                                
+                        except Exception as e:
+                            logger.error(f"❌ Error analyzing {symbol}: {str(e)}")
+                
+                logger.info(f"✅ Analysis cycle complete. Next in {self.check_interval}s")
+                
+                # Wait for next cycle
+                await asyncio.sleep(self.check_interval)
                 
             except Exception as e:
                 logger.error(f"❌ Error in AI monitoring loop: {str(e)}")
-                await asyncio.sleep(10)
+                await asyncio.sleep(60)  # Wait 1 min on error before retrying
     
+    async def _get_watchlist_symbols(self) -> List[str]:
+        """Get symbols from watchlist table"""
+        if not self.db_session_factory:
+            # Fallback to default symbols
+            return ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
+        
+        try:
+            from app.models.database_models import WatchlistItem
+            
+            db = self.db_session_factory()
+            try:
+                items = db.query(WatchlistItem).filter(
+                    WatchlistItem.is_active == True
+                ).order_by(WatchlistItem.priority.desc()).limit(20).all()
+                
+                # Convert BTC/USDT to BTCUSDT format
+                symbols = [item.symbol.replace("/", "") for item in items]
+                return symbols if symbols else ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
+            finally:
+                db.close()
+                
+        except Exception as e:
+            logger.error(f"Error fetching watchlist: {str(e)}")
+            return ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
+    
+    async def _fetch_market_data(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """Fetch market data using MarketDataCollector"""
+        try:
+            from app.services.market_data import market_data_collector
+            from app.services.technical_analysis import TechnicalAnalysis
+            
+            # Ensure symbol format
+            binance_symbol = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
+            
+            # Get candles
+            candles = await market_data_collector.get_candles(binance_symbol, timeframe="1h", limit=100)
+            
+            if not candles or len(candles) < 20:
+                return None
+            
+            # Calculate indicators
+            ta = TechnicalAnalysis()
+            closes = [c['close'] for c in candles]
+            highs = [c['high'] for c in candles]
+            lows = [c['low'] for c in candles]
+            
+            sma_20 = ta.calculate_sma(closes, 20)
+            sma_50 = ta.calculate_sma(closes, 50)
+            rsi = ta.calculate_rsi(closes, 14)
+            bb_upper, bb_middle, bb_lower = ta.calculate_bollinger_bands(closes, 20, 2)
+            
+            current = candles[-1]
+            
+            return {
+                "symbol": binance_symbol,
+                "close": current['close'],
+                "high": current['high'],
+                "low": current['low'],
+                "volume": current['volume'],
+                "change_24h": 0,  # Simplified
+                "indicators": {
+                    "rsi": round(rsi[-1], 2) if rsi and rsi[-1] else None,
+                    "sma_20": round(sma_20[-1], 2) if sma_20 and sma_20[-1] else None,
+                    "sma_50": round(sma_50[-1], 2) if sma_50 and sma_50[-1] else None,
+                    "bb_upper": round(bb_upper[-1], 2) if bb_upper and bb_upper[-1] else None,
+                    "bb_middle": round(bb_middle[-1], 2) if bb_middle and bb_middle[-1] else None,
+                    "bb_lower": round(bb_lower[-1], 2) if bb_lower and bb_lower[-1] else None,
+                    "resistance": max(highs[-20:]),
+                    "support": min(lows[-20:])
+                }
+            }
+        except Exception as e:
+            logger.error(f"Error fetching market data for {symbol}: {str(e)}")
+            return None
+    
+    async def _store_decision(self, analysis: Dict[str, Any]):
+        """Store AI decision in database for tracking and learning"""
+        if not self.db_session_factory:
+            return
+            
+        try:
+            from app.models.database_models import AIDecision
+            
+            db = self.db_session_factory()
+            try:
+                decision = AIDecision(
+                    symbol=analysis.get("symbol", "UNKNOWN"),
+                    action=analysis.get("action", "NONE"),
+                    confidence=analysis.get("confidence", 0),
+                    reasoning=analysis.get("reasoning", ""),
+                    risk_level=analysis.get("risk_level", "MEDIUM"),
+                    target_price=analysis.get("target_price"),
+                    stop_loss=analysis.get("stop_loss"),
+                    market_data=json.dumps(analysis),
+                    mode=self.mode,
+                    executed=False  # Observation mode doesn't execute
+                )
+                db.add(decision)
+                db.commit()
+                logger.debug(f"📝 Stored AI decision for {analysis.get('symbol')}")
+            finally:
+                db.close()
+                
+        except Exception as e:
+            logger.error(f"Error storing AI decision: {str(e)}")
+
     async def analyze_market(
         self,
         symbol: str,
@@ -397,10 +562,10 @@ give your analysis based on general market knowledge. Be honest about uncertaint
 ai_agent: Optional[AITradingAgent] = None
 
 
-def initialize_ai_agent(api_key: str, model: str = "deepseek-chat"):
+def initialize_ai_agent(api_key: str, model: str = "deepseek-chat", db_session_factory=None):
     """Initialize global AI agent instance"""
     global ai_agent
-    ai_agent = AITradingAgent(api_key, model)
+    ai_agent = AITradingAgent(api_key, model, db_session_factory)
     return ai_agent
 
 
