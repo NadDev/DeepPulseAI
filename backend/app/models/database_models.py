@@ -101,3 +101,116 @@ class RiskEvent(Base):
     fear_greed_index = Column(Float)  # 0 to 100
     source = Column(String(50))  # twitter, news, etc
     created_at = Column(DateTime, server_default=func.now())
+
+
+class AIDecision(Base):
+    """
+    Logs all AI Agent decisions for analysis and backtesting
+    Tracks every BUY/SELL/HOLD recommendation and whether it was executed
+    """
+    __tablename__ = "ai_decisions"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    user_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    bot_id = Column(UUID(as_uuid=True), index=True, nullable=True)  # Bot that executed (if any)
+    
+    # === Decision Info ===
+    symbol = Column(String(20), index=True, nullable=False)
+    action = Column(String(10), index=True)  # BUY, SELL, HOLD
+    confidence = Column(Integer)  # 0-100
+    reasoning = Column(Text)  # AI reasoning
+    
+    # === Market Context ===
+    entry_price = Column(Float, nullable=True)  # Market price at decision time
+    target_price = Column(Float, nullable=True)  # Target if BUY/SELL
+    stop_loss = Column(Float, nullable=True)  # Suggested stop loss
+    risk_level = Column(String(10))  # LOW, MEDIUM, HIGH
+    timeframe = Column(String(10), default="1h")  # 5m, 15m, 1h, 4h, 1d
+    
+    # === Execution Info ===
+    executed = Column(Boolean, default=False, index=True)  # Was this decision executed?
+    blocked = Column(Boolean, default=False)  # Was this decision blocked by safety checks?
+    blocked_reason = Column(Text, nullable=True)  # Why it was blocked
+    
+    # === Mode & Context ===
+    mode = Column(String(20))  # observation, paper, live (for controller) or advisory, autonomous (for engine)
+    strategy_proposed = Column(String(50), nullable=True)  # Strategy that generated the signal
+    ai_agrees = Column(Boolean, nullable=True)  # Did AI agree with strategy?
+    
+    # === Trade Result (if executed) ===
+    trade_id = Column(UUID(as_uuid=True), index=True, nullable=True)  # Link to actual trade
+    result_pnl = Column(Float, nullable=True)  # Profit/loss if closed
+    result_pnl_percent = Column(Float, nullable=True)  # PnL %
+    result_status = Column(String(20), nullable=True)  # OPEN, CLOSED, CANCELLED
+    closed_at = Column(DateTime, nullable=True)  # When the trade closed
+    
+    # === Timestamps ===
+    created_at = Column(DateTime, server_default=func.now(), index=True)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class ExchangeConfig(Base):
+    """
+    Stores exchange/broker API configurations per user
+    API keys are encrypted using Fernet symmetric encryption
+    """
+    __tablename__ = "exchange_configs"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    user_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    
+    # === Exchange Info ===
+    exchange = Column(String(50), nullable=False)  # binance, kraken, coinbase, etc.
+    name = Column(String(100), nullable=True)  # User-friendly name
+    
+    # === Credentials (Encrypted) ===
+    api_key_encrypted = Column(Text, nullable=False)  # Encrypted API key
+    api_secret_encrypted = Column(Text, nullable=False)  # Encrypted API secret
+    passphrase_encrypted = Column(Text, nullable=True)  # For exchanges that require it (Coinbase Pro)
+    
+    # === Configuration ===
+    is_active = Column(Boolean, default=True)  # Is this exchange active?
+    is_default = Column(Boolean, default=False)  # Default exchange for user
+    paper_trading = Column(Boolean, default=True)  # Paper trading mode (testnet)
+    use_testnet = Column(Boolean, default=True)  # Use testnet/sandbox APIs
+    
+    # === Trading Limits ===
+    max_trade_size = Column(Float, default=1000.0)  # Max trade size in quote currency
+    max_daily_trades = Column(Integer, default=50)  # Max trades per day
+    allowed_symbols = Column(Text, nullable=True)  # JSON array of allowed symbols
+    
+    # === Connection Status ===
+    last_connection_test = Column(DateTime, nullable=True)
+    connection_status = Column(String(20), default="untested")  # untested, connected, failed
+    connection_error = Column(Text, nullable=True)  # Last error message
+    
+    # === Timestamps ===
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class WatchlistItem(Base):
+    """
+    Stores individual crypto symbols in user's watchlist
+    Each user can have multiple symbols they want the AI to analyze
+    """
+    __tablename__ = "watchlist_items"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    user_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    
+    # Symbol info
+    symbol = Column(String(20), nullable=False)  # e.g., BTC/USDT
+    base_currency = Column(String(10), nullable=True)  # e.g., BTC
+    quote_currency = Column(String(10), nullable=True)  # e.g., USDT
+    
+    # Status
+    is_active = Column(Boolean, default=True)  # Include in AI analysis
+    priority = Column(Integer, default=0)  # Higher = analyzed first
+    
+    # User notes
+    notes = Column(Text, nullable=True)  # Optional user notes
+    
+    # Timestamps
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

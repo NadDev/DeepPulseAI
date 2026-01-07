@@ -333,6 +333,64 @@ Remember:
         
         self.mode = mode
         logger.info(f"🤖 AI Agent mode changed to: {mode}")
+    
+    async def chat(self, message: str, context: Dict[str, Any] = None) -> str:
+        """
+        Chat with the AI agent about trading
+        
+        Args:
+            message: User message/question
+            context: Optional context (active bots, recent decisions, etc.)
+            
+        Returns:
+            AI response text
+        """
+        try:
+            # Build chat prompt with context
+            context_str = ""
+            if context:
+                if context.get("active_bots"):
+                    context_str += f"\n\nActive AI Bots:\n"
+                    for bot in context["active_bots"][:5]:
+                        context_str += f"- {bot.get('name')}: {bot.get('symbol')} ({bot.get('status')})\n"
+                
+                if context.get("recent_decisions"):
+                    context_str += f"\n\nRecent Decisions:\n"
+                    for dec in context["recent_decisions"][:3]:
+                        context_str += f"- {dec.get('symbol')}: {dec.get('action')} ({dec.get('confidence')}%)\n"
+            
+            prompt = f"""You are an AI Trading Assistant. Answer the user's question about crypto trading.
+            
+Current Mode: {self.mode}
+{context_str}
+
+User Question: {message}
+
+Provide a helpful, concise response. If asked about market conditions or specific cryptos, 
+give your analysis based on general market knowledge. Be honest about uncertainty."""
+
+            # Call DeepSeek
+            response = await self._call_deepseek(prompt)
+            
+            if response:
+                return response
+            else:
+                return "I'm having trouble connecting right now. Please try again later."
+                
+        except Exception as e:
+            logger.error(f"❌ Error in AI chat: {str(e)}")
+            return f"Error: {str(e)}"
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Get agent status"""
+        return {
+            "enabled": self.enabled,
+            "mode": self.mode,
+            "running": self._running,
+            "model": self.model,
+            "decisions_count": len(self.decision_history),
+            "last_decision": self.decision_history[-1] if self.decision_history else None
+        }
 
 
 # Global instance

@@ -1,0 +1,280 @@
+/* AIAnalysis.css - Market Analysis View */
+
+.ai-analysis {
+  padding: 1rem 0;
+}
+
+.analysis-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+}
+
+.analysis-header h2 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.btn-refresh {
+  padding: 0.6rem 1.2rem;
+  background: linear-gradient(135deg, #64c8ff 0%, #9664ff 100%);
+  color: #1a1a2e;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.btn-refresh:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(100, 200, 255, 0.3);
+}
+
+.recommendations-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.recommendation-card {
+  background: linear-gradient(135deg, rgba(100, 200, 255, 0.05) 0%, rgba(150, 100, 255, 0.05) 100%);
+  border: 1px solid rgba(100, 200, 255, 0.2);
+  border-radius: 12px;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.recommendation-card:hover {
+  border-color: rgba(100, 200, 255, 0.4);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(100, 200, 255, 0.15);
+}
+
+.recommendation-card.action-buy {
+  border-left: 4px solid #64ff64;
+}
+
+.recommendation-card.action-sell {
+  border-left: 4px solid #ff6464;
+}
+
+.recommendation-card.action-hold {
+  border-left: 4px solid #ffc864;
+}
+
+/* Card Header */
+.rec-header {
+  margin-bottom: 1rem;
+}
+
+.rec-symbol {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.rec-symbol h3 {
+  font-size: 1.5rem;
+  margin: 0;
+  color: #fff;
+}
+
+.action-badge {
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.action-badge.buy {
+  background: rgba(100, 255, 100, 0.2);
+  color: #64ff64;
+}
+
+.action-badge.sell {
+  background: rgba(255, 100, 100, 0.2);
+  color: #ff6464;
+}
+
+.action-badge.hold {
+  background: rgba(255, 200, 100, 0.2);
+  color: #ffc864;
+}
+
+/* Confidence */
+.rec-confidence {
+  gap: 0.5rem;
+}
+
+.confidence-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.confidence-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #64ff64, #64c8ff);
+  transition: width 0.3s ease;
+}
+
+.confidence-text {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0.3rem 0 0 0;
+}
+
+/* Details (Expanded) */
+.rec-details {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  border-left: 3px solid #64c8ff;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+  }
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid rgba(100, 200, 255, 0.1);
+  font-size: 0.9rem;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+}
+
+.detail-value {
+  color: #64c8ff;
+  font-weight: 600;
+}
+
+.detail-reasoning {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(100, 200, 255, 0.1);
+}
+
+.reasoning-label {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  margin: 0 0 0.5rem 0;
+}
+
+.reasoning-text {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0;
+  font-style: italic;
+}
+
+/* Footer */
+.rec-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(100, 200, 255, 0.1);
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.icon-buy {
+  color: #64ff64;
+}
+
+.icon-sell {
+  color: #ff6464;
+}
+
+.icon-hold {
+  color: #ffc864;
+}
+
+/* Analysis Footer */
+.analysis-footer {
+  padding-top: 1rem;
+  border-top: 1px solid rgba(100, 200, 255, 0.1);
+}
+
+.footer-note {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0;
+  text-align: center;
+}
+
+/* No Data */
+.no-data {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.no-data svg {
+  opacity: 0.3;
+  margin-bottom: 1rem;
+}
+
+.no-data p {
+  margin: 0.5rem 0;
+}
+
+@media (max-width: 768px) {
+  .recommendations-container {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .rec-symbol {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

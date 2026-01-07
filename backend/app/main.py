@@ -6,62 +6,89 @@ import asyncio
 import os
 
 # Import routes
-from app.routes import health, portfolio, crypto, bots, reports, risk, trades, translations, ml, auth
+from app.routes import health, portfolio, crypto, bots, reports, risk, trades, translations, ml, auth, ai_agent, exchange, watchlist
 from app.config import settings
 from app.db.database import Base, engine, SessionLocal
-from app.services.bot_engine import BotEngine, bot_engine
+from app.services import bot_engine as bot_engine_module
+from app.services.bot_engine import BotEngine
+from app.services import ai_agent as ai_agent_module
 from app.services.ai_agent import initialize_ai_agent
+from app.services import ai_bot_controller as ai_bot_controller_module
+from app.services.ai_bot_controller import initialize_ai_bot_controller
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Global bot engine
-_bot_engine: BotEngine = None
-_ai_agent = None
 
 # Note: Tables are already created via supabase_schema.sql in production
 # Don't create tables on startup - they should exist in Supabase
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _bot_engine, _ai_agent
-    
     # Startup
     logger.info("🚀 CRBot API Starting...")
     # Tables should already exist in Supabase PostgreSQL
     logger.info("[OK] Database connection ready")
+    
+    # Start Bot Engine first
+    try:
+        bot_engine_module.bot_engine = BotEngine(SessionLocal)
+        await bot_engine_module.bot_engine.start()
+        logger.info("[OK] Bot Engine started")
+    except Exception as e:
+        logger.error(f"[ERROR] Failed to start Bot Engine: {e}")
     
     # Initialize AI Agent if enabled
     if os.getenv("AI_AGENT_ENABLED", "true").lower() == "true":
         try:
             api_key = os.getenv("DEEPSEEK_API_KEY")
             if api_key:
-                _ai_agent = initialize_ai_agent(api_key)
-                await _ai_agent.start()
+                ai_agent_module.ai_agent = initialize_ai_agent(api_key)
+                await ai_agent_module.ai_agent.start()
                 logger.info("[OK] AI Trading Agent initialized")
+                
+                # Connect AI Agent to Bot Engine
+                if bot_engine_module.bot_engine:
+                    bot_engine_module.bot_engine.set_ai_agent(ai_agent_module.ai_agent)
+                    
+                    # Configure AI mode from environment
+                    ai_mode = os.getenv("AI_AGENT_MODE", "advisory")
+                    bot_engine_module.bot_engine.configure_ai(
+                        enabled=True,
+                        mode=ai_mode,
+                        min_confidence=int(os.getenv("AI_MIN_CONFIDENCE", "60"))
+                    )
+                    logger.info(f"[OK] AI Agent connected to Bot Engine (mode: {ai_mode})")
+                
+                # Initialize AI Bot Controller
+                ai_bot_controller_module.ai_bot_controller = initialize_ai_bot_controller(
+                    SessionLocal, bot_engine_module.bot_engine
+                )
+                ai_bot_controller_module.ai_bot_controller.mode = os.getenv("AI_AGENT_MODE", "observation")
+                
+                # Auto-start controller if not in observation mode
+                if ai_bot_controller_module.ai_bot_controller.mode != "observation":
+                    await ai_bot_controller_module.ai_bot_controller.start()
+                    logger.info(f"[OK] AI Bot Controller started (mode: {ai_bot_controller_module.ai_bot_controller.mode})")
+                else:
+                    logger.info("[OK] AI Bot Controller ready (mode: observation - not auto-started)")
             else:
                 logger.warning("⚠️ DEEPSEEK_API_KEY not found - AI Agent disabled")
         except Exception as e:
             logger.error(f"[ERROR] Failed to initialize AI Agent: {e}")
     
-    # Start Bot Engine
-    try:
-        _bot_engine = BotEngine(SessionLocal)
-        await _bot_engine.start()
-        logger.info("[OK] Bot Engine started")
-    except Exception as e:
-        logger.error(f"[ERROR] Failed to start Bot Engine: {e}")
-    
     yield
     
     # Shutdown
     logger.info("🛑 CRBot API Shutting down...")
-    if _ai_agent:
-        await _ai_agent.stop()
+    if ai_bot_controller_module.ai_bot_controller and ai_bot_controller_module.ai_bot_controller._running:
+        await ai_bot_controller_module.ai_bot_controller.stop()
+        logger.info("[OK] AI Bot Controller stopped")
+    if ai_agent_module.ai_agent:
+        await ai_agent_module.ai_agent.stop()
         logger.info("[OK] AI Agent stopped")
-    if _bot_engine:
-        await _bot_engine.stop()
+    if bot_engine_module.bot_engine:
+        await bot_engine_module.bot_engine.stop()
         logger.info("[OK] Bot Engine stopped")
 
 # Create FastAPI app
@@ -92,6 +119,9 @@ app.include_router(risk.router)
 app.include_router(trades.router)
 app.include_router(translations.router)
 app.include_router(ml.router)
+app.include_router(ai_agent.router)  # AI Agent routes
+app.include_router(exchange.router)  # Exchange configuration routes
+app.include_router(watchlist.router)  # Watchlist management routes
 
 @app.get("/")
 async def root():
@@ -104,7 +134,8 @@ async def root():
 @app.get("/api/engine/status")
 async def get_engine_status():
     """Get the current status of the Bot Engine"""
-    if not _bot_engine:
+    _engine = bot_engine_module.bot_engine
+    if not _engine:
         return {
             "status": "not_initialized",
             "running": False,
@@ -113,7 +144,7 @@ async def get_engine_status():
         }
     
     active_bots_info = []
-    for bot_id, bot_state in _bot_engine.active_bots.items():
+    for bot_id, bot_state in _engine.active_bots.items():
         active_bots_info.append({
             "bot_id": bot_id,
             "name": bot_state.get("name"),
@@ -122,9 +153,9 @@ async def get_engine_status():
         })
     
     return {
-        "status": "running" if _bot_engine._running else "stopped",
-        "running": _bot_engine._running,
-        "active_bots": len(_bot_engine.active_bots),
+        "status": "running" if _engine._running else "stopped",
+        "running": _engine._running,
+        "active_bots": len(_engine.active_bots),
         "active_bots_details": active_bots_info,
         "message": "Bot Engine is operational"
     }

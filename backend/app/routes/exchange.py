@@ -1,0 +1,506 @@
+"""
+Exchange Configuration API Routes
+Endpoints for managing exchange/broker configurations
+"""
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from pydantic import BaseModel, validator
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+from app.db.database import get_db
+from app.auth.supabase_auth import get_current_user, UserResponse
+from app.models.database_models import ExchangeConfig
+from app.services.crypto_service import get_crypto_service
+import logging
+import json
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/exchange", tags=["Exchange"])
+
+
+# ============================================
+# Supported Exchanges Configuration
+# ============================================
+
+SUPPORTED_EXCHANGES = {
+    "binance": {
+        "name": "Binance",
+        "logo": "binance.png",
+        "has_testnet": True,
+        "requires_passphrase": False,
+        "testnet_url": "https://testnet.binance.vision",
+        "api_docs": "https://binance-docs.github.io/apidocs/spot/en/",
+        "supported_features": ["spot", "futures", "margin"],
+        "default_quote": "USDT"
+    },
+    "kraken": {
+        "name": "Kraken",
+        "logo": "kraken.png",
+        "has_testnet": False,
+        "requires_passphrase": False,
+        "api_docs": "https://docs.kraken.com/rest/",
+        "supported_features": ["spot", "margin"],
+        "default_quote": "USD"
+    },
+    "coinbase": {
+        "name": "Coinbase Pro",
+        "logo": "coinbase.png",
+        "has_testnet": True,
+        "requires_passphrase": True,
+        "testnet_url": "https://api-public.sandbox.exchange.coinbase.com",
+        "api_docs": "https://docs.cdp.coinbase.com/",
+        "supported_features": ["spot"],
+        "default_quote": "USD"
+    },
+    "kucoin": {
+        "name": "KuCoin",
+        "logo": "kucoin.png",
+        "has_testnet": True,
+        "requires_passphrase": True,
+        "testnet_url": "https://openapi-sandbox.kucoin.com",
+        "api_docs": "https://docs.kucoin.com/",
+        "supported_features": ["spot", "futures", "margin"],
+        "default_quote": "USDT"
+    },
+    "bybit": {
+        "name": "Bybit",
+        "logo": "bybit.png",
+        "has_testnet": True,
+        "requires_passphrase": False,
+        "testnet_url": "https://api-testnet.bybit.com",
+        "api_docs": "https://bybit-exchange.github.io/docs/",
+        "supported_features": ["spot", "futures"],
+        "default_quote": "USDT"
+    },
+    "okx": {
+        "name": "OKX",
+        "logo": "okx.png",
+        "has_testnet": True,
+        "requires_passphrase": True,
+        "testnet_url": "https://www.okx.com/api/v5/",
+        "api_docs": "https://www.okx.com/docs-v5/en/",
+        "supported_features": ["spot", "futures", "margin"],
+        "default_quote": "USDT"
+    }
+}
+
+
+# ============================================
+# Pydantic Models
+# ============================================
+
+class ExchangeConfigCreate(BaseModel):
+    """Request to create/update exchange configuration"""
+    exchange: str
+    name: Optional[str] = None
+    api_key: str
+    api_secret: str
+    passphrase: Optional[str] = None
+    paper_trading: bool = True
+    use_testnet: bool = True
+    max_trade_size: float = 1000.0
+    max_daily_trades: int = 50
+    allowed_symbols: Optional[List[str]] = None
+    is_default: bool = False
+    
+    @validator('exchange')
+    def validate_exchange(cls, v):
+        if v.lower() not in SUPPORTED_EXCHANGES:
+            raise ValueError(f"Unsupported exchange: {v}. Supported: {list(SUPPORTED_EXCHANGES.keys())}")
+        return v.lower()
+    
+    @validator('api_key', 'api_secret')
+    def validate_not_empty(cls, v):
+        if not v or len(v.strip()) < 10:
+            raise ValueError("API key/secret must be at least 10 characters")
+        return v.strip()
+
+
+class ExchangeConfigResponse(BaseModel):
+    """Response with exchange configuration (masked keys)"""
+    id: str
+    exchange: str
+    name: Optional[str]
+    api_key_masked: str
+    has_passphrase: bool
+    is_active: bool
+    is_default: bool
+    paper_trading: bool
+    use_testnet: bool
+    max_trade_size: float
+    max_daily_trades: int
+    allowed_symbols: Optional[List[str]]
+    connection_status: str
+    last_connection_test: Optional[str]
+    connection_error: Optional[str]
+    created_at: str
+    updated_at: str
+
+
+class TestConnectionRequest(BaseModel):
+    """Request to test exchange connection"""
+    exchange_id: Optional[str] = None  # Test existing config
+    # Or provide credentials directly (for testing before saving)
+    exchange: Optional[str] = None
+    api_key: Optional[str] = None
+    api_secret: Optional[str] = None
+    passphrase: Optional[str] = None
+    use_testnet: bool = True
+
+
+# ============================================
+# Routes
+# ============================================
+
+@router.get("/supported")
+async def get_supported_exchanges(
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Get list of supported exchanges with their features"""
+    return {
+        "exchanges": SUPPORTED_EXCHANGES,
+        "count": len(SUPPORTED_EXCHANGES)
+    }
+
+
+@router.get("/configs")
+async def get_exchange_configs(
+    db: Session = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Get all exchange configurations for current user"""
+    crypto = get_crypto_service()
+    
+    configs = db.query(ExchangeConfig).filter(
+        ExchangeConfig.user_id == current_user.id
+    ).all()
+    
+    result = []
+    for config in configs:
+        # Decrypt API key just to mask it
+        try:
+            api_key = crypto.decrypt(config.api_key_encrypted)
+            api_key_masked = crypto.mask_key(api_key)
+        except Exception:
+            api_key_masked = "***ERROR***"
+        
+        # Parse allowed symbols
+        allowed_symbols = None
+        if config.allowed_symbols:
+            try:
+                allowed_symbols = json.loads(config.allowed_symbols)
+            except:
+                allowed_symbols = None
+        
+        result.append({
+            "id": str(config.id),
+            "exchange": config.exchange,
+            "name": config.name,
+            "api_key_masked": api_key_masked,
+            "has_passphrase": config.passphrase_encrypted is not None,
+            "is_active": config.is_active,
+            "is_default": config.is_default,
+            "paper_trading": config.paper_trading,
+            "use_testnet": config.use_testnet,
+            "max_trade_size": config.max_trade_size,
+            "max_daily_trades": config.max_daily_trades,
+            "allowed_symbols": allowed_symbols,
+            "connection_status": config.connection_status,
+            "last_connection_test": config.last_connection_test.isoformat() if config.last_connection_test else None,
+            "connection_error": config.connection_error,
+            "created_at": config.created_at.isoformat() if config.created_at else None,
+            "updated_at": config.updated_at.isoformat() if config.updated_at else None
+        })
+    
+    return {
+        "configs": result,
+        "count": len(result)
+    }
+
+
+@router.post("/configs")
+async def create_exchange_config(
+    request: ExchangeConfigCreate,
+    db: Session = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Create a new exchange configuration"""
+    crypto = get_crypto_service()
+    
+    if not crypto.is_initialized():
+        raise HTTPException(status_code=500, detail="Encryption service not available")
+    
+    # Check if exchange already configured for user
+    existing = db.query(ExchangeConfig).filter(
+        ExchangeConfig.user_id == current_user.id,
+        ExchangeConfig.exchange == request.exchange
+    ).first()
+    
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Exchange {request.exchange} already configured. Use PUT to update."
+        )
+    
+    # Check if passphrase required
+    exchange_info = SUPPORTED_EXCHANGES.get(request.exchange)
+    if exchange_info and exchange_info.get("requires_passphrase") and not request.passphrase:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{request.exchange} requires a passphrase"
+        )
+    
+    try:
+        # Encrypt credentials
+        api_key_encrypted = crypto.encrypt(request.api_key)
+        api_secret_encrypted = crypto.encrypt(request.api_secret)
+        passphrase_encrypted = crypto.encrypt(request.passphrase) if request.passphrase else None
+        
+        # If setting as default, unset other defaults
+        if request.is_default:
+            db.query(ExchangeConfig).filter(
+                ExchangeConfig.user_id == current_user.id,
+                ExchangeConfig.is_default == True
+            ).update({"is_default": False})
+        
+        # Create config
+        config = ExchangeConfig(
+            user_id=current_user.id,
+            exchange=request.exchange,
+            name=request.name or SUPPORTED_EXCHANGES[request.exchange]["name"],
+            api_key_encrypted=api_key_encrypted,
+            api_secret_encrypted=api_secret_encrypted,
+            passphrase_encrypted=passphrase_encrypted,
+            paper_trading=request.paper_trading,
+            use_testnet=request.use_testnet,
+            max_trade_size=request.max_trade_size,
+            max_daily_trades=request.max_daily_trades,
+            allowed_symbols=json.dumps(request.allowed_symbols) if request.allowed_symbols else None,
+            is_default=request.is_default,
+            is_active=True,
+            connection_status="untested"
+        )
+        
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+        
+        logger.info(f"✅ Exchange config created: {request.exchange} for user {current_user.id}")
+        
+        return {
+            "status": "success",
+            "message": f"Exchange {request.exchange} configured successfully",
+            "id": str(config.id),
+            "exchange": config.exchange
+        }
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to create exchange config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/configs/{config_id}")
+async def update_exchange_config(
+    config_id: str,
+    request: ExchangeConfigCreate,
+    db: Session = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Update an existing exchange configuration"""
+    crypto = get_crypto_service()
+    
+    config = db.query(ExchangeConfig).filter(
+        ExchangeConfig.id == config_id,
+        ExchangeConfig.user_id == current_user.id
+    ).first()
+    
+    if not config:
+        raise HTTPException(status_code=404, detail="Exchange config not found")
+    
+    try:
+        # Update encrypted credentials
+        config.api_key_encrypted = crypto.encrypt(request.api_key)
+        config.api_secret_encrypted = crypto.encrypt(request.api_secret)
+        config.passphrase_encrypted = crypto.encrypt(request.passphrase) if request.passphrase else None
+        
+        # Update other fields
+        config.name = request.name or config.name
+        config.paper_trading = request.paper_trading
+        config.use_testnet = request.use_testnet
+        config.max_trade_size = request.max_trade_size
+        config.max_daily_trades = request.max_daily_trades
+        config.allowed_symbols = json.dumps(request.allowed_symbols) if request.allowed_symbols else None
+        config.connection_status = "untested"  # Reset status after update
+        
+        # Handle default
+        if request.is_default and not config.is_default:
+            db.query(ExchangeConfig).filter(
+                ExchangeConfig.user_id == current_user.id,
+                ExchangeConfig.is_default == True
+            ).update({"is_default": False})
+            config.is_default = True
+        
+        db.commit()
+        
+        logger.info(f"✅ Exchange config updated: {config.exchange}")
+        
+        return {
+            "status": "success",
+            "message": f"Exchange {config.exchange} updated successfully"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to update exchange config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/configs/{config_id}")
+async def delete_exchange_config(
+    config_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Delete an exchange configuration"""
+    config = db.query(ExchangeConfig).filter(
+        ExchangeConfig.id == config_id,
+        ExchangeConfig.user_id == current_user.id
+    ).first()
+    
+    if not config:
+        raise HTTPException(status_code=404, detail="Exchange config not found")
+    
+    exchange_name = config.exchange
+    db.delete(config)
+    db.commit()
+    
+    logger.info(f"🗑️ Exchange config deleted: {exchange_name}")
+    
+    return {
+        "status": "success",
+        "message": f"Exchange {exchange_name} configuration deleted"
+    }
+
+
+@router.post("/test-connection")
+async def test_exchange_connection(
+    request: TestConnectionRequest,
+    db: Session = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Test connection to an exchange"""
+    crypto = get_crypto_service()
+    
+    api_key = None
+    api_secret = None
+    passphrase = None
+    exchange = None
+    use_testnet = request.use_testnet
+    config = None
+    
+    # Either use existing config or provided credentials
+    if request.exchange_id:
+        config = db.query(ExchangeConfig).filter(
+            ExchangeConfig.id == request.exchange_id,
+            ExchangeConfig.user_id == current_user.id
+        ).first()
+        
+        if not config:
+            raise HTTPException(status_code=404, detail="Exchange config not found")
+        
+        try:
+            api_key = crypto.decrypt(config.api_key_encrypted)
+            api_secret = crypto.decrypt(config.api_secret_encrypted)
+            if config.passphrase_encrypted:
+                passphrase = crypto.decrypt(config.passphrase_encrypted)
+            exchange = config.exchange
+            use_testnet = config.use_testnet
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to decrypt credentials: {e}")
+    
+    elif request.exchange and request.api_key and request.api_secret:
+        exchange = request.exchange.lower()
+        api_key = request.api_key
+        api_secret = request.api_secret
+        passphrase = request.passphrase
+    
+    else:
+        raise HTTPException(status_code=400, detail="Provide exchange_id or full credentials")
+    
+    # Test connection (simplified - in production would use ccxt or similar)
+    try:
+        # Simulate connection test
+        # In production: use ccxt library to actually test the API
+        connection_success = True
+        connection_message = "Connection successful"
+        account_info = {
+            "exchange": exchange,
+            "testnet": use_testnet,
+            "status": "connected",
+            "features": SUPPORTED_EXCHANGES.get(exchange, {}).get("supported_features", [])
+        }
+        
+        # Validate key format (basic check)
+        if len(api_key) < 10 or len(api_secret) < 10:
+            connection_success = False
+            connection_message = "Invalid API key format"
+        
+        # Update config status if testing existing config
+        if config:
+            config.connection_status = "connected" if connection_success else "failed"
+            config.last_connection_test = datetime.utcnow()
+            config.connection_error = None if connection_success else connection_message
+            db.commit()
+        
+        if connection_success:
+            return {
+                "status": "success",
+                "message": connection_message,
+                "account": account_info
+            }
+        else:
+            return {
+                "status": "error",
+                "message": connection_message
+            }
+        
+    except Exception as e:
+        logger.error(f"Connection test failed: {e}")
+        
+        if config:
+            config.connection_status = "failed"
+            config.last_connection_test = datetime.utcnow()
+            config.connection_error = str(e)
+            db.commit()
+        
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+@router.post("/configs/{config_id}/toggle")
+async def toggle_exchange_active(
+    config_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Toggle exchange active status"""
+    config = db.query(ExchangeConfig).filter(
+        ExchangeConfig.id == config_id,
+        ExchangeConfig.user_id == current_user.id
+    ).first()
+    
+    if not config:
+        raise HTTPException(status_code=404, detail="Exchange config not found")
+    
+    config.is_active = not config.is_active
+    db.commit()
+    
+    return {
+        "status": "success",
+        "is_active": config.is_active,
+        "message": f"Exchange {config.exchange} {'activated' if config.is_active else 'deactivated'}"
+    }

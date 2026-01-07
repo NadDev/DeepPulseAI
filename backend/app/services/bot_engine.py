@@ -1,6 +1,7 @@
 """
 Bot Execution Engine
 Manages active trading bots and executes their strategies
+Integrates with AI Agent for enhanced decision making
 """
 import asyncio
 import json
@@ -21,6 +22,7 @@ class BotEngine:
     """
     Central engine for executing trading bots.
     Manages active bots, executes strategies, and handles paper trading.
+    Integrates with AI Agent for intelligent trade validation.
     """
     
     def __init__(self, db_session_factory):
@@ -36,6 +38,38 @@ class BotEngine:
         self.technical_analysis = TechnicalAnalysis()
         self._running = False
         self._task: Optional[asyncio.Task] = None
+        
+        # AI Agent integration
+        self.ai_agent = None  # Will be set via set_ai_agent()
+        self.ai_enabled = False  # Enable/disable AI validation
+        self.ai_mode = "advisory"  # advisory (suggest) or autonomous (auto-trade)
+        self.ai_min_confidence = 60  # Minimum AI confidence to proceed
+    
+    def set_ai_agent(self, ai_agent):
+        """
+        Set the AI Agent for trade validation
+        
+        Args:
+            ai_agent: AITradingAgent instance
+        """
+        self.ai_agent = ai_agent
+        self.ai_enabled = ai_agent is not None
+        logger.info(f"🤖 AI Agent {'connected' if self.ai_enabled else 'disconnected'} to BotEngine")
+    
+    def configure_ai(self, enabled: bool = True, mode: str = "advisory", min_confidence: int = 60):
+        """
+        Configure AI integration settings
+        
+        Args:
+            enabled: Enable/disable AI validation
+            mode: 'advisory' (suggest only) or 'autonomous' (can block trades)
+            min_confidence: Minimum confidence level (0-100)
+        """
+        self.ai_enabled = enabled and self.ai_agent is not None
+        self.ai_mode = mode if mode in ["advisory", "autonomous"] else "advisory"
+        self.ai_min_confidence = max(0, min(100, min_confidence))
+        
+        logger.info(f"🤖 AI Config: enabled={self.ai_enabled}, mode={self.ai_mode}, min_confidence={self.ai_min_confidence}%")
     
     async def start(self):
         """Start the bot engine"""
@@ -183,15 +217,35 @@ class BotEngine:
                 if not market_data:
                     continue
                 
-                # Check for new signals
+                # Check for new signals from strategy
                 signal = strategy.get_signal_direction(market_data)
                 
-                logger.debug(f"🔍 Bot {bot_state['name']} | {symbol} | Signal: {signal}")
+                logger.debug(f"🔍 Bot {bot_state['name']} | {symbol} | Strategy Signal: {signal}")
+                
+                # === AI AGENT VALIDATION ===
+                ai_validation = None
+                if signal in ["BUY", "SELL"] and self.ai_enabled and self.ai_agent:
+                    ai_validation = await self._get_ai_validation(symbol, signal, market_data)
+                    
+                    if ai_validation:
+                        logger.info(f"🤖 AI Analysis for {symbol}: {ai_validation.get('action')} "
+                                   f"(confidence: {ai_validation.get('confidence', 0)}%)")
+                        
+                        # In autonomous mode, AI can block trades
+                        if self.ai_mode == "autonomous":
+                            ai_confidence = ai_validation.get("confidence", 0)
+                            ai_action = ai_validation.get("action", "HOLD")
+                            
+                            # Block if AI disagrees or low confidence
+                            if ai_action != signal or ai_confidence < self.ai_min_confidence:
+                                logger.warning(f"🤖 AI BLOCKED {signal} on {symbol}: "
+                                             f"AI says {ai_action} with {ai_confidence}% confidence")
+                                continue  # Skip this trade
                 
                 if signal == "BUY":
-                    await self._execute_buy(bot_state, strategy, symbol, market_data)
+                    await self._execute_buy(bot_state, strategy, symbol, market_data, ai_validation)
                 elif signal == "SELL":
-                    await self._execute_sell(bot_state, strategy, symbol, market_data)
+                    await self._execute_sell(bot_state, strategy, symbol, market_data, ai_validation)
                 
                 # Check open positions for exit signals
                 await self._check_open_positions(bot_state, strategy, symbol, market_data)
@@ -200,6 +254,55 @@ class BotEngine:
                 logger.error(f"❌ Error processing {symbol} for bot {bot_state['name']}: {str(e)}")
         
         bot_state["last_check"] = datetime.utcnow()
+    
+    async def _get_ai_validation(
+        self,
+        symbol: str,
+        proposed_action: str,
+        market_data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get AI Agent validation for a proposed trade
+        
+        Args:
+            symbol: Trading pair
+            proposed_action: BUY or SELL
+            market_data: Current market data with indicators
+            
+        Returns:
+            AI analysis dict or None if AI unavailable
+        """
+        if not self.ai_agent or not self.ai_enabled:
+            return None
+        
+        try:
+            # Prepare data for AI
+            price_data = {
+                "close": market_data.get("close", 0),
+                "high": market_data.get("high", 0),
+                "low": market_data.get("low", 0),
+                "volume": market_data.get("volume", 0),
+                "change_24h": 0  # TODO: Calculate from history
+            }
+            
+            indicators = market_data.get("indicators", {})
+            
+            # Get AI analysis
+            analysis = await self.ai_agent.analyze_market(
+                symbol=symbol,
+                market_data=price_data,
+                indicators=indicators
+            )
+            
+            # Add context about what strategy proposed
+            analysis["strategy_proposed"] = proposed_action
+            analysis["ai_agrees"] = analysis.get("action") == proposed_action
+            
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"❌ AI validation error for {symbol}: {str(e)}")
+            return None
     
     async def _get_market_data(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Fetch and prepare market data with indicators"""
@@ -253,7 +356,14 @@ class BotEngine:
             logger.error(f"Error getting market data for {symbol}: {e}")
             return None
     
-    async def _execute_buy(self, bot_state: Dict[str, Any], strategy: Any, symbol: str, market_data: Dict[str, Any]):
+    async def _execute_buy(
+        self,
+        bot_state: Dict[str, Any],
+        strategy: Any,
+        symbol: str,
+        market_data: Dict[str, Any],
+        ai_validation: Optional[Dict[str, Any]] = None
+    ):
         """Execute a BUY trade (paper trading)"""
         db = self.db_session_factory()
         try:
@@ -327,11 +437,25 @@ class BotEngine:
             
             db.commit()
             
-            logger.info(f"✅ BUY {symbol} @ {current_price:.2f} | Qty: {quantity:.6f} | SL: {stop_loss:.2f} | TP: {take_profit:.2f if take_profit else 'N/A'}")
+            # Log with AI info if available
+            ai_info = ""
+            if ai_validation:
+                ai_confidence = ai_validation.get("confidence", 0)
+                ai_agrees = ai_validation.get("ai_agrees", False)
+                ai_info = f" | 🤖 AI: {'✓' if ai_agrees else '✗'} ({ai_confidence}%)"
+            
+            logger.info(f"✅ BUY {symbol} @ {current_price:.2f} | Qty: {quantity:.6f} | SL: {stop_loss:.2f} | TP: {take_profit:.2f if take_profit else 'N/A'}{ai_info}")
         finally:
             db.close()
     
-    async def _execute_sell(self, bot_state: Dict[str, Any], strategy: Any, symbol: str, market_data: Dict[str, Any]):
+    async def _execute_sell(
+        self,
+        bot_state: Dict[str, Any],
+        strategy: Any,
+        symbol: str,
+        market_data: Dict[str, Any],
+        ai_validation: Optional[Dict[str, Any]] = None
+    ):
         """Execute a SELL trade (close position)"""
         db = self.db_session_factory()
         try:
@@ -349,8 +473,15 @@ class BotEngine:
                 logger.debug(f"⚠️ No open BUY position to SELL for {symbol}")
                 return
             
+            # Log AI info
+            ai_info = ""
+            if ai_validation:
+                ai_confidence = ai_validation.get("confidence", 0)
+                ai_agrees = ai_validation.get("ai_agrees", False)
+                ai_info = f" | 🤖 AI: {'✓' if ai_agrees else '✗'} ({ai_confidence}%)"
+            
             # Close position
-            await self._close_position(db, bot_state, open_position, market_data['close'], "Signal")
+            await self._close_position(db, bot_state, open_position, market_data['close'], f"Signal{ai_info}")
         finally:
             db.close()
     

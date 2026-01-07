@@ -50,3 +50,6 @@ croniter>=2.0.1
 
 # Exchange APIs
 ccxt>=4.0.0
+
+# Security & Encryption
+cryptography>=41.0.0
