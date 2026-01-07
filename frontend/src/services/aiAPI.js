@@ -78,6 +78,25 @@ export const aiAPI = {
     }
   },
 
+  // Analyze Watchlist - NEW ENDPOINT
+  analyzeWatchlist: async (limit = 10, minConfidence = 50) => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(
+        `${API_BASE_URL}/ai-agent/analyze-watchlist?limit=${limit}&min_confidence=${minConfidence}`, 
+        { 
+          method: 'POST',
+          headers 
+        }
+      );
+      if (!response.ok) throw new Error('Failed to analyze watchlist');
+      return response.json();
+    } catch (error) {
+      console.error('Error analyzing watchlist:', error);
+      throw error;
+    }
+  },
+
   // Get Decision History
   getDecisionHistory: async (filters = {}) => {
     try {

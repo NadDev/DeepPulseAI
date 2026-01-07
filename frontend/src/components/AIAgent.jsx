@@ -55,10 +55,18 @@ function AIAgent() {
 
   const loadRecommendations = async () => {
     try {
-      const recs = await aiAPI.getRecommendations();
-      setRecommendations(recs.recommendations || []);
+      // Use the new analyze-watchlist endpoint for real-time AI analysis
+      const result = await aiAPI.analyzeWatchlist(10, 50);
+      setRecommendations(result.recommendations || []);
     } catch (err) {
-      console.error('Error fetching recommendations:', err);
+      console.error('Error analyzing watchlist:', err);
+      // Fallback to old endpoint if new one fails
+      try {
+        const recs = await aiAPI.getRecommendations();
+        setRecommendations(recs.recommendations || []);
+      } catch (fallbackErr) {
+        console.error('Fallback also failed:', fallbackErr);
+      }
     }
   };
 
