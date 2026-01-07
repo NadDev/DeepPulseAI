@@ -444,7 +444,8 @@ class BotEngine:
                 ai_agrees = ai_validation.get("ai_agrees", False)
                 ai_info = f" | 🤖 AI: {'✓' if ai_agrees else '✗'} ({ai_confidence}%)"
             
-            logger.info(f"✅ BUY {symbol} @ {current_price:.2f} | Qty: {quantity:.6f} | SL: {stop_loss:.2f} | TP: {take_profit:.2f if take_profit else 'N/A'}{ai_info}")
+            tp_str = f"{take_profit:.2f}" if take_profit else "N/A"
+            logger.info(f"✅ BUY {symbol} @ {current_price:.2f} | Qty: {quantity:.6f} | SL: {stop_loss:.2f} | TP: {tp_str}{ai_info}")
         finally:
             db.close()
     

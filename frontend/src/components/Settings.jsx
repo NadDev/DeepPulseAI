@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, Cpu, Lock, HelpCircle, Link2, Star } from 'lucide-react';
+import { Settings as SettingsIcon, Cpu, Lock, HelpCircle, Link2, Star } from 'lucide-react';
 import AISettings from './AISettings';
 import ExchangeSettings from './ExchangeSettings';
 import WatchlistManager from './WatchlistManager';
@@ -48,7 +48,7 @@ export default function Settings() {
       <div className="settings-container">
         <div className="settings-header">
           <div className="header-content">
-            <Settings size={32} />
+            <SettingsIcon size={32} />
             <div>
               <h1>Settings</h1>
               <p>Configure your CRBot AI Trading Agent</p>
