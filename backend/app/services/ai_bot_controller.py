@@ -925,6 +925,16 @@ class AIBotController:
 ai_bot_controller: Optional[AIBotController] = None
 
 
+def get_ai_bot_controller() -> Optional[AIBotController]:
+    """
+    Get the global AI Bot Controller instance
+    
+    Returns:
+        AIBotController instance or None if not initialized
+    """
+    return ai_bot_controller
+
+
 def initialize_ai_bot_controller(db_session_factory, bot_engine=None) -> AIBotController:
     """
     Initialize the global AI Bot Controller
