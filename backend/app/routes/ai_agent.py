@@ -9,14 +9,24 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 from app.db.database import get_db
 from app.auth.supabase_auth import get_current_user, UserResponse
-from app.services.ai_agent import ai_agent
-from app.services.ai_bot_controller import ai_bot_controller
-from app.services.bot_engine import bot_engine
+from app.services import ai_agent as ai_agent_module
+from app.services.ai_bot_controller import get_ai_bot_controller
+from app.services import bot_engine as bot_engine_module
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ai-agent", tags=["AI Agent"])
+
+# Helper functions to get runtime instances
+def get_ai_agent():
+    return ai_agent_module.ai_agent
+
+def get_bot_engine():
+    return bot_engine_module.bot_engine
+
+def get_controller():
+    return get_ai_bot_controller()
 
 
 # ============================================
@@ -84,24 +94,28 @@ async def get_ai_status(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Get AI Agent and Bot Engine status"""
-    if not ai_agent:
+    agent = get_ai_agent()
+    controller = get_controller()
+    engine = get_bot_engine()
+    
+    if not agent:
         raise HTTPException(status_code=503, detail="AI Agent not initialized")
     
-    ai_status = ai_agent.get_status() if hasattr(ai_agent, 'get_status') else {
+    ai_status = agent.get_status() if hasattr(agent, 'get_status') else {
         "enabled": False,
         "error": "AI Agent not fully initialized"
     }
     
-    controller_status = ai_bot_controller.get_status() if ai_bot_controller else {}
+    controller_status = controller.get_status() if controller else {}
     
     engine_status = {}
-    if bot_engine:
+    if engine:
         engine_status = {
-            "running": bot_engine._running,
-            "active_bots": len(bot_engine.active_bots),
-            "ai_enabled": bot_engine.ai_enabled,
-            "ai_mode": bot_engine.ai_mode,
-            "ai_min_confidence": bot_engine.ai_min_confidence
+            "running": engine._running,
+            "active_bots": len(engine.active_bots),
+            "ai_enabled": engine.ai_enabled,
+            "ai_mode": engine.ai_mode,
+            "ai_min_confidence": engine.ai_min_confidence
         }
     
     return {
@@ -123,7 +137,8 @@ async def analyze_symbol(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Analyze a single symbol with AI"""
-    if not ai_agent or not ai_agent.enabled:
+    agent = get_ai_agent()
+    if not agent or not agent.enabled:
         raise HTTPException(status_code=503, detail="AI Agent is disabled")
     
     try:
@@ -149,7 +164,7 @@ async def analyze_symbol(
         
         # TODO: Fetch real market data
         
-        analysis = await ai_agent.analyze_market(
+        analysis = await agent.analyze_market(
             symbol=request.symbol,
             market_data=market_data,
             indicators=indicators
@@ -169,12 +184,13 @@ async def get_recommendations(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Get top AI recommendations"""
-    if not ai_bot_controller:
+    controller = get_controller()
+    if not controller:
         raise HTTPException(status_code=503, detail="AI Bot Controller not available")
     
     try:
         # Get recommendations from AI Bot Controller
-        recommendations = ai_bot_controller.get_ai_bots()
+        recommendations = controller.get_ai_bots()
         
         # Filter and sort by confidence
         filtered = [
@@ -203,11 +219,12 @@ async def chat_with_ai(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Chat with AI Agent about trading"""
-    if not ai_agent:
+    agent = get_ai_agent()
+    if not agent:
         raise HTTPException(status_code=503, detail="AI Agent not initialized")
     
     try:
-        response = await ai_agent.chat(request.message, request.context)
+        response = await agent.chat(request.message, request.context)
         
         return {
             "response": response,
@@ -230,22 +247,25 @@ async def toggle_ai_mode(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Toggle AI Agent mode"""
+    controller = get_controller()
+    engine = get_bot_engine()
+    
     try:
         if request.target == "controller":
-            if not ai_bot_controller:
+            if not controller:
                 raise ValueError("AI Bot Controller not available")
             
-            ai_bot_controller.set_mode(request.mode)
+            controller.set_mode(request.mode)
             
             # Start/stop controller based on mode
             if request.mode == "observation":
-                if ai_bot_controller._running:
+                if controller._running:
                     import asyncio
-                    asyncio.create_task(ai_bot_controller.stop())
+                    asyncio.create_task(controller.stop())
             elif request.mode in ["paper", "live"]:
-                if not ai_bot_controller._running:
+                if not controller._running:
                     import asyncio
-                    asyncio.create_task(ai_bot_controller.start())
+                    asyncio.create_task(controller.start())
             
             return {
                 "status": "success",
@@ -255,14 +275,14 @@ async def toggle_ai_mode(
             }
         
         elif request.target == "engine":
-            if not bot_engine:
+            if not engine:
                 raise ValueError("Bot Engine not available")
             
             # Toggle engine AI mode (advisory/autonomous)
-            bot_engine.configure_ai(
+            engine.configure_ai(
                 enabled=True,
                 mode=request.mode,
-                min_confidence=bot_engine.ai_min_confidence
+                min_confidence=engine.ai_min_confidence
             )
             
             return {
@@ -286,7 +306,8 @@ async def update_config(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Update AI Agent configuration"""
-    if not ai_bot_controller:
+    controller = get_controller()
+    if not controller:
         raise HTTPException(status_code=503, detail="AI Bot Controller not available")
     
     try:
@@ -296,7 +317,7 @@ async def update_config(
             if v is not None
         }
         
-        result = ai_bot_controller.update_config(config_update)
+        result = controller.update_config(config_update)
         
         return {
             "status": "success",
@@ -315,13 +336,14 @@ async def get_config(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Get current AI Agent configuration"""
-    if not ai_bot_controller:
+    controller = get_controller()
+    if not controller:
         raise HTTPException(status_code=503, detail="AI Bot Controller not available")
     
     return {
-        "config": ai_bot_controller.config,
-        "mode": ai_bot_controller.mode,
-        "enabled": ai_bot_controller.enabled
+        "config": controller.config,
+        "mode": controller.mode,
+        "enabled": controller.enabled
     }
 
 
@@ -335,11 +357,12 @@ async def get_decision_history(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Get AI decision history"""
-    if not ai_agent:
+    agent = get_ai_agent()
+    if not agent:
         raise HTTPException(status_code=503, detail="AI Agent not initialized")
     
     try:
-        history = ai_agent.get_decision_history(limit)
+        history = agent.get_decision_history(limit)
         
         return {
             "decisions": history,
@@ -357,11 +380,12 @@ async def get_ai_bots(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Get list of AI-managed bots"""
-    if not ai_bot_controller:
+    controller = get_controller()
+    if not controller:
         raise HTTPException(status_code=503, detail="AI Bot Controller not available")
     
     try:
-        bots = ai_bot_controller.get_ai_bots()
+        bots = controller.get_ai_bots()
         
         return {
             "bots": bots,
@@ -386,11 +410,12 @@ async def configure_engine_ai(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Configure AI integration in Bot Engine"""
-    if not bot_engine:
+    engine = get_bot_engine()
+    if not engine:
         raise HTTPException(status_code=503, detail="Bot Engine not available")
     
     try:
-        bot_engine.configure_ai(
+        engine.configure_ai(
             enabled=enabled,
             mode=mode,
             min_confidence=min_confidence
@@ -399,9 +424,9 @@ async def configure_engine_ai(
         return {
             "status": "success",
             "message": "Engine AI configuration updated",
-            "enabled": bot_engine.ai_enabled,
-            "mode": bot_engine.ai_mode,
-            "min_confidence": bot_engine.ai_min_confidence
+            "enabled": engine.ai_enabled,
+            "mode": engine.ai_mode,
+            "min_confidence": engine.ai_min_confidence
         }
         
     except Exception as e:
