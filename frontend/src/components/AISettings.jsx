@@ -1,7 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { Save, RotateCcw, AlertCircle } from 'lucide-react';
+import { Save, RotateCcw, AlertCircle, Plus, X, Search } from 'lucide-react';
 import { aiAPI } from '../services/aiAPI';
 import '../styles/AISettings.css';
+
+// Popular cryptocurrencies
+const POPULAR_CRYPTOS = [
+  { symbol: 'BTC/USDT', name: 'Bitcoin', icon: '₿' },
+  { symbol: 'ETH/USDT', name: 'Ethereum', icon: 'Ξ' },
+  { symbol: 'BNB/USDT', name: 'Binance Coin', icon: '🔶' },
+  { symbol: 'SOL/USDT', name: 'Solana', icon: '◎' },
+  { symbol: 'XRP/USDT', name: 'Ripple', icon: '✕' },
+  { symbol: 'ADA/USDT', name: 'Cardano', icon: '₳' },
+  { symbol: 'AVAX/USDT', name: 'Avalanche', icon: '🔺' },
+  { symbol: 'DOGE/USDT', name: 'Dogecoin', icon: 'Ð' },
+  { symbol: 'DOT/USDT', name: 'Polkadot', icon: '●' },
+  { symbol: 'MATIC/USDT', name: 'Polygon', icon: '⬡' },
+  { symbol: 'LINK/USDT', name: 'Chainlink', icon: '🔗' },
+  { symbol: 'UNI/USDT', name: 'Uniswap', icon: '🦄' },
+  { symbol: 'LTC/USDT', name: 'Litecoin', icon: 'Ł' },
+  { symbol: 'ATOM/USDT', name: 'Cosmos', icon: '⚛' },
+  { symbol: 'XLM/USDT', name: 'Stellar', icon: '✱' }
+];
 
 export default function AISettings() {
   const [config, setConfig] = useState({
@@ -18,7 +37,8 @@ export default function AISettings() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [newSymbol, setNewSymbol] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showCryptoSelector, setShowCryptoSelector] = useState(false);
 
   // Fetch current config
   useEffect(() => {
@@ -71,13 +91,14 @@ export default function AISettings() {
     }));
   };
 
-  const handleAddSymbol = () => {
-    if (newSymbol.trim() && !config.watchlist_symbols.includes(newSymbol.toUpperCase())) {
+  const handleAddSymbol = (symbol) => {
+    if (!config.watchlist_symbols.includes(symbol)) {
       setConfig(prev => ({
         ...prev,
-        watchlist_symbols: [...prev.watchlist_symbols, newSymbol.toUpperCase()]
+        watchlist_symbols: [...prev.watchlist_symbols, symbol]
       }));
-      setNewSymbol('');
+      setShowCryptoSelector(false);
+      setSearchTerm('');
     }
   };
 
@@ -86,6 +107,15 @@ export default function AISettings() {
       ...prev,
       watchlist_symbols: prev.watchlist_symbols.filter(s => s !== symbol)
     }));
+  };
+
+  const getFilteredCryptos = () => {
+    const search = searchTerm.toLowerCase();
+    return POPULAR_CRYPTOS.filter(crypto => 
+      !config.watchlist_symbols.includes(crypto.symbol) &&
+      (crypto.symbol.toLowerCase().includes(search) ||
+       crypto.name.toLowerCase().includes(search))
+    );
   };
 
   const handleSave = async () => {
@@ -329,40 +359,94 @@ export default function AISettings() {
         <div className="settings-section">
           <div className="section-title">Watchlist Symbols</div>
           <p className="section-description">
-            Manage which crypto symbols the AI analyzes
+            Select cryptocurrencies for AI to analyze
           </p>
 
           <div className="watchlist-container">
-            <div className="add-symbol">
-              <input
-                type="text"
-                placeholder="e.g., BTC/USDT, ETH/USDT"
-                value={newSymbol}
-                onChange={(e) => setNewSymbol(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleAddSymbol()}
-              />
-              <button onClick={handleAddSymbol} className="btn-add">
-                Add Symbol
+            {/* Current symbols */}
+            <div className="symbols-list">
+              {config.watchlist_symbols.map((symbol, idx) => {
+                const crypto = POPULAR_CRYPTOS.find(c => c.symbol === symbol);
+                return (
+                  <div key={idx} className="symbol-tag">
+                    <span className="symbol-icon">{crypto?.icon || '💎'}</span>
+                    <span className="symbol-name">{symbol}</span>
+                    <button
+                      onClick={() => handleRemoveSymbol(symbol)}
+                      className="btn-remove"
+                      title="Remove symbol"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                );
+              })}
+              
+              {/* Add button */}
+              <button 
+                className="symbol-tag add-button"
+                onClick={() => setShowCryptoSelector(!showCryptoSelector)}
+              >
+                <Plus size={16} />
+                <span>Add Crypto</span>
               </button>
             </div>
 
-            <div className="symbols-list">
-              {config.watchlist_symbols.map((symbol, idx) => (
-                <div key={idx} className="symbol-tag">
-                  <span>{symbol}</span>
-                  <button
-                    onClick={() => handleRemoveSymbol(symbol)}
-                    className="btn-remove"
-                    title="Remove symbol"
+            {/* Crypto selector dropdown */}
+            {showCryptoSelector && (
+              <div className="crypto-selector">
+                <div className="selector-header">
+                  <div className="search-box">
+                    <Search size={16} />
+                    <input
+                      type="text"
+                      placeholder="Search cryptocurrencies..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      autoFocus
+                    />
+                  </div>
+                  <button 
+                    className="btn-close"
+                    onClick={() => {
+                      setShowCryptoSelector(false);
+                      setSearchTerm('');
+                    }}
                   >
-                    ×
+                    <X size={18} />
                   </button>
                 </div>
-              ))}
-            </div>
+                
+                <div className="crypto-list">
+                  {getFilteredCryptos().map((crypto) => (
+                    <button
+                      key={crypto.symbol}
+                      className="crypto-item"
+                      onClick={() => handleAddSymbol(crypto.symbol)}
+                    >
+                      <span className="crypto-icon">{crypto.icon}</span>
+                      <div className="crypto-info">
+                        <span className="crypto-symbol">{crypto.symbol}</span>
+                        <span className="crypto-name">{crypto.name}</span>
+                      </div>
+                      <Plus size={16} className="add-icon" />
+                    </button>
+                  ))}
+                  
+                  {getFilteredCryptos().length === 0 && (
+                    <div className="empty-search">
+                      <p>No cryptocurrencies found</p>
+                      <small>Try a different search term</small>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {config.watchlist_symbols.length === 0 && (
-              <p className="empty-message">No symbols added. Add at least one to enable AI analysis.</p>
+              <p className="empty-message">
+                No symbols added. Click "Add Crypto" to select cryptocurrencies.
+              </p>
             )}
           </div>
         </div>
