@@ -187,5 +187,51 @@ export const aiAPI = {
       console.error('Error updating config:', error);
       throw error;
     }
+  },
+
+  // Control AI Agent (Start/Stop/Toggle)
+  startAgent: async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/ai-agent/start`, {
+        method: 'POST',
+        headers
+      });
+      if (!response.ok) throw new Error('Failed to start AI Agent');
+      return response.json();
+    } catch (error) {
+      console.error('Error starting AI Agent:', error);
+      throw error;
+    }
+  },
+
+  stopAgent: async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/ai-agent/stop`, {
+        method: 'POST',
+        headers
+      });
+      if (!response.ok) throw new Error('Failed to stop AI Agent');
+      return response.json();
+    } catch (error) {
+      console.error('Error stopping AI Agent:', error);
+      throw error;
+    }
+  },
+
+  toggleAgent: async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/ai-agent/toggle`, {
+        method: 'POST',
+        headers
+      });
+      if (!response.ok) throw new Error('Failed to toggle AI Agent');
+      return response.json();
+    } catch (error) {
+      console.error('Error toggling AI Agent:', error);
+      throw error;
+    }
   }
 };

@@ -46,8 +46,9 @@ function AIAgent() {
     try {
       const status = await aiAPI.getStatus();
       setAiStatus(status);
-      setIsRunning(status.controller?.running || false);
-      setMode(status.controller?.mode || 'observation');
+      // Use the running state from AI Agent, not controller
+      setIsRunning(status.running || status.ai_agent?.running || false);
+      setMode(status.ai_agent?.mode || status.controller?.mode || 'observation');
     } catch (err) {
       console.error('Error fetching AI status:', err);
     }
@@ -80,11 +81,19 @@ function AIAgent() {
   const handleToggleAI = async () => {
     try {
       setRefreshing(true);
-      const newMode = isRunning ? 'observation' : mode;
-      await aiAPI.toggleMode(newMode);
+      setError(null);
+      
+      // Toggle AI Agent on/off
+      const result = await aiAPI.toggleAgent();
+      console.log('🔄 Toggle result:', result);
+      
+      // Update local state
+      setIsRunning(result.running);
+      
+      // Refresh status
       await loadAIStatus();
     } catch (err) {
-      setError(err.message || 'Failed to toggle AI');
+      setError(err.message || 'Failed to toggle AI Agent');
       console.error('Error toggling AI:', err);
     } finally {
       setRefreshing(false);

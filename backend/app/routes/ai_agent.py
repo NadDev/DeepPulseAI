@@ -183,12 +183,18 @@ async def get_ai_status(
     if not agent:
         raise HTTPException(status_code=503, detail="AI Agent not initialized")
     
-    ai_status = agent.get_status() if hasattr(agent, 'get_status') else {
-        "enabled": False,
-        "error": "AI Agent not fully initialized"
+    # Get AI Agent status including running state
+    ai_status = {
+        "enabled": agent.enabled,
+        "running": agent._running,  # Add running state
+        "mode": agent.mode,
+        "decision_history_count": len(agent.decision_history) if hasattr(agent, 'decision_history') else 0
     }
     
     controller_status = controller.get_status() if controller else {}
+    # Add controller running state too
+    if controller:
+        controller_status["running"] = controller.enabled
     
     engine_status = {}
     if engine:
@@ -204,6 +210,7 @@ async def get_ai_status(
         "ai_agent": ai_status,
         "controller": controller_status,
         "engine": engine_status,
+        "running": ai_status["running"],  # Top-level running state for convenience
         "timestamp": datetime.utcnow().isoformat()
     }
 
@@ -743,4 +750,91 @@ async def get_ai_decisions_stats(
         
     except Exception as e:
         logger.error(f"Error calculating stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================
+# Control Endpoints (Start/Stop/Pause)
+# ============================================
+
+@router.post("/start")
+async def start_ai_agent(
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Start/Resume the AI Agent"""
+    agent = get_ai_agent()
+    if not agent:
+        raise HTTPException(status_code=503, detail="AI Agent not initialized")
+    
+    try:
+        if agent._running:
+            return {"message": "AI Agent already running", "running": True}
+        
+        await agent.start()
+        logger.info(f"🚀 AI Agent started by user {current_user.id}")
+        
+        return {
+            "message": "AI Agent started successfully",
+            "running": True,
+            "mode": agent.mode
+        }
+    except Exception as e:
+        logger.error(f"Error starting AI Agent: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/stop")
+async def stop_ai_agent(
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Stop/Pause the AI Agent"""
+    agent = get_ai_agent()
+    if not agent:
+        raise HTTPException(status_code=503, detail="AI Agent not initialized")
+    
+    try:
+        if not agent._running:
+            return {"message": "AI Agent already stopped", "running": False}
+        
+        await agent.stop()
+        logger.info(f"⏸️ AI Agent stopped by user {current_user.id}")
+        
+        return {
+            "message": "AI Agent stopped successfully",
+            "running": False,
+            "mode": agent.mode
+        }
+    except Exception as e:
+        logger.error(f"Error stopping AI Agent: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/toggle")
+async def toggle_ai_agent(
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Toggle AI Agent on/off"""
+    agent = get_ai_agent()
+    if not agent:
+        raise HTTPException(status_code=503, detail="AI Agent not initialized")
+    
+    try:
+        if agent._running:
+            await agent.stop()
+            action = "stopped"
+            running = False
+        else:
+            await agent.start()
+            action = "started"
+            running = True
+        
+        logger.info(f"🔄 AI Agent {action} by user {current_user.id}")
+        
+        return {
+            "message": f"AI Agent {action} successfully",
+            "running": running,
+            "mode": agent.mode
+        }
+    except Exception as e:
+        logger.error(f"Error toggling AI Agent: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
