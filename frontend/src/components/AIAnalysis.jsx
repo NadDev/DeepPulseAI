@@ -1,9 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Target, AlertCircle } from 'lucide-react';
 import './AIAnalysis.css';
 
 function AIAnalysis({ recommendations = [], onRefresh }) {
   const [selectedSymbol, setSelectedSymbol] = useState(null);
+
+  // Debug log when recommendations change
+  useEffect(() => {
+    console.log('🔄 AIAnalysis received recommendations:', recommendations);
+    console.log('📊 Count:', recommendations?.length || 0);
+  }, [recommendations]);
 
   const getActionColor = (action) => {
     switch (action?.toUpperCase()) {
