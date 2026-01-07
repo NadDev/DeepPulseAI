@@ -184,19 +184,34 @@ class AIBotController:
             logger.info("📅 Daily trade counter reset")
     
     async def _get_ai_recommendations(self) -> List[Dict[str, Any]]:
-        """Get current recommendations from AI Agent"""
-        # Get top symbols to analyze
-        symbols = await self._get_watchlist_symbols()
-        
-        if not symbols:
+        """Get current recommendations from AI Agent's recent decisions"""
+        if not ai_agent or not hasattr(ai_agent, 'decision_history'):
+            logger.warning("⚠️ AI Agent not available or has no decision history")
             return []
         
-        # Get market data for symbols
-        market_data = await self._fetch_market_data(symbols)
+        # Get recent decisions from AI Agent (last 10)
+        recent_decisions = ai_agent.decision_history[-10:] if ai_agent.decision_history else []
         
-        # Get AI recommendations
-        recommendations = await ai_agent.get_recommendations(symbols, market_data)
+        # Filter for high-confidence decisions from last hour
+        from datetime import timedelta
+        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
         
+        recommendations = []
+        for decision in recent_decisions:
+            # Check if decision is recent and high confidence
+            decision_time = decision.get('timestamp')
+            if isinstance(decision_time, str):
+                try:
+                    decision_time = datetime.fromisoformat(decision_time.replace('Z', '+00:00'))
+                except:
+                    continue
+            
+            if decision_time and decision_time > one_hour_ago:
+                confidence = decision.get('confidence', 0)
+                if confidence >= self.config['min_confidence']:
+                    recommendations.append(decision)
+        
+        logger.info(f"📊 Found {len(recommendations)} high-confidence recommendations from AI Agent")
         return recommendations
     
     async def _get_watchlist_symbols(self) -> List[str]:
