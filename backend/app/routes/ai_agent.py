@@ -262,6 +262,95 @@ async def analyze_symbol(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/analyze-watchlist")
+async def analyze_watchlist(
+    db: Session = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user),
+    limit: int = Query(10, ge=1, le=50),
+    min_confidence: int = Query(50, ge=0, le=100)
+):
+    """
+    Analyze all symbols from user's watchlist with AI.
+    Returns recommendations sorted by confidence.
+    """
+    from app.models.database_models import WatchlistItem
+    
+    agent = get_ai_agent()
+    if not agent or not agent.enabled:
+        raise HTTPException(status_code=503, detail="AI Agent is disabled")
+    
+    try:
+        # Get user's active watchlist items
+        watchlist_items = db.query(WatchlistItem).filter(
+            WatchlistItem.user_id == str(current_user.id),
+            WatchlistItem.is_active == True
+        ).order_by(WatchlistItem.priority.desc()).limit(limit).all()
+        
+        if not watchlist_items:
+            return {
+                "recommendations": [],
+                "count": 0,
+                "message": "No symbols in watchlist. Add symbols to get AI recommendations."
+            }
+        
+        recommendations = []
+        errors = []
+        
+        for item in watchlist_items:
+            try:
+                # Convert BTC/USDT to BTCUSDT format for Binance
+                symbol = item.symbol.replace("/", "")
+                
+                # Fetch real market data
+                data = await fetch_market_data_with_indicators(symbol)
+                
+                if not data:
+                    errors.append(f"Could not fetch data for {item.symbol}")
+                    continue
+                
+                # Prepare data for AI
+                market_data = {
+                    "close": data["close"],
+                    "high": data["high"],
+                    "low": data["low"],
+                    "open": data.get("open", data["close"]),
+                    "volume": data["volume"],
+                    "change_24h": data["change_24h"]
+                }
+                
+                # Analyze with AI
+                analysis = await agent.analyze_market(
+                    symbol=symbol,
+                    market_data=market_data,
+                    indicators=data["indicators"]
+                )
+                
+                # Only include if confidence meets threshold
+                if analysis.get("confidence", 0) >= min_confidence:
+                    analysis["watchlist_notes"] = item.notes
+                    analysis["priority"] = item.priority
+                    recommendations.append(analysis)
+                    
+            except Exception as e:
+                logger.error(f"Error analyzing {item.symbol}: {str(e)}")
+                errors.append(f"Error analyzing {item.symbol}: {str(e)}")
+        
+        # Sort by confidence (highest first)
+        recommendations.sort(key=lambda x: x.get("confidence", 0), reverse=True)
+        
+        return {
+            "recommendations": recommendations,
+            "count": len(recommendations),
+            "analyzed": len(watchlist_items),
+            "errors": errors if errors else None,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error analyzing watchlist: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/recommendations")
 async def get_recommendations(
     limit: int = Query(5, ge=1, le=20),
