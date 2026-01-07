@@ -12,11 +12,16 @@ from app.auth.supabase_auth import get_current_user, UserResponse
 from app.services import ai_agent as ai_agent_module
 from app.services.ai_bot_controller import get_ai_bot_controller
 from app.services import bot_engine as bot_engine_module
+from app.services.market_data import market_data_collector
+from app.services.technical_analysis import TechnicalAnalysis
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ai-agent", tags=["AI Agent"])
+
+# Technical analysis instance
+ta = TechnicalAnalysis()
 
 # Helper functions to get runtime instances
 def get_ai_agent():
@@ -27,6 +32,83 @@ def get_bot_engine():
 
 def get_controller():
     return get_ai_bot_controller()
+
+
+async def fetch_market_data_with_indicators(symbol: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch real market data from Binance and calculate technical indicators.
+    Reuses the same logic as BotEngine._get_market_data()
+    
+    Args:
+        symbol: Trading pair (e.g., 'BTCUSDT' or 'BTC')
+        
+    Returns:
+        Dictionary with price data and calculated indicators
+    """
+    try:
+        # Ensure symbol format for Binance
+        binance_symbol = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
+        
+        # Get historical candles from Binance (100 candles, 1h timeframe)
+        candles = await market_data_collector.get_candles(binance_symbol, timeframe="1h", limit=100)
+        
+        if not candles or len(candles) < 20:
+            logger.warning(f"Insufficient market data for {symbol}: got {len(candles) if candles else 0} candles")
+            return None
+        
+        # Extract price arrays
+        closes = [c['close'] for c in candles]
+        highs = [c['high'] for c in candles]
+        lows = [c['low'] for c in candles]
+        volumes = [c['volume'] for c in candles]
+        
+        # Calculate technical indicators using TechnicalAnalysis class
+        sma_20 = ta.calculate_sma(closes, 20)
+        sma_50 = ta.calculate_sma(closes, 50)
+        rsi = ta.calculate_rsi(closes, 14)
+        bb_upper, bb_middle, bb_lower = ta.calculate_bollinger_bands(closes, 20, 2)
+        macd_line, signal_line, histogram = ta.calculate_macd(closes)
+        
+        # Calculate support/resistance (simple method: recent highs/lows)
+        resistance = max(highs[-20:])
+        support = min(lows[-20:])
+        avg_volume = sum(volumes[-20:]) / 20
+        
+        # Get current candle data
+        current = candles[-1]
+        prev = candles[-2] if len(candles) > 1 else candles[-1]
+        
+        # Calculate 24h change
+        change_24h = ((current['close'] - prev['close']) / prev['close'] * 100) if prev['close'] > 0 else 0
+        
+        return {
+            "symbol": binance_symbol,
+            "close": current['close'],
+            "high": current['high'],
+            "low": current['low'],
+            "open": current['open'],
+            "volume": current['volume'],
+            "change_24h": round(change_24h, 2),
+            "timestamp": current['timestamp'],
+            "indicators": {
+                "rsi": round(rsi[-1], 2) if rsi and rsi[-1] is not None else None,
+                "sma_20": round(sma_20[-1], 2) if sma_20 and sma_20[-1] is not None else None,
+                "sma_50": round(sma_50[-1], 2) if sma_50 and sma_50[-1] is not None else None,
+                "bb_upper": round(bb_upper[-1], 2) if bb_upper and bb_upper[-1] is not None else None,
+                "bb_middle": round(bb_middle[-1], 2) if bb_middle and bb_middle[-1] is not None else None,
+                "bb_lower": round(bb_lower[-1], 2) if bb_lower and bb_lower[-1] is not None else None,
+                "macd": round(macd_line[-1], 4) if macd_line and macd_line[-1] is not None else None,
+                "macd_signal": round(signal_line[-1], 4) if signal_line and signal_line[-1] is not None else None,
+                "macd_histogram": round(histogram[-1], 4) if histogram and histogram[-1] is not None else None,
+                "resistance": round(resistance, 2),
+                "support": round(support, 2),
+                "avg_volume": round(avg_volume, 2)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching market data for {symbol}: {str(e)}")
+        return None
 
 
 # ============================================
@@ -136,34 +218,37 @@ async def analyze_symbol(
     db: Session = Depends(get_db),
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """Analyze a single symbol with AI"""
+    """Analyze a single symbol with AI using real market data from Binance"""
     agent = get_ai_agent()
     if not agent or not agent.enabled:
         raise HTTPException(status_code=503, detail="AI Agent is disabled")
     
     try:
-        # Get market data (simplified - in production would use real market data)
+        # Fetch REAL market data from Binance with calculated indicators
+        data = await fetch_market_data_with_indicators(request.symbol)
+        
+        if not data:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Could not fetch market data for {request.symbol}"
+            )
+        
+        # Prepare market data for AI analysis
         market_data = {
-            "close": 0,
-            "high": 0,
-            "low": 0,
-            "volume": 0,
-            "change_24h": 0
+            "close": data["close"],
+            "high": data["high"],
+            "low": data["low"],
+            "open": data.get("open", data["close"]),
+            "volume": data["volume"],
+            "change_24h": data["change_24h"]
         }
         
-        indicators = {
-            "rsi": 50,
-            "sma_20": 0,
-            "sma_50": 0,
-            "bb_upper": 0,
-            "bb_middle": 0,
-            "bb_lower": 0,
-            "support": 0,
-            "resistance": 0
-        }
+        # Use calculated indicators
+        indicators = data["indicators"]
         
-        # TODO: Fetch real market data
+        logger.info(f"🔍 Analyzing {request.symbol}: Price=${data['close']}, RSI={indicators.get('rsi')}")
         
+        # Call AI Agent with real data
         analysis = await agent.analyze_market(
             symbol=request.symbol,
             market_data=market_data,
