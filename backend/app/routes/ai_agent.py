@@ -280,32 +280,46 @@ async def analyze_watchlist(
         raise HTTPException(status_code=503, detail="AI Agent is disabled")
     
     try:
-        # Get user's active watchlist items
+        # Get user's active watchlist items from database
         watchlist_items = db.query(WatchlistItem).filter(
             WatchlistItem.user_id == str(current_user.id),
             WatchlistItem.is_active == True
         ).order_by(WatchlistItem.priority.desc()).limit(limit).all()
         
-        if not watchlist_items:
+        # Fallback: If no DB watchlist, use AI config watchlist_symbols
+        symbols_to_analyze = []
+        if watchlist_items:
+            symbols_to_analyze = [(item.symbol, item.notes, item.priority) for item in watchlist_items]
+        else:
+            # Try to get symbols from AI controller config
+            controller = get_controller()
+            if controller and hasattr(controller, 'config'):
+                config_symbols = controller.config.get('watchlist_symbols', [])
+                if config_symbols:
+                    logger.info(f"Using AI config watchlist: {config_symbols}")
+                    symbols_to_analyze = [(sym, None, 0) for sym in config_symbols]
+        
+        if not symbols_to_analyze:
             return {
                 "recommendations": [],
                 "count": 0,
-                "message": "No symbols in watchlist. Add symbols to get AI recommendations."
+                "message": "No symbols in watchlist. Add symbols in Settings → AI Agent → Watchlist."
             }
         
         recommendations = []
         errors = []
         
-        for item in watchlist_items:
+        for symbol_tuple in symbols_to_analyze:
+            symbol_with_slash, notes, priority = symbol_tuple
             try:
                 # Convert BTC/USDT to BTCUSDT format for Binance
-                symbol = item.symbol.replace("/", "")
+                symbol = symbol_with_slash.replace("/", "")
                 
                 # Fetch real market data
                 data = await fetch_market_data_with_indicators(symbol)
                 
                 if not data:
-                    errors.append(f"Could not fetch data for {item.symbol}")
+                    errors.append(f"Could not fetch data for {symbol_with_slash}")
                     continue
                 
                 # Prepare data for AI
@@ -327,13 +341,15 @@ async def analyze_watchlist(
                 
                 # Only include if confidence meets threshold
                 if analysis.get("confidence", 0) >= min_confidence:
-                    analysis["watchlist_notes"] = item.notes
-                    analysis["priority"] = item.priority
+                    if notes:
+                        analysis["watchlist_notes"] = notes
+                    if priority:
+                        analysis["priority"] = priority
                     recommendations.append(analysis)
                     
             except Exception as e:
-                logger.error(f"Error analyzing {item.symbol}: {str(e)}")
-                errors.append(f"Error analyzing {item.symbol}: {str(e)}")
+                logger.error(f"Error analyzing {symbol_with_slash}: {str(e)}")
+                errors.append(f"Error analyzing {symbol_with_slash}: {str(e)}")
         
         # Sort by confidence (highest first)
         recommendations.sort(key=lambda x: x.get("confidence", 0), reverse=True)
@@ -341,7 +357,7 @@ async def analyze_watchlist(
         return {
             "recommendations": recommendations,
             "count": len(recommendations),
-            "analyzed": len(watchlist_items),
+            "analyzed": len(symbols_to_analyze),
             "errors": errors if errors else None,
             "timestamp": datetime.utcnow().isoformat()
         }
