@@ -912,10 +912,11 @@ give your analysis based on general market knowledge. Be honest about uncertaint
 ai_agent: Optional[AITradingAgent] = None
 
 
-def initialize_ai_agent(api_key: str, model: str = "deepseek-chat", db_session_factory=None):
+def initialize_ai_agent(api_key: str, model: str = "deepseek-chat", db_session_factory=None, mode: str = "observation"):
     """Initialize global AI agent instance"""
     global ai_agent
     ai_agent = AITradingAgent(api_key, model, db_session_factory)
+    ai_agent.mode = mode  # Set mode from environment
     return ai_agent
 
 

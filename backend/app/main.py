@@ -90,22 +90,23 @@ async def lifespan(app: FastAPI):
         try:
             api_key = os.getenv("DEEPSEEK_API_KEY")
             if api_key:
-                ai_agent_module.ai_agent = initialize_ai_agent(api_key, db_session_factory=SessionLocal)
+                ai_mode = os.getenv("AI_AGENT_MODE", "observation")
+                ai_agent_module.ai_agent = initialize_ai_agent(api_key, db_session_factory=SessionLocal, mode=ai_mode)
                 await ai_agent_module.ai_agent.start()
-                logger.info("[OK] AI Trading Agent initialized with monitoring loop")
+                logger.info(f"[OK] AI Trading Agent initialized with monitoring loop (mode: {ai_mode})")
                 
                 # Connect AI Agent to Bot Engine
                 if bot_engine_module.bot_engine:
                     bot_engine_module.bot_engine.set_ai_agent(ai_agent_module.ai_agent)
                     
-                    # Configure AI mode from environment
-                    ai_mode = os.getenv("AI_AGENT_MODE", "advisory")
+                    # Configure Bot Engine AI integration (advisory vs autonomous)
+                    bot_ai_mode = os.getenv("AI_AGENT_MODE", "advisory")
                     bot_engine_module.bot_engine.configure_ai(
                         enabled=True,
-                        mode=ai_mode,
+                        mode=bot_ai_mode,
                         min_confidence=int(os.getenv("AI_MIN_CONFIDENCE", "60"))
                     )
-                    logger.info(f"[OK] AI Agent connected to Bot Engine (mode: {ai_mode})")
+                    logger.info(f"[OK] AI Agent connected to Bot Engine (mode: {bot_ai_mode})")
                 
                 # Initialize AI Bot Controller
                 ai_bot_controller_module.ai_bot_controller = initialize_ai_bot_controller(
