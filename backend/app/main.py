@@ -90,36 +90,53 @@ async def lifespan(app: FastAPI):
         try:
             api_key = os.getenv("DEEPSEEK_API_KEY")
             if api_key:
-                ai_mode = os.getenv("AI_AGENT_MODE", "observation")
-                ai_agent_module.ai_agent = initialize_ai_agent(api_key, db_session_factory=SessionLocal, mode=ai_mode)
+                # Get mode from environment (observation, paper, live, advisory, autonomous)
+                raw_mode = os.getenv("AI_AGENT_MODE", "observation")
+                
+                # Map unified mode to each service's expected format:
+                # - AI Agent expects: "observation" or "trading"
+                # - Bot Controller expects: "observation", "paper", "live"  
+                # - Bot Engine expects: "advisory", "autonomous"
+                
+                # AI Agent mode mapping
+                ai_agent_mode = "trading" if raw_mode in ["paper", "live", "autonomous"] else "observation"
+                
+                # Bot Controller mode mapping  
+                bot_controller_mode = raw_mode if raw_mode in ["observation", "paper", "live"] else "observation"
+                
+                # Bot Engine mode mapping
+                bot_engine_mode = "autonomous" if raw_mode in ["autonomous", "live"] else "advisory"
+                
+                logger.info(f"🎛️ Mode configuration: raw={raw_mode}, agent={ai_agent_mode}, controller={bot_controller_mode}, engine={bot_engine_mode}")
+                
+                ai_agent_module.ai_agent = initialize_ai_agent(api_key, db_session_factory=SessionLocal, mode=ai_agent_mode)
                 await ai_agent_module.ai_agent.start()
-                logger.info(f"[OK] AI Trading Agent initialized with monitoring loop (mode: {ai_mode})")
+                logger.info(f"[OK] AI Trading Agent initialized with monitoring loop (mode: {ai_agent_mode})")
                 
                 # Connect AI Agent to Bot Engine
                 if bot_engine_module.bot_engine:
                     bot_engine_module.bot_engine.set_ai_agent(ai_agent_module.ai_agent)
                     
-                    # Configure Bot Engine AI integration (advisory vs autonomous)
-                    bot_ai_mode = os.getenv("AI_AGENT_MODE", "advisory")
+                    # Configure Bot Engine AI integration
                     bot_engine_module.bot_engine.configure_ai(
                         enabled=True,
-                        mode=bot_ai_mode,
+                        mode=bot_engine_mode,
                         min_confidence=int(os.getenv("AI_MIN_CONFIDENCE", "60"))
                     )
-                    logger.info(f"[OK] AI Agent connected to Bot Engine (mode: {bot_ai_mode})")
+                    logger.info(f"[OK] AI Agent connected to Bot Engine (mode: {bot_engine_mode})")
                 
                 # Initialize AI Bot Controller
                 ai_bot_controller_module.ai_bot_controller = initialize_ai_bot_controller(
                     SessionLocal, bot_engine_module.bot_engine
                 )
-                ai_bot_controller_module.ai_bot_controller.mode = os.getenv("AI_AGENT_MODE", "observation")
+                ai_bot_controller_module.ai_bot_controller.mode = bot_controller_mode
                 
                 # Auto-start controller if not in observation mode
-                if ai_bot_controller_module.ai_bot_controller.mode != "observation":
+                if bot_controller_mode != "observation":
                     await ai_bot_controller_module.ai_bot_controller.start()
-                    logger.info(f"[OK] AI Bot Controller started (mode: {ai_bot_controller_module.ai_bot_controller.mode})")
+                    logger.info(f"[OK] AI Bot Controller started (mode: {bot_controller_mode})")
                 else:
-                    logger.info("[OK] AI Bot Controller ready (mode: observation - not auto-started)")
+                    logger.info(f"[OK] AI Bot Controller ready (mode: {bot_controller_mode} - not auto-started)")
             else:
                 logger.warning("⚠️ DEEPSEEK_API_KEY not found - AI Agent disabled")
         except Exception as e:
