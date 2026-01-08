@@ -1,11 +1,24 @@
 /**
  * Watchlist API Service
- * Manages persistent watchlist in database
+ * Manages persistent watchlist in Railway PostgreSQL database
+ * Uses Supabase JWT for authentication
  */
 
-import { getAuthHeaders } from './supabaseClient';
+import { supabase } from './supabaseClient';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+
+// Get auth headers with Supabase JWT token
+const getAuthHeaders = async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    throw new Error('Not authenticated');
+  }
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${session.access_token}`
+  };
+};
 
 export const watchlistAPI = {
   // Get user's watchlist

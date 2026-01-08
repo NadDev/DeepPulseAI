@@ -92,14 +92,10 @@ class AIBotController:
             logger.warning("⚠️ AI Bot Controller already running")
             return
         
-        # Check if AI Agent is available (optional - controller can work without it)
-        if not ai_agent:
-            logger.warning("⚠️ AI Agent not available yet - controller will start anyway")
-        
         self._running = True
         logger.info(f"🤖 AI Bot Controller started (mode: {self.mode})")
         
-        # Load existing AI-created bots
+        # Load existing AI-managed bots from database
         await self._load_ai_bots()
         
         # Start control loop
