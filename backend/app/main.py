@@ -27,7 +27,50 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("🚀 CRBot API Starting...")
-    # Tables should already exist in Supabase PostgreSQL
+    
+    # Create missing tables (idempotent)
+    try:
+        from sqlalchemy import text
+        import pathlib
+        db = SessionLocal()
+        
+        # Check if ai_decisions table exists, if not create it
+        try:
+            db.execute(text("SELECT 1 FROM ai_decisions LIMIT 1"))
+            logger.info("[OK] ai_decisions table exists")
+        except Exception as check_error:
+            try:
+                logger.info(f"⚙️ Creating ai_decisions table... (error was: {check_error})")
+                
+                # Find migration file - handle both local and Railway paths
+                migration_paths = [
+                    "database/migrations/001_create_ai_decisions_table.sql",
+                    "/app/database/migrations/001_create_ai_decisions_table.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/001_create_ai_decisions_table.sql"
+                ]
+                
+                migration_sql = None
+                for path in migration_paths:
+                    try:
+                        migration_sql = open(path).read()
+                        logger.info(f"[OK] Found migration at {path}")
+                        break
+                    except:
+                        continue
+                
+                if migration_sql:
+                    db.execute(text(migration_sql))
+                    db.commit()
+                    logger.info("✅ ai_decisions table created successfully")
+                else:
+                    logger.warning("⚠️ Could not find migration file in any expected location")
+            except Exception as create_error:
+                logger.error(f"❌ Failed to create ai_decisions table: {create_error}")
+        
+        db.close()
+    except Exception as e:
+        logger.warning(f"⚠️ Could not verify/create tables: {e}")
+    
     logger.info("[OK] Database connection ready")
     
     # Start Bot Engine first

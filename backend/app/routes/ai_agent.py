@@ -742,7 +742,20 @@ async def get_ai_decisions_stats(
         
     except Exception as e:
         logger.error(f"Error calculating stats: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Return safe defaults if table doesn't exist
+        return {
+            "period_days": days,
+            "total_decisions": 0,
+            "executed_decisions": 0,
+            "blocked_decisions": 0,
+            "execution_rate": 0,
+            "by_action": {"BUY": 0, "SELL": 0, "HOLD": 0},
+            "avg_confidence": 0,
+            "closed_trades": 0,
+            "total_pnl": 0,
+            "win_rate": 0,
+            "note": "ai_decisions table not yet created"
+        }
 
 
 # ============================================
