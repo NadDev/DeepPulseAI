@@ -75,11 +75,11 @@ async def create_ai_decisions_table(db: Session = Depends(get_db)):
         # Table doesn't exist, create it
         logger.info("⚙️ Creating ai_decisions table...")
         
-        # Try multiple path options
+        # Use Railway-compatible migration (without Supabase dependencies)
         migration_paths = [
-            Path(__file__).parent.parent.parent / "database" / "migrations" / "001_create_ai_decisions_table.sql",
-            Path("/app/database/migrations/001_create_ai_decisions_table.sql"),
-            Path("database/migrations/001_create_ai_decisions_table.sql"),
+            Path(__file__).parent.parent.parent / "database" / "migrations" / "001_create_ai_decisions_table_railway.sql",
+            Path("/app/database/migrations/001_create_ai_decisions_table_railway.sql"),
+            Path("database/migrations/001_create_ai_decisions_table_railway.sql"),
         ]
         
         migration_sql = None

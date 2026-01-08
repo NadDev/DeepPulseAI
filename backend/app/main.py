@@ -42,11 +42,11 @@ async def lifespan(app: FastAPI):
             try:
                 logger.info(f"⚙️ Creating ai_decisions table... (error was: {check_error})")
                 
-                # Find migration file - handle both local and Railway paths
+                # Use Railway-compatible migration (without Supabase auth.users reference)
                 migration_paths = [
-                    "/app/database/migrations/001_create_ai_decisions_table.sql",  # Railway Docker path
-                    "database/migrations/001_create_ai_decisions_table.sql",
-                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/001_create_ai_decisions_table.sql"
+                    "/app/database/migrations/001_create_ai_decisions_table_railway.sql",  # Railway Docker path
+                    "database/migrations/001_create_ai_decisions_table_railway.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/001_create_ai_decisions_table_railway.sql"
                 ]
                 
                 migration_sql = None
