@@ -333,6 +333,7 @@ class AITradingAgent:
         try:
             # If no market data provided, fetch it with all advanced indicators
             if market_data is None or indicators is None:
+                logger.debug(f"Fetching market data for {symbol}")
                 full_data = await self._fetch_market_data(symbol)
                 if not full_data:
                     return {
@@ -341,6 +342,8 @@ class AITradingAgent:
                         "confidence": 0,
                         "reasoning": "Failed to fetch market data"
                     }
+                
+                logger.debug(f"Full data type: {type(full_data)}, keys: {full_data.keys() if isinstance(full_data, dict) else 'NOT A DICT'}")
                 
                 # Extract the components
                 market_data = {
@@ -352,6 +355,9 @@ class AITradingAgent:
                     "symbol": full_data.get("symbol")
                 }
                 indicators = full_data.get("indicators", {})
+                logger.debug(f"Extracted indicators type: {type(indicators)}")
+            
+            logger.debug(f"Building prompt with market_data type: {type(market_data)}, indicators type: {type(indicators)}")
             
             # Build analysis prompt
             prompt = self._build_analysis_prompt(symbol, market_data, indicators)
@@ -428,6 +434,15 @@ class AITradingAgent:
         indicators: Dict[str, Any]
     ) -> str:
         """Build ENRICHED analysis prompt for DeepSeek with advanced technical analysis"""
+        
+        # Add safety check
+        if not isinstance(market_data, dict):
+            logger.error(f"market_data is not a dict: {type(market_data)}")
+            market_data = {}
+        if not isinstance(indicators, dict):
+            logger.error(f"indicators is not a dict: {type(indicators)}")
+            indicators = {}
+        
         current_price = market_data.get("close", 0)
         
         # ============ BASIC DATA ============
@@ -457,15 +472,19 @@ class AITradingAgent:
 - Price Position: {'Near Upper (Potential Resistance)' if indicators.get('bb_upper') and current_price > indicators.get('bb_upper') * 0.98 else 'Near Lower (Potential Support)' if indicators.get('bb_lower') and current_price < indicators.get('bb_lower') * 1.02 else 'Middle Range'}"""
 
         # ============ MACD ============
-        macd = indicators.get('macd', {}) or {}
+        macd = indicators.get('macd', {})
+        if not isinstance(macd, dict):
+            macd = {}
         macd_section = f"""## MACD Analysis
 - MACD Line: {macd.get('macd', 'N/A')}
 - Signal Line: {macd.get('signal', 'N/A')}
 - Histogram: {macd.get('histogram', 'N/A')} {'📈 Increasing momentum' if macd.get('histogram') and macd.get('histogram') > 0 else '📉 Decreasing momentum' if macd.get('histogram') else ''}
-- Crossover: {macd.get('crossover', 'N/A').upper()}"""
+- Crossover: {macd.get('crossover', 'N/A').upper() if isinstance(macd.get('crossover'), str) else 'N/A'}"""
 
         # ============ ICHIMOKU CLOUD ============
-        ichimoku = indicators.get('ichimoku', {}) or {}
+        ichimoku = indicators.get('ichimoku', {})
+        if not isinstance(ichimoku, dict):
+            ichimoku = {}
         ichimoku_section = ""
         if ichimoku and ichimoku.get('status') == 'calculated':
             ichimoku_section = f"""## Ichimoku Cloud Analysis
@@ -473,15 +492,19 @@ class AITradingAgent:
 - Kijun-sen (Base): ${ichimoku.get('kijun_sen', 'N/A')}
 - Cloud Top (Senkou A): ${ichimoku.get('cloud_top', 'N/A')}
 - Cloud Bottom (Senkou B): ${ichimoku.get('cloud_bottom', 'N/A')}
-- TK Cross: {ichimoku.get('tk_cross', 'N/A').upper()}
-- Price vs Cloud: {ichimoku.get('cloud_position', 'N/A').upper()} → Signal: {ichimoku.get('signal', 'N/A').upper()}"""
+- TK Cross: {ichimoku.get('tk_cross', 'N/A').upper() if isinstance(ichimoku.get('tk_cross'), str) else 'N/A'}
+- Price vs Cloud: {ichimoku.get('cloud_position', 'N/A').upper() if isinstance(ichimoku.get('cloud_position'), str) else 'N/A'} → Signal: {ichimoku.get('signal', 'N/A').upper() if isinstance(ichimoku.get('signal'), str) else 'N/A'}"""
 
         # ============ FIBONACCI ============
-        fib = indicators.get('fibonacci', {}) or {}
+        fib = indicators.get('fibonacci', {})
+        if not isinstance(fib, dict):
+            fib = {}
         fib_section = ""
         if fib and fib.get('status') == 'analyzed':
             fib_levels = fib.get('retracement_levels', {})
-            fib_section = f"""## Fibonacci Retracement Levels (Trend: {fib.get('trend', 'N/A').upper()})
+            if not isinstance(fib_levels, dict):
+                fib_levels = {}
+            fib_section = f"""## Fibonacci Retracement Levels (Trend: {fib.get('trend', 'N/A').upper() if isinstance(fib.get('trend'), str) else 'N/A'})
 - 0.0%: ${fib_levels.get('0.0', 'N/A')}
 - 23.6%: ${fib_levels.get('0.236', 'N/A')}
 - 38.2%: ${fib_levels.get('0.382', 'N/A')} (KEY LEVEL)
@@ -493,11 +516,17 @@ class AITradingAgent:
 - Position in Range: {fib.get('position_in_range', 0) * 100:.1f}%"""
 
         # ============ ELLIOTT WAVES ============
-        elliott = indicators.get('elliott_waves', {}) or {}
+        elliott = indicators.get('elliott_waves', {})
+        if not isinstance(elliott, dict):
+            elliott = {}
         elliott_section = ""
         if elliott and elliott.get('status') == 'detected':
             current_pos = elliott.get('current_position', {})
+            if not isinstance(current_pos, dict):
+                current_pos = {}
             prediction = elliott.get('prediction', {})
+            if not isinstance(prediction, dict):
+                prediction = {}
             elliott_section = f"""## Elliott Wave Analysis
 - Current Phase: {current_pos.get('phase', 'N/A')} (Wave {current_pos.get('current_wave', 'N/A')})
 - Next Expected Wave: {prediction.get('next_wave', 'N/A')}
@@ -511,12 +540,20 @@ class AITradingAgent:
 - Volume Signal: {indicators.get('volume_signal', 'normal').upper()} {'🔥 High volume confirms move!' if indicators.get('volume_signal') == 'high' else '⚠️ Low volume - weak conviction' if indicators.get('volume_signal') == 'low' else ''}"""
 
         # ============ MULTI-TIMEFRAME ============
-        mtf = indicators.get('mtf_trend', {}) or {}
+        mtf = indicators.get('mtf_trend', {})
+        if not isinstance(mtf, dict):
+            mtf = {}
         mtf_section = ""
         if mtf:
             short = mtf.get('short', {})
+            if not isinstance(short, dict):
+                short = {}
             medium = mtf.get('medium', {})
+            if not isinstance(medium, dict):
+                medium = {}
             long = mtf.get('long', {})
+            if not isinstance(long, dict):
+                long = {}
             
             # Trend alignment score
             trends = [short.get('direction'), medium.get('direction'), long.get('direction')]
@@ -524,15 +561,17 @@ class AITradingAgent:
             alignment = "STRONG BULLISH" if bullish_count == 3 else "STRONG BEARISH" if bullish_count == 0 else "MIXED/CHOPPY"
             
             mtf_section = f"""## Multi-Timeframe Trend Analysis
-- Short-term (10H): {short.get('direction', 'N/A').upper()} ({short.get('change_pct', 0):+.2f}%)
-- Medium-term (24H): {medium.get('direction', 'N/A').upper()} ({medium.get('change_pct', 0):+.2f}%)
-- Long-term (50H): {long.get('direction', 'N/A').upper()} ({long.get('change_pct', 0):+.2f}%)
+- Short-term (10H): {short.get('direction', 'N/A').upper() if isinstance(short.get('direction'), str) else 'N/A'} ({short.get('change_pct', 0):+.2f}%)
+- Medium-term (24H): {medium.get('direction', 'N/A').upper() if isinstance(medium.get('direction'), str) else 'N/A'} ({medium.get('change_pct', 0):+.2f}%)
+- Long-term (50H): {long.get('direction', 'N/A').upper() if isinstance(long.get('direction'), str) else 'N/A'} ({long.get('change_pct', 0):+.2f}%)
 - Trend Alignment: {alignment} ({'✅ All timeframes agree' if bullish_count in [0, 3] else '⚠️ Conflicting signals'})"""
 
         # ============ OVERALL TREND ============
-        trend = indicators.get('trend', {}) or {}
+        trend = indicators.get('trend', {})
+        if not isinstance(trend, dict):
+            trend = {}
         trend_section = f"""## Overall Trend Summary
-- Direction: {trend.get('direction', 'N/A').upper()}
+- Direction: {trend.get('direction', 'N/A').upper() if isinstance(trend.get('direction'), str) else 'N/A'}
 - Strength: {trend.get('strength', 'N/A')}
 - Momentum: {trend.get('momentum', 'N/A')}"""
 
