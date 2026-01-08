@@ -18,6 +18,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app code from backend directory
 COPY backend/app ./app
 
+# Copy database migrations (needed for table creation at startup)
+COPY database ./database
+
 # Create logs directory
 RUN mkdir -p /app/logs
 

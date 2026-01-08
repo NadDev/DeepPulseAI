@@ -44,26 +44,30 @@ async def lifespan(app: FastAPI):
                 
                 # Find migration file - handle both local and Railway paths
                 migration_paths = [
+                    "/app/database/migrations/001_create_ai_decisions_table.sql",  # Railway Docker path
                     "database/migrations/001_create_ai_decisions_table.sql",
-                    "/app/database/migrations/001_create_ai_decisions_table.sql",
                     pathlib.Path(__file__).parent.parent.parent / "database/migrations/001_create_ai_decisions_table.sql"
                 ]
                 
                 migration_sql = None
+                found_path = None
                 for path in migration_paths:
                     try:
                         migration_sql = open(path).read()
-                        logger.info(f"[OK] Found migration at {path}")
+                        found_path = str(path)
+                        logger.info(f"✅ Found migration file at: {found_path}")
                         break
-                    except:
+                    except Exception as path_error:
+                        logger.debug(f"   ❌ Not found at: {path} ({path_error})")
                         continue
                 
                 if migration_sql:
+                    logger.info(f"📄 Executing migration from {found_path} ({len(migration_sql)} bytes)")
                     db.execute(text(migration_sql))
                     db.commit()
                     logger.info("✅ ai_decisions table created successfully")
                 else:
-                    logger.warning("⚠️ Could not find migration file in any expected location")
+                    logger.error(f"❌ Could not find migration file in any location: {[str(p) for p in migration_paths]}")
             except Exception as create_error:
                 logger.error(f"❌ Failed to create ai_decisions table: {create_error}")
         
