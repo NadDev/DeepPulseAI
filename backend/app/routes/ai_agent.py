@@ -289,18 +289,23 @@ async def analyze_watchlist(
             WatchlistItem.is_active == True
         ).order_by(WatchlistItem.priority.desc()).limit(limit).all()
         
+        logger.info(f"📊 Found {len(watchlist_items)} active watchlist items for user {current_user.id}")
+        
         # Fallback: If no DB watchlist, use AI config watchlist_symbols
         symbols_to_analyze = []
         if watchlist_items:
             symbols_to_analyze = [(item.symbol, item.notes, item.priority) for item in watchlist_items]
+            logger.info(f"✅ Analyzing {len(symbols_to_analyze)} symbols from DB watchlist")
         else:
             # Try to get symbols from AI controller config
             controller = get_controller()
             if controller and hasattr(controller, 'config'):
                 config_symbols = controller.config.get('watchlist_symbols', [])
                 if config_symbols:
-                    logger.info(f"Using AI config watchlist: {config_symbols}")
+                    logger.info(f"📋 Using AI config watchlist: {config_symbols}")
                     symbols_to_analyze = [(sym, None, 0) for sym in config_symbols]
+            else:
+                logger.warning("⚠️ No watchlist items found in DB or AI config")
         
         if not symbols_to_analyze:
             return {
@@ -317,12 +322,14 @@ async def analyze_watchlist(
             try:
                 # Convert BTC/USDT to BTCUSDT format for Binance
                 symbol = symbol_with_slash.replace("/", "")
+                logger.info(f"🔍 Analyzing {symbol}...")
                 
                 # Fetch real market data
                 data = await fetch_market_data_with_indicators(symbol)
                 
                 if not data:
                     errors.append(f"Could not fetch data for {symbol_with_slash}")
+                    logger.warning(f"⚠️ No market data for {symbol}")
                     continue
                 
                 # Prepare data for AI
@@ -337,6 +344,7 @@ async def analyze_watchlist(
                 
                 # Analyze with AI - simplified API
                 analysis = await agent.analyze_market(symbol=symbol)
+                logger.info(f"✅ {symbol}: {analysis.get('action')} at {analysis.get('confidence')}% confidence")
                 
                 # Only include if confidence meets threshold
                 if analysis.get("confidence", 0) >= min_confidence:
@@ -345,9 +353,12 @@ async def analyze_watchlist(
                     if priority:
                         analysis["priority"] = priority
                     recommendations.append(analysis)
+                    logger.info(f"✅ Added {symbol} to recommendations")
+                else:
+                    logger.info(f"⏭️ Skipped {symbol} (confidence {analysis.get('confidence')}% < {min_confidence}%)")
                     
             except Exception as e:
-                logger.error(f"Error analyzing {symbol_with_slash}: {str(e)}")
+                logger.error(f"❌ Error analyzing {symbol_with_slash}: {str(e)}")
                 errors.append(f"Error analyzing {symbol_with_slash}: {str(e)}")
         
         # Sort by confidence (highest first)
