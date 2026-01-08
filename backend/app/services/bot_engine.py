@@ -287,12 +287,8 @@ class BotEngine:
             
             indicators = market_data.get("indicators", {})
             
-            # Get AI analysis
-            analysis = await self.ai_agent.analyze_market(
-                symbol=symbol,
-                market_data=price_data,
-                indicators=indicators
-            )
+            # Get AI analysis - simplified API
+            analysis = await self.ai_agent.analyze_market(symbol=symbol)
             
             # Add context about what strategy proposed
             analysis["strategy_proposed"] = proposed_action

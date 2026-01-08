@@ -255,12 +255,8 @@ async def analyze_symbol(
         
         logger.info(f"🔍 Analyzing {request.symbol}: Price=${data['close']}, RSI={indicators.get('rsi')}")
         
-        # Call AI Agent with real data
-        analysis = await agent.analyze_market(
-            symbol=request.symbol,
-            market_data=market_data,
-            indicators=indicators
-        )
+        # Call AI Agent with simplified API
+        analysis = await agent.analyze_market(symbol=request.symbol)
         
         return analysis
         
@@ -339,12 +335,8 @@ async def analyze_watchlist(
                     "change_24h": data["change_24h"]
                 }
                 
-                # Analyze with AI
-                analysis = await agent.analyze_market(
-                    symbol=symbol,
-                    market_data=market_data,
-                    indicators=data["indicators"]
-                )
+                # Analyze with AI - simplified API
+                analysis = await agent.analyze_market(symbol=symbol)
                 
                 # Only include if confidence meets threshold
                 if analysis.get("confidence", 0) >= min_confidence:

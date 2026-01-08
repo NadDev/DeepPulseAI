@@ -316,21 +316,43 @@ class AITradingAgent:
     async def analyze_market(
         self,
         symbol: str,
-        market_data: Dict[str, Any],
-        indicators: Dict[str, Any]
+        market_data: Optional[Dict[str, Any]] = None,
+        indicators: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Analyze a crypto market using DeepSeek
         
         Args:
             symbol: Trading pair (e.g., BTCUSDT)
-            market_data: Current price data
-            indicators: Technical indicators
+            market_data: Current price data (optional, will fetch if not provided)
+            indicators: Technical indicators (optional, will fetch if not provided)
             
         Returns:
             Analysis with recommendation, confidence, and reasoning
         """
         try:
+            # If no market data provided, fetch it with all advanced indicators
+            if market_data is None or indicators is None:
+                full_data = await self._fetch_market_data(symbol)
+                if not full_data:
+                    return {
+                        "symbol": symbol,
+                        "action": "NONE",
+                        "confidence": 0,
+                        "reasoning": "Failed to fetch market data"
+                    }
+                
+                # Extract the components
+                market_data = {
+                    "close": full_data.get("close"),
+                    "high": full_data.get("high"),
+                    "low": full_data.get("low"),
+                    "volume": full_data.get("volume"),
+                    "change_24h": full_data.get("change_24h"),
+                    "symbol": full_data.get("symbol")
+                }
+                indicators = full_data.get("indicators", {})
+            
             # Build analysis prompt
             prompt = self._build_analysis_prompt(symbol, market_data, indicators)
             
@@ -385,11 +407,8 @@ class AITradingAgent:
         
         for symbol in symbols:
             if symbol in market_data:
-                analysis = await self.analyze_market(
-                    symbol,
-                    market_data[symbol].get("price_data", {}),
-                    market_data[symbol].get("indicators", {})
-                )
+                # Use the new simplified API - just pass the symbol
+                analysis = await self.analyze_market(symbol)
                 
                 if analysis["action"] != "NONE":
                     recommendations.append(analysis)
