@@ -65,13 +65,20 @@ export const aiAPI = {
     }
   },
 
-  // Get Recommendations
-  getRecommendations: async () => {
+  // Get Recommendations (Market Analysis)
+  getRecommendations: async (minConfidence = 50, limit = 10) => {
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/ai-agent/recommendations`, { headers });
+      const response = await fetch(
+        `${API_BASE_URL}/ai-agent/analyze-watchlist?min_confidence=${minConfidence}&limit=${limit}`, 
+        { 
+          method: 'POST',
+          headers 
+        }
+      );
       if (!response.ok) throw new Error('Failed to fetch recommendations');
-      return response.json();
+      const data = await response.json();
+      return data.recommendations || [];
     } catch (error) {
       console.error('Error fetching recommendations:', error);
       throw error;
