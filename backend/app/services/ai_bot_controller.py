@@ -86,6 +86,16 @@ class AIBotController:
         self.last_trade_date = None
         self.cooldown_until = None
     
+    def set_ai_agent(self, ai_agent):
+        """
+        Set reference to AI Agent for accessing recommendations
+        
+        Args:
+            ai_agent: AITradingAgent instance
+        """
+        self.ai_agent_ref = ai_agent
+        logger.info("🔗 AI Agent reference set in Bot Controller")
+    
     async def start(self):
         """Start the AI Bot Controller"""
         if self._running:
