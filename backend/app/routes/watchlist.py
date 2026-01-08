@@ -123,25 +123,6 @@ async def get_watchlist(
     
     items = query.order_by(WatchlistItem.priority.desc(), WatchlistItem.created_at).all()
     
-    # Auto-initialize with default symbols if empty (Bug #6 fix)
-    if not items:
-        logger.info(f"📝 Initializing default watchlist for user {current_user.id}")
-        default_symbols = ["BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "XRP/USDT"]
-        for symbol in default_symbols:
-            parts = symbol.split('/')
-            item = WatchlistItem(
-                user_id=current_user.id,
-                symbol=symbol,
-                base_currency=parts[0],
-                quote_currency=parts[1],
-                is_active=True,
-                priority=0
-            )
-            db.add(item)
-        db.commit()
-        items = db.query(WatchlistItem).filter(WatchlistItem.user_id == current_user.id).all()
-        logger.info(f"✅ Created {len(items)} default watchlist items")
-    
     result = []
     for item in items:
         result.append({

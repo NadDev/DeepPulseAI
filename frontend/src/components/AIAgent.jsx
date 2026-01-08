@@ -57,8 +57,8 @@ function AIAgent() {
   const loadRecommendations = async () => {
     try {
       console.log('🔍 Loading recommendations from watchlist analysis...');
-      // Use the new analyze-watchlist endpoint for real-time AI analysis
-      const result = await aiAPI.analyzeWatchlist(10, 50);
+      // Use the new analyze-watchlist endpoint with lower threshold to show HOLD recommendations
+      const result = await aiAPI.analyzeWatchlist(10, 40);  // Lowered from 50 to 40
       console.log('✅ Watchlist analysis result:', result);
       console.log('📊 Recommendations count:', result.recommendations?.length || 0);
       console.log('📝 Recommendations data:', result.recommendations);

@@ -270,7 +270,7 @@ async def analyze_watchlist(
     db: Session = Depends(get_db),
     current_user: UserResponse = Depends(get_current_user),
     limit: int = Query(10, ge=1, le=50),
-    min_confidence: int = Query(50, ge=0, le=100)
+    min_confidence: int = Query(40, ge=0, le=100)  # Lowered from 50 to 40 to show more results
 ):
     """
     Analyze all symbols from user's watchlist with AI.
