@@ -2,7 +2,7 @@
 Mean Reversion Strategy
 Trades market pullbacks expecting return to mean
 """
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from .base_strategy import BaseStrategy, StrategyRegistry
 
 
@@ -169,38 +169,38 @@ Trades pullbacks expecting price to return to the mean.
         open_trade: Dict[str, Any], 
         current_price: float,
         market_data: Dict[str, Any]
-    ) -> bool:
-        """Check exit conditions"""
+    ) -> Tuple[bool, str]:
+        """Check exit conditions - returns (should_exit, reason)"""
         entry_price = open_trade['entry_price']
         direction = open_trade['side']
         
         # Check stop loss
         stop_loss = self.get_stop_loss(entry_price, direction, market_data)
         if direction == 'BUY' and current_price <= stop_loss:
-            return True
+            return True, "Stop loss hit"
         if direction == 'SELL' and current_price >= stop_loss:
-            return True
+            return True, "Stop loss hit"
         
         # Check take profit
         take_profit = self.get_take_profit(entry_price, direction, market_data)
         if take_profit:
             if direction == 'BUY' and current_price >= take_profit:
-                return True
+                return True, "Take profit reached"
             if direction == 'SELL' and current_price <= take_profit:
-                return True
+                return True, "Take profit reached"
         
         # Exit if price crosses to opposite band
         indicators = market_data.get('indicators', {})
         if direction == 'BUY':
             bb_upper = indicators.get('bb_upper')
             if bb_upper and current_price >= bb_upper:
-                return True
+                return True, "Price reached upper band (mean reversion complete)"
         else:  # SELL
             bb_lower = indicators.get('bb_lower')
             if bb_lower and current_price <= bb_lower:
-                return True
+                return True, "Price reached lower band (mean reversion complete)"
         
-        return False
+        return False, ""
 
 
 # Register the strategy
