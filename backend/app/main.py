@@ -20,6 +20,10 @@ from app.services.ai_bot_controller import initialize_ai_bot_controller
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Reduce verbosity of httpx logs (Binance/DeepSeek API calls)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 # Note: Tables are already created via supabase_schema.sql in production
 # Don't create tables on startup - they should exist in Supabase
 
@@ -121,7 +125,7 @@ async def lifespan(app: FastAPI):
                     bot_engine_module.bot_engine.configure_ai(
                         enabled=True,
                         mode=bot_engine_mode,
-                        min_confidence=int(os.getenv("AI_MIN_CONFIDENCE", "60"))
+                        min_confidence=int(os.getenv("AI_MIN_CONFIDENCE", "40"))
                     )
                     logger.info(f"[OK] AI Agent connected to Bot Engine (mode: {bot_engine_mode})")
                 

@@ -205,19 +205,19 @@ class AITradingAgent:
             
             # ============ ICHIMOKU CLOUD ============
             ichimoku = ta.calculate_ichimoku(candles)
-            logger.info(f"🔍 {binance_symbol} Ichimoku: {ichimoku.get('status') if isinstance(ichimoku, dict) else type(ichimoku)}")
+            logger.debug(f"🔍 {binance_symbol} Ichimoku: {ichimoku.get('status') if isinstance(ichimoku, dict) else type(ichimoku)}")
             
             # ============ FIBONACCI LEVELS ============
             fibonacci = ta.get_fibonacci_analysis(closes)
-            logger.info(f"🔍 {binance_symbol} Fibonacci: {fibonacci.get('status') if isinstance(fibonacci, dict) else type(fibonacci)}")
+            logger.debug(f"🔍 {binance_symbol} Fibonacci: {fibonacci.get('status') if isinstance(fibonacci, dict) else type(fibonacci)}")
             
             # ============ ELLIOTT WAVES ============
             elliott = ta.detect_elliott_waves(closes, candles)
-            logger.info(f"🔍 {binance_symbol} Elliott: {elliott.get('status') if isinstance(elliott, dict) else type(elliott)}")
+            logger.debug(f"🔍 {binance_symbol} Elliott: {elliott.get('status') if isinstance(elliott, dict) else type(elliott)}")
             
             # ============ TREND ANALYSIS ============
             trend = ta.analyze_trend(closes)
-            logger.info(f"🔍 {binance_symbol} Trend: {trend}")
+            logger.debug(f"🔍 {binance_symbol} Trend: {trend}")
             
             # ============ VOLUME ANALYSIS ============
             avg_volume_20 = sum(volumes[-20:]) / 20 if len(volumes) >= 20 else sum(volumes) / len(volumes)
@@ -376,13 +376,13 @@ class AITradingAgent:
             if indicators.get('mtf_trend'):
                 advanced_count += 1
             
-            logger.info(f"🎯 {symbol} has {advanced_count}/5 advanced indicators available")
+            logger.debug(f"🎯 {symbol} has {advanced_count}/5 advanced indicators available")
             
             # Build analysis prompt
             prompt = self._build_analysis_prompt(symbol, market_data, indicators)
             
             # Log first 500 chars of prompt to see what's being sent
-            logger.info(f"📝 Prompt preview (first 500 chars): {prompt[:500]}...")
+            logger.debug(f"📝 Prompt preview (first 500 chars): {prompt[:500]}...")
             
             # Call DeepSeek API
             response = await self._call_deepseek(prompt)
@@ -396,7 +396,7 @@ class AITradingAgent:
                 }
             
             # Log the raw response
-            logger.info(f"🤖 DeepSeek raw response (first 300 chars): {response[:300]}...")
+            logger.debug(f"🤖 DeepSeek raw response (first 300 chars): {response[:300]}...")
             
             # Parse response
             analysis = self._parse_analysis_response(response)
