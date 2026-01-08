@@ -381,6 +381,9 @@ class AITradingAgent:
             # Build analysis prompt
             prompt = self._build_analysis_prompt(symbol, market_data, indicators)
             
+            # Log first 500 chars of prompt to see what's being sent
+            logger.info(f"📝 Prompt preview (first 500 chars): {prompt[:500]}...")
+            
             # Call DeepSeek API
             response = await self._call_deepseek(prompt)
             
@@ -389,8 +392,11 @@ class AITradingAgent:
                     "symbol": symbol,
                     "action": "NONE",
                     "confidence": 0,
-                    "reasoning": "Failed to analyze market"
+                    "reasoning": "Failed to get AI response"
                 }
+            
+            # Log the raw response
+            logger.info(f"🤖 DeepSeek raw response (first 300 chars): {response[:300]}...")
             
             # Parse response
             analysis = self._parse_analysis_response(response)
