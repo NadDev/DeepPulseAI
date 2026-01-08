@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, RotateCcw, AlertCircle, Plus, X, Search } from 'lucide-react';
 import { aiAPI } from '../services/aiAPI';
+import { watchlistAPI } from '../services/watchlistAPI';
 import '../styles/AISettings.css';
 
 // Popular cryptocurrencies
@@ -124,7 +125,18 @@ export default function AISettings() {
       setError('');
       setMessage('');
 
+      // Save AI config (for in-memory settings)
       await aiAPI.updateConfig(config);
+      
+      // ALSO save watchlist to database for persistence
+      try {
+        await watchlistAPI.bulkAdd(config.watchlist_symbols);
+        console.log('✅ Watchlist saved to database');
+      } catch (watchlistError) {
+        // Ignore if symbols already exist
+        console.log('Watchlist sync:', watchlistError.message);
+      }
+      
       setMessage('✅ Configuration saved successfully');
       
       setTimeout(() => setMessage(''), 3000);
