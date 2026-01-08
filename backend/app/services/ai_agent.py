@@ -163,7 +163,7 @@ class AITradingAgent:
             return ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
     
     async def _fetch_market_data(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Fetch market data using MarketDataCollector"""
+        """Fetch market data with ADVANCED technical analysis for AI decisions"""
         try:
             from app.services.market_data import market_data_collector
             from app.services.technical_analysis import TechnicalAnalysis
@@ -171,10 +171,11 @@ class AITradingAgent:
             # Ensure symbol format
             binance_symbol = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
             
-            # Get candles
-            candles = await market_data_collector.get_candles(binance_symbol, timeframe="1h", limit=100)
+            # Get candles (need 100+ for Ichimoku which needs 52)
+            candles = await market_data_collector.get_candles(binance_symbol, timeframe="1h", limit=150)
             
-            if not candles or len(candles) < 20:
+            if not candles or len(candles) < 52:
+                logger.warning(f"Not enough candles for {binance_symbol}: {len(candles) if candles else 0}")
                 return None
             
             # Calculate indicators
@@ -182,11 +183,55 @@ class AITradingAgent:
             closes = [c['close'] for c in candles]
             highs = [c['high'] for c in candles]
             lows = [c['low'] for c in candles]
+            volumes = [c['volume'] for c in candles]
             
+            # ============ BASIC INDICATORS ============
             sma_20 = ta.calculate_sma(closes, 20)
             sma_50 = ta.calculate_sma(closes, 50)
+            ema_12 = ta.calculate_ema(closes, 12)
+            ema_26 = ta.calculate_ema(closes, 26)
             rsi = ta.calculate_rsi(closes, 14)
             bb_upper, bb_middle, bb_lower = ta.calculate_bollinger_bands(closes, 20, 2)
+            atr = ta.calculate_atr(candles, 14)
+            
+            # ============ MACD ============
+            macd_line, signal_line, histogram = ta.calculate_macd(closes)
+            macd_data = {
+                "macd": round(macd_line[-1], 4) if macd_line[-1] else None,
+                "signal": round(signal_line[-1], 4) if signal_line[-1] else None,
+                "histogram": round(histogram[-1], 4) if histogram[-1] else None,
+                "crossover": "bullish" if macd_line[-1] and signal_line[-1] and macd_line[-1] > signal_line[-1] else "bearish"
+            }
+            
+            # ============ ICHIMOKU CLOUD ============
+            ichimoku = ta.calculate_ichimoku(candles)
+            
+            # ============ FIBONACCI LEVELS ============
+            fibonacci = ta.get_fibonacci_analysis(closes)
+            
+            # ============ ELLIOTT WAVES ============
+            elliott = ta.detect_elliott_waves(closes, candles)
+            
+            # ============ TREND ANALYSIS ============
+            trend = ta.analyze_trend(closes)
+            
+            # ============ VOLUME ANALYSIS ============
+            avg_volume_20 = sum(volumes[-20:]) / 20 if len(volumes) >= 20 else sum(volumes) / len(volumes)
+            current_volume = volumes[-1]
+            volume_ratio = round(current_volume / avg_volume_20, 2) if avg_volume_20 > 0 else 1.0
+            
+            # ============ MULTI-TIMEFRAME TREND ============
+            # Short-term (last 10 candles)
+            short_trend = "bullish" if closes[-1] > closes[-10] else "bearish"
+            short_change = round(((closes[-1] - closes[-10]) / closes[-10]) * 100, 2)
+            
+            # Medium-term (last 24 candles)
+            medium_trend = "bullish" if closes[-1] > closes[-24] else "bearish"
+            medium_change = round(((closes[-1] - closes[-24]) / closes[-24]) * 100, 2)
+            
+            # Long-term (last 50 candles)
+            long_trend = "bullish" if len(closes) >= 50 and closes[-1] > closes[-50] else "bearish" if len(closes) >= 50 else "unknown"
+            long_change = round(((closes[-1] - closes[-50]) / closes[-50]) * 100, 2) if len(closes) >= 50 else 0
             
             current = candles[-1]
             
@@ -196,20 +241,45 @@ class AITradingAgent:
                 "high": current['high'],
                 "low": current['low'],
                 "volume": current['volume'],
-                "change_24h": 0,  # Simplified
+                "change_24h": medium_change,
                 "indicators": {
+                    # Basic
                     "rsi": round(rsi[-1], 2) if rsi and rsi[-1] else None,
                     "sma_20": round(sma_20[-1], 2) if sma_20 and sma_20[-1] else None,
                     "sma_50": round(sma_50[-1], 2) if sma_50 and sma_50[-1] else None,
+                    "ema_12": round(ema_12[-1], 2) if ema_12[-1] else None,
+                    "ema_26": round(ema_26[-1], 2) if ema_26[-1] else None,
                     "bb_upper": round(bb_upper[-1], 2) if bb_upper and bb_upper[-1] else None,
                     "bb_middle": round(bb_middle[-1], 2) if bb_middle and bb_middle[-1] else None,
                     "bb_lower": round(bb_lower[-1], 2) if bb_lower and bb_lower[-1] else None,
+                    "atr": round(atr[-1], 2) if atr and atr[-1] else None,
                     "resistance": max(highs[-20:]),
-                    "support": min(lows[-20:])
+                    "support": min(lows[-20:]),
+                    # MACD
+                    "macd": macd_data,
+                    # Ichimoku
+                    "ichimoku": ichimoku if ichimoku.get("status") == "calculated" else None,
+                    # Fibonacci
+                    "fibonacci": fibonacci if fibonacci.get("status") == "analyzed" else None,
+                    # Elliott Waves
+                    "elliott_waves": elliott if elliott.get("status") == "detected" else None,
+                    # Trend
+                    "trend": trend,
+                    # Volume
+                    "volume_ratio": volume_ratio,
+                    "volume_signal": "high" if volume_ratio > 1.5 else "low" if volume_ratio < 0.5 else "normal",
+                    # Multi-timeframe
+                    "mtf_trend": {
+                        "short": {"direction": short_trend, "change_pct": short_change},
+                        "medium": {"direction": medium_trend, "change_pct": medium_change},
+                        "long": {"direction": long_trend, "change_pct": long_change}
+                    }
                 }
             }
         except Exception as e:
             logger.error(f"Error fetching market data for {symbol}: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
     
     async def _store_decision(self, analysis: Dict[str, Any]):
@@ -338,53 +408,185 @@ class AITradingAgent:
         market_data: Dict[str, Any],
         indicators: Dict[str, Any]
     ) -> str:
-        """Build analysis prompt for DeepSeek"""
+        """Build ENRICHED analysis prompt for DeepSeek with advanced technical analysis"""
         current_price = market_data.get("close", 0)
         
-        return f"""Analyze this crypto trading opportunity and provide a trading recommendation.
-
-## Market Data for {symbol}
-- Current Price: ${current_price}
+        # ============ BASIC DATA ============
+        basic_section = f"""## Market Data for {symbol}
+- Current Price: ${current_price:,.2f}
 - 24h Change: {market_data.get('change_24h', 0)}%
-- Volume: {market_data.get('volume', 0)}
-- High: ${market_data.get('high', 0)}
-- Low: ${market_data.get('low', 0)}
+- Volume: {market_data.get('volume', 0):,.0f}
+- High: ${market_data.get('high', 0):,.2f}
+- Low: ${market_data.get('low', 0):,.2f}"""
 
-## Technical Indicators
-- RSI (14): {indicators.get('rsi', 'N/A')}
-- SMA 20: {indicators.get('sma_20', 'N/A')}
-- SMA 50: {indicators.get('sma_50', 'N/A')}
-- BB Upper: {indicators.get('bb_upper', 'N/A')}
-- BB Middle: {indicators.get('bb_middle', 'N/A')}
-- BB Lower: {indicators.get('bb_lower', 'N/A')}
-- Support: {indicators.get('support', 'N/A')}
-- Resistance: {indicators.get('resistance', 'N/A')}
+        # ============ BASIC INDICATORS ============
+        basic_indicators = f"""## Basic Technical Indicators
+- RSI (14): {indicators.get('rsi', 'N/A')} {'⚠️ OVERSOLD' if indicators.get('rsi') and indicators.get('rsi') < 30 else '⚠️ OVERBOUGHT' if indicators.get('rsi') and indicators.get('rsi') > 70 else ''}
+- SMA 20: ${indicators.get('sma_20', 'N/A')}
+- SMA 50: ${indicators.get('sma_50', 'N/A')}
+- EMA 12: ${indicators.get('ema_12', 'N/A')}
+- EMA 26: ${indicators.get('ema_26', 'N/A')}
+- ATR: ${indicators.get('atr', 'N/A')}
+- Support: ${indicators.get('support', 'N/A')}
+- Resistance: ${indicators.get('resistance', 'N/A')}"""
+
+        # ============ BOLLINGER BANDS ============
+        bb_section = f"""## Bollinger Bands
+- Upper: ${indicators.get('bb_upper', 'N/A')}
+- Middle: ${indicators.get('bb_middle', 'N/A')}
+- Lower: ${indicators.get('bb_lower', 'N/A')}
+- Price Position: {'Near Upper (Potential Resistance)' if indicators.get('bb_upper') and current_price > indicators.get('bb_upper') * 0.98 else 'Near Lower (Potential Support)' if indicators.get('bb_lower') and current_price < indicators.get('bb_lower') * 1.02 else 'Middle Range'}"""
+
+        # ============ MACD ============
+        macd = indicators.get('macd', {}) or {}
+        macd_section = f"""## MACD Analysis
+- MACD Line: {macd.get('macd', 'N/A')}
+- Signal Line: {macd.get('signal', 'N/A')}
+- Histogram: {macd.get('histogram', 'N/A')} {'📈 Increasing momentum' if macd.get('histogram') and macd.get('histogram') > 0 else '📉 Decreasing momentum' if macd.get('histogram') else ''}
+- Crossover: {macd.get('crossover', 'N/A').upper()}"""
+
+        # ============ ICHIMOKU CLOUD ============
+        ichimoku = indicators.get('ichimoku', {}) or {}
+        ichimoku_section = ""
+        if ichimoku and ichimoku.get('status') == 'calculated':
+            ichimoku_section = f"""## Ichimoku Cloud Analysis
+- Tenkan-sen (Conversion): ${ichimoku.get('tenkan_sen', 'N/A')}
+- Kijun-sen (Base): ${ichimoku.get('kijun_sen', 'N/A')}
+- Cloud Top (Senkou A): ${ichimoku.get('cloud_top', 'N/A')}
+- Cloud Bottom (Senkou B): ${ichimoku.get('cloud_bottom', 'N/A')}
+- TK Cross: {ichimoku.get('tk_cross', 'N/A').upper()}
+- Price vs Cloud: {ichimoku.get('cloud_position', 'N/A').upper()} → Signal: {ichimoku.get('signal', 'N/A').upper()}"""
+
+        # ============ FIBONACCI ============
+        fib = indicators.get('fibonacci', {}) or {}
+        fib_section = ""
+        if fib and fib.get('status') == 'analyzed':
+            fib_levels = fib.get('retracement_levels', {})
+            fib_section = f"""## Fibonacci Retracement Levels (Trend: {fib.get('trend', 'N/A').upper()})
+- 0.0%: ${fib_levels.get('0.0', 'N/A')}
+- 23.6%: ${fib_levels.get('0.236', 'N/A')}
+- 38.2%: ${fib_levels.get('0.382', 'N/A')} (KEY LEVEL)
+- 50.0%: ${fib_levels.get('0.5', 'N/A')}
+- 61.8%: ${fib_levels.get('0.618', 'N/A')} (GOLDEN RATIO - STRONGEST)
+- 78.6%: ${fib_levels.get('0.786', 'N/A')}
+- Nearest Support: ${fib.get('nearest_support', 'N/A')}
+- Nearest Resistance: ${fib.get('nearest_resistance', 'N/A')}
+- Position in Range: {fib.get('position_in_range', 0) * 100:.1f}%"""
+
+        # ============ ELLIOTT WAVES ============
+        elliott = indicators.get('elliott_waves', {}) or {}
+        elliott_section = ""
+        if elliott and elliott.get('status') == 'detected':
+            current_pos = elliott.get('current_position', {})
+            prediction = elliott.get('prediction', {})
+            elliott_section = f"""## Elliott Wave Analysis
+- Current Phase: {current_pos.get('phase', 'N/A')} (Wave {current_pos.get('current_wave', 'N/A')})
+- Next Expected Wave: {prediction.get('next_wave', 'N/A')}
+- Predicted Direction: {prediction.get('direction', 'N/A').upper()}
+- Target Price: ${prediction.get('target_price', 'N/A')}
+- Wave Confidence: {elliott.get('confidence', 0) * 100:.0f}%"""
+
+        # ============ VOLUME ANALYSIS ============
+        volume_section = f"""## Volume Analysis
+- Current Volume Ratio: {indicators.get('volume_ratio', 1.0)}x (vs 20-period avg)
+- Volume Signal: {indicators.get('volume_signal', 'normal').upper()} {'🔥 High volume confirms move!' if indicators.get('volume_signal') == 'high' else '⚠️ Low volume - weak conviction' if indicators.get('volume_signal') == 'low' else ''}"""
+
+        # ============ MULTI-TIMEFRAME ============
+        mtf = indicators.get('mtf_trend', {}) or {}
+        mtf_section = ""
+        if mtf:
+            short = mtf.get('short', {})
+            medium = mtf.get('medium', {})
+            long = mtf.get('long', {})
+            
+            # Trend alignment score
+            trends = [short.get('direction'), medium.get('direction'), long.get('direction')]
+            bullish_count = trends.count('bullish')
+            alignment = "STRONG BULLISH" if bullish_count == 3 else "STRONG BEARISH" if bullish_count == 0 else "MIXED/CHOPPY"
+            
+            mtf_section = f"""## Multi-Timeframe Trend Analysis
+- Short-term (10H): {short.get('direction', 'N/A').upper()} ({short.get('change_pct', 0):+.2f}%)
+- Medium-term (24H): {medium.get('direction', 'N/A').upper()} ({medium.get('change_pct', 0):+.2f}%)
+- Long-term (50H): {long.get('direction', 'N/A').upper()} ({long.get('change_pct', 0):+.2f}%)
+- Trend Alignment: {alignment} ({'✅ All timeframes agree' if bullish_count in [0, 3] else '⚠️ Conflicting signals'})"""
+
+        # ============ OVERALL TREND ============
+        trend = indicators.get('trend', {}) or {}
+        trend_section = f"""## Overall Trend Summary
+- Direction: {trend.get('direction', 'N/A').upper()}
+- Strength: {trend.get('strength', 'N/A')}
+- Momentum: {trend.get('momentum', 'N/A')}"""
+
+        # ============ COMBINED PROMPT ============
+        return f"""Analyze this crypto trading opportunity using ADVANCED technical analysis and provide a precise trading recommendation.
+
+{basic_section}
+
+{basic_indicators}
+
+{bb_section}
+
+{macd_section}
+
+{ichimoku_section}
+
+{fib_section}
+
+{elliott_section}
+
+{volume_section}
+
+{mtf_section}
+
+{trend_section}
 
 ## Your Analysis Task
-Based on the above data, provide:
+Using ALL the above technical data, provide a comprehensive analysis:
+
 1. **Recommendation**: BUY, SELL, or HOLD
-2. **Confidence**: 0-100% confidence level
-3. **Reasoning**: 2-3 sentences explaining your analysis
-4. **Risk Level**: LOW, MEDIUM, or HIGH
-5. **Target**: Expected price target if trading
-6. **Stop Loss**: Suggested stop loss level
+   - BUY: Multiple bullish signals aligned (RSI not overbought, price above cloud, bullish MACD, etc.)
+   - SELL: Multiple bearish signals aligned (RSI overbought, price below cloud, bearish MACD, etc.)
+   - HOLD: Conflicting signals or unclear direction
+
+2. **Confidence**: 0-100% based on signal alignment
+   - 80-100%: 4+ indicators aligned, strong volume, clear trend
+   - 60-80%: 3 indicators aligned, decent volume
+   - 40-60%: Mixed signals, wait for clarity
+   - <40%: Conflicting signals, high risk
+
+3. **Reasoning**: Cite SPECIFIC indicators that support your decision
+
+4. **Risk Level**: Based on ATR, volatility, and trend strength
+
+5. **Target**: Use Fibonacci extensions or resistance levels
+
+6. **Stop Loss**: Use Fibonacci retracements or support levels
 
 Format your response as JSON:
 {{
   "action": "BUY|SELL|HOLD",
   "confidence": <0-100>,
-  "reasoning": "<your explanation>",
+  "reasoning": "<cite specific indicators like 'RSI at 32 shows oversold, MACD bullish crossover, price above Ichimoku cloud'>",
   "risk_level": "LOW|MEDIUM|HIGH",
-  "target_price": <number or null>,
-  "stop_loss": <number or null>,
-  "timeframe": "1h|4h|1d"
+  "target_price": <number based on Fib extensions or resistance>,
+  "stop_loss": <number based on Fib retracements or support>,
+  "timeframe": "1h|4h|1d",
+  "key_levels": {{
+    "resistance": <nearest resistance>,
+    "support": <nearest support>
+  }},
+  "signals_summary": {{
+    "bullish": ["<list bullish signals>"],
+    "bearish": ["<list bearish signals>"]
+  }}
 }}
 
-Remember:
-- Be conservative with confidence levels
-- Only recommend BUY/SELL if you're > 60% confident
-- Consider risk-reward ratio
-- Account for market volatility"""
+IMPORTANT GUIDELINES:
+- Be BOLD: If 4+ indicators align, confidence should be 70%+
+- Use SPECIFIC numbers from the data in your reasoning
+- HOLD is valid when signals conflict, but if most align → take action
+- Volume confirms moves: high volume = higher confidence
+- Multi-timeframe alignment = higher confidence"""
     
     async def _call_deepseek(self, prompt: str) -> Optional[str]:
         """
@@ -405,15 +607,35 @@ Remember:
                         "messages": [
                             {
                                 "role": "system",
-                                "content": "You are an expert crypto trading analyst. Provide precise, data-driven recommendations."
+                                "content": """You are an elite quantitative crypto trading analyst with expertise in:
+- Technical Analysis (RSI, MACD, Bollinger Bands, Moving Averages)
+- Advanced Patterns (Ichimoku Cloud, Elliott Waves, Fibonacci)
+- Multi-timeframe Analysis
+- Volume Profile Analysis
+
+Your job is to analyze market data and provide ACTIONABLE trading recommendations.
+
+CRITICAL RULES:
+1. Be DECISIVE - If multiple indicators align (3+), recommend BUY or SELL with high confidence
+2. Cite SPECIFIC indicator values in your reasoning (e.g., "RSI at 28 is oversold")
+3. HOLD only when signals genuinely conflict or market is ranging
+4. Adjust confidence based on indicator alignment:
+   - 4+ aligned signals = 75-90% confidence
+   - 3 aligned signals = 60-75% confidence  
+   - 2 aligned signals = 45-60% confidence
+   - <2 aligned signals = HOLD recommendation
+5. Volume confirms moves - high volume = +10% confidence
+6. Multi-timeframe alignment = +10% confidence
+
+Always respond with valid JSON only, no markdown code blocks."""
                             },
                             {
                                 "role": "user",
                                 "content": prompt
                             }
                         ],
-                        "temperature": 0.3,  # Lower temp for consistency
-                        "max_tokens": 500
+                        "temperature": 0.4,  # Slightly higher for more varied responses
+                        "max_tokens": 800  # More space for detailed reasoning
                     },
                     headers={
                         "Authorization": f"Bearer {self.api_key}",
@@ -451,26 +673,71 @@ Remember:
             if "```json" in response:
                 json_str = response.split("```json")[1].split("```")[0]
             elif "```" in response:
-                json_str = response.split("```")[1].split("```")[0]
+                parts = response.split("```")
+                if len(parts) >= 2:
+                    json_str = parts[1]
             
-            analysis = json.loads(json_str.strip())
+            # Clean up the string
+            json_str = json_str.strip()
+            
+            # Remove any leading/trailing text before/after JSON
+            if json_str.startswith("{"):
+                # Find the matching closing brace
+                brace_count = 0
+                end_idx = 0
+                for i, char in enumerate(json_str):
+                    if char == '{':
+                        brace_count += 1
+                    elif char == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            end_idx = i + 1
+                            break
+                json_str = json_str[:end_idx]
+            
+            analysis = json.loads(json_str)
             
             # Validate required fields
             if "action" not in analysis:
-                analysis["action"] = "NONE"
+                analysis["action"] = "HOLD"
+            else:
+                # Normalize action
+                analysis["action"] = analysis["action"].upper().strip()
+                if analysis["action"] not in ["BUY", "SELL", "HOLD"]:
+                    analysis["action"] = "HOLD"
+            
             if "confidence" not in analysis:
-                analysis["confidence"] = 0
+                analysis["confidence"] = 50
+            else:
+                # Ensure confidence is a number
+                try:
+                    analysis["confidence"] = int(float(analysis["confidence"]))
+                    analysis["confidence"] = max(0, min(100, analysis["confidence"]))
+                except:
+                    analysis["confidence"] = 50
+            
             if "reasoning" not in analysis:
                 analysis["reasoning"] = "No reasoning provided"
+            
+            # Log the parsed analysis for debugging
+            logger.info(f"📊 Parsed AI Response: action={analysis['action']}, confidence={analysis['confidence']}%")
+            logger.debug(f"📝 Reasoning: {analysis.get('reasoning', 'N/A')[:200]}")
             
             return analysis
             
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse DeepSeek response: {str(e)}")
+            logger.error(f"Failed to parse DeepSeek response as JSON: {str(e)}")
+            logger.error(f"Raw response: {response[:500]}")
+            
+            # Try to extract key info using regex as fallback
+            import re
+            action_match = re.search(r'"action"\s*:\s*"(BUY|SELL|HOLD)"', response, re.IGNORECASE)
+            conf_match = re.search(r'"confidence"\s*:\s*(\d+)', response)
+            
             return {
-                "action": "NONE",
-                "confidence": 0,
-                "reasoning": "Failed to parse response"
+                "action": action_match.group(1).upper() if action_match else "HOLD",
+                "confidence": int(conf_match.group(1)) if conf_match else 50,
+                "reasoning": "Parsed from malformed JSON response"
             }
     
     def _store_decision(self, analysis: Dict[str, Any]):
