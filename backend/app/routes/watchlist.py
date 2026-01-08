@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, validator
 from typing import Optional, List
 from datetime import datetime
+from uuid import UUID
 from app.db.database import get_db
 from app.auth.supabase_auth import get_current_user, UserResponse
 from app.models.database_models import WatchlistItem
@@ -115,7 +116,7 @@ async def get_watchlist(
 ):
     """Get user's watchlist"""
     query = db.query(WatchlistItem).filter(
-        WatchlistItem.user_id == current_user.id
+        WatchlistItem.user_id == UUID(current_user.id)
     )
     
     if active_only:
@@ -152,7 +153,7 @@ async def add_to_watchlist(
     """Add a symbol to watchlist"""
     # Check if already exists
     existing = db.query(WatchlistItem).filter(
-        WatchlistItem.user_id == current_user.id,
+        WatchlistItem.user_id == UUID(current_user.id),
         WatchlistItem.symbol == request.symbol
     ).first()
     
@@ -169,7 +170,7 @@ async def add_to_watchlist(
     
     # Create item
     item = WatchlistItem(
-        user_id=current_user.id,
+        user_id=UUID(current_user.id),
         symbol=request.symbol,
         base_currency=base_currency,
         quote_currency=quote_currency,
@@ -208,7 +209,7 @@ async def bulk_add_to_watchlist(
     for symbol in request.symbols:
         # Check if already exists
         existing = db.query(WatchlistItem).filter(
-            WatchlistItem.user_id == current_user.id,
+            WatchlistItem.user_id == UUID(current_user.id),
             WatchlistItem.symbol == symbol
         ).first()
         
@@ -223,7 +224,7 @@ async def bulk_add_to_watchlist(
         
         # Create item
         item = WatchlistItem(
-            user_id=current_user.id,
+            user_id=UUID(current_user.id),
             symbol=symbol,
             base_currency=base_currency,
             quote_currency=quote_currency,
@@ -258,7 +259,7 @@ async def update_watchlist_item(
     """Update a watchlist item"""
     item = db.query(WatchlistItem).filter(
         WatchlistItem.id == item_id,
-        WatchlistItem.user_id == current_user.id
+        WatchlistItem.user_id == UUID(current_user.id)
     ).first()
     
     if not item:
@@ -293,7 +294,7 @@ async def remove_from_watchlist(
     """Remove a symbol from watchlist"""
     item = db.query(WatchlistItem).filter(
         WatchlistItem.id == item_id,
-        WatchlistItem.user_id == current_user.id
+        WatchlistItem.user_id == UUID(current_user.id)
     ).first()
     
     if not item:
@@ -323,7 +324,7 @@ async def toggle_watchlist_item(
     """Toggle a watchlist item's active status"""
     item = db.query(WatchlistItem).filter(
         WatchlistItem.id == item_id,
-        WatchlistItem.user_id == current_user.id
+        WatchlistItem.user_id == UUID(current_user.id)
     ).first()
     
     if not item:
@@ -350,7 +351,7 @@ async def get_watchlist_symbols(
 ):
     """Get just the active symbol list (for AI config sync)"""
     items = db.query(WatchlistItem).filter(
-        WatchlistItem.user_id == current_user.id,
+        WatchlistItem.user_id == UUID(current_user.id),
         WatchlistItem.is_active == True
     ).order_by(WatchlistItem.priority.desc()).all()
     
@@ -371,7 +372,7 @@ async def _sync_watchlist_to_ai(db: Session, user_id: str):
     try:
         # Get active symbols
         items = db.query(WatchlistItem).filter(
-            WatchlistItem.user_id == user_id,
+            WatchlistItem.user_id == UUID(user_id),
             WatchlistItem.is_active == True
         ).order_by(WatchlistItem.priority.desc()).all()
         

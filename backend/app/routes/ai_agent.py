@@ -284,8 +284,9 @@ async def analyze_watchlist(
     
     try:
         # Get user's active watchlist items from database
+        from uuid import UUID
         watchlist_items = db.query(WatchlistItem).filter(
-            WatchlistItem.user_id == str(current_user.id),
+            WatchlistItem.user_id == UUID(current_user.id),
             WatchlistItem.is_active == True
         ).order_by(WatchlistItem.priority.desc()).limit(limit).all()
         
