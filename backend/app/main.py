@@ -131,6 +131,9 @@ async def lifespan(app: FastAPI):
                 )
                 ai_bot_controller_module.ai_bot_controller.mode = bot_controller_mode
                 
+                # Connect AI Agent to Bot Controller
+                ai_bot_controller_module.ai_bot_controller.set_ai_agent(ai_agent_module.ai_agent)
+                
                 # Auto-start controller if not in observation mode
                 if bot_controller_mode != "observation":
                     await ai_bot_controller_module.ai_bot_controller.start()

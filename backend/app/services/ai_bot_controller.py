@@ -34,6 +34,7 @@ class AIBotController:
         """
         self.db_session_factory = db_session_factory
         self.bot_engine = bot_engine
+        self.ai_agent_ref = None  # Reference to AI Agent for recommendations
         self.enabled = False
         self.mode = "observation"  # observation, paper, live
         self._running = False
@@ -157,7 +158,7 @@ class AIBotController:
                     continue
                 
                 # Get AI recommendations
-                if ai_agent and ai_agent.enabled:
+                if self.ai_agent_ref and self.ai_agent_ref.enabled:
                     recommendations = await self._get_ai_recommendations()
                     
                     # Process high-confidence recommendations
@@ -185,12 +186,12 @@ class AIBotController:
     
     async def _get_ai_recommendations(self) -> List[Dict[str, Any]]:
         """Get current recommendations from AI Agent's recent decisions"""
-        if not ai_agent or not hasattr(ai_agent, 'decision_history'):
+        if not self.ai_agent_ref or not hasattr(self.ai_agent_ref, 'decision_history'):
             logger.warning("⚠️ AI Agent not available or has no decision history")
             return []
         
         # Get recent decisions from AI Agent (last 10)
-        recent_decisions = ai_agent.decision_history[-10:] if ai_agent.decision_history else []
+        recent_decisions = self.ai_agent_ref.decision_history[-10:] if self.ai_agent_ref.decision_history else []
         
         # Filter for high-confidence decisions from last hour
         from datetime import timedelta
