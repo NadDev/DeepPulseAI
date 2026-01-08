@@ -203,11 +203,12 @@ async def bulk_add_to_watchlist(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Add multiple symbols to watchlist at once"""
+    logger.info(f"📥 Bulk add request: {request.symbols} for user {current_user.id}")
     added = []
     skipped = []
     
     for symbol in request.symbols:
-        # Check if already exists
+        # Check if already exists for THIS user
         existing = db.query(WatchlistItem).filter(
             WatchlistItem.user_id == UUID(current_user.id),
             WatchlistItem.symbol == symbol
@@ -215,6 +216,7 @@ async def bulk_add_to_watchlist(
         
         if existing:
             skipped.append(symbol)
+            logger.debug(f"⏭️ Skipped {symbol} - already exists for user")
             continue
         
         # Parse symbol
@@ -222,7 +224,7 @@ async def bulk_add_to_watchlist(
         base_currency = parts[0] if len(parts) > 0 else None
         quote_currency = parts[1] if len(parts) > 1 else None
         
-        # Create item
+        # Create item with correct user_id
         item = WatchlistItem(
             user_id=UUID(current_user.id),
             symbol=symbol,
@@ -232,13 +234,14 @@ async def bulk_add_to_watchlist(
         )
         db.add(item)
         added.append(symbol)
+        logger.info(f"➕ Added {symbol} for user {current_user.id}")
     
     db.commit()
     
     # Sync with AI config
     await _sync_watchlist_to_ai(db, current_user.id)
     
-    logger.info(f"✅ Bulk added {len(added)} symbols to watchlist")
+    logger.info(f"✅ Bulk result: added={len(added)}, skipped={len(skipped)}")
     
     return {
         "status": "success",

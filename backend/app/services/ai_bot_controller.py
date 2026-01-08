@@ -748,9 +748,9 @@ class AIBotController:
         
         if "min_confidence" in new_config:
             confidence = new_config["min_confidence"]
-            if confidence < 50 or confidence > 100:
-                warnings.append("⚠️ min_confidence must be between 50-100")
-                new_config["min_confidence"] = max(50, min(100, confidence))
+            if confidence < 40 or confidence > 100:
+                warnings.append("⚠️ min_confidence must be between 40-100")
+                new_config["min_confidence"] = max(40, min(100, confidence))
         
         # Apply validated config
         self.config.update(new_config)
