@@ -2,7 +2,7 @@
 AI Agent API Routes
 Endpoints for interacting with the AI Trading Agent and AI Bot Controller
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
@@ -797,8 +797,8 @@ async def get_ai_decisions_stats(
 
 @router.post("/start")
 async def start_ai_agent(
-    request: StartAgentRequest = StartAgentRequest(),
-    current_user: UserResponse = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user),
+    request: StartAgentRequest = Body(default=StartAgentRequest(mode="trading", controller_mode="paper"))
 ):
     """Start/Resume the AI Agent (per-user AI)"""
     user_id = str(current_user.id)
