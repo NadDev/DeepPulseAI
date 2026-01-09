@@ -409,8 +409,8 @@ class AITradingAgent:
             analysis["symbol"] = symbol
             analysis["timestamp"] = datetime.utcnow().isoformat()
             
-            # Store in history
-            self._store_decision(analysis)
+            # Store in history (removed duplicate call - already stored in monitoring loop)
+            # await self._store_decision(analysis)  # This was causing the error
             
             logger.info(f"📊 {symbol} Analysis: {analysis['action']} (confidence: {analysis.get('confidence', 0)}%)")
             
@@ -829,7 +829,7 @@ Always respond with valid JSON only, no markdown code blocks."""
                 "reasoning": "Parsed from malformed JSON response"
             }
     
-    def _store_decision(self, analysis: Dict[str, Any]):
+    async def _store_decision_sync_duplicate_removed(self, analysis: Dict[str, Any]):
         """Store decision in history for learning"""
         self.decision_history.append(analysis)
         

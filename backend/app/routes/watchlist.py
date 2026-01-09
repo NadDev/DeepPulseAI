@@ -129,7 +129,7 @@ async def get_watchlist(
     db: Session = Depends(get_db),
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """Get user's watchlist"""
+    """Get user's watchlist - returns as array for frontend compatibility"""
     query = db.query(WatchlistItem).filter(
         WatchlistItem.user_id == UUID(current_user.id)
     )
@@ -139,9 +139,10 @@ async def get_watchlist(
     
     items = query.order_by(WatchlistItem.priority.desc(), WatchlistItem.created_at).all()
     
-    result = []
+    # Format items for response
+    formatted_items = []
     for item in items:
-        result.append({
+        formatted_items.append({
             "id": str(item.id),
             "symbol": item.symbol,
             "base_currency": item.base_currency,
@@ -152,11 +153,15 @@ async def get_watchlist(
             "created_at": item.created_at.isoformat() if item.created_at else None
         })
     
-    return {
-        "items": result,
-        "count": len(result),
-        "active_count": sum(1 for i in result if i["is_active"])
-    }
+    # Return as single watchlist in array format (frontend expects array)
+    return [{
+        "id": "default",
+        "name": "Ma Watchlist",
+        "is_default": True,
+        "items": formatted_items,
+        "item_count": len(formatted_items),
+        "active_count": sum(1 for i in formatted_items if i["is_active"])
+    }]
 
 
 @router.post("/")

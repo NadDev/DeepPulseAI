@@ -53,14 +53,12 @@ const WatchlistManager = () => {
   
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   
   // Form states
   const [searchQuery, setSearchQuery] = useState('');
   const [newSymbol, setNewSymbol] = useState('');
-  const [newWatchlistName, setNewWatchlistName] = useState('');
   const [symbolNotes, setSymbolNotes] = useState('');
   const [symbolPriority, setSymbolPriority] = useState('medium');
   const [alertPriceAbove, setAlertPriceAbove] = useState('');
@@ -167,34 +165,7 @@ const WatchlistManager = () => {
     }
   };
 
-  // Create new watchlist
-  const handleCreateWatchlist = async () => {
-    if (!newWatchlistName.trim()) return;
-    
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_URL}/api/watchlist`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          name: newWatchlistName,
-          symbols: []
-        })
-      });
-      
-      if (!response.ok) throw new Error('Failed to create watchlist');
-      
-      setSuccess('Watchlist créée');
-      setShowCreateModal(false);
-      setNewWatchlistName('');
-      fetchWatchlists();
-      
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError('Erreur lors de la création');
-      setTimeout(() => setError(null), 5000);
-    }
-  };
+  // Note: Single watchlist per user - no need to create multiple lists
 
   // Toggle alerts for item
   const handleToggleAlerts = async (item) => {
@@ -346,13 +317,7 @@ const WatchlistManager = () => {
             )}
             Sync avec AI
           </button>
-          <button 
-            className="btn-create"
-            onClick={() => setShowCreateModal(true)}
-          >
-            <Plus size={16} />
-            Nouvelle Liste
-          </button>
+          {/* Single watchlist per user - button removed */}
         </div>
       </div>
 
@@ -616,47 +581,7 @@ const WatchlistManager = () => {
         </div>
       )}
 
-      {/* Create Watchlist Modal */}
-      {showCreateModal && (
-        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Nouvelle Watchlist</h3>
-              <button className="btn-close" onClick={() => setShowCreateModal(false)}>
-                <X size={20} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="form-group">
-                <label>Nom de la watchlist *</label>
-                <input
-                  type="text"
-                  value={newWatchlistName}
-                  onChange={(e) => setNewWatchlistName(e.target.value)}
-                  placeholder="Ma Watchlist, Top Performers..."
-                  autoFocus
-                />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => {
-                setShowCreateModal(false);
-                setNewWatchlistName('');
-              }}>
-                Annuler
-              </button>
-              <button 
-                className="btn-submit"
-                onClick={handleCreateWatchlist}
-                disabled={!newWatchlistName.trim()}
-              >
-                <Check size={16} />
-                Créer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Create Watchlist Modal removed - single watchlist per user */}
     </div>
   );
 };
