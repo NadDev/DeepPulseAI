@@ -177,37 +177,19 @@ async def lifespan(app: FastAPI):
                 
                 logger.info(f"🎛️ Mode configuration: raw={raw_mode}, agent={ai_agent_mode}, controller={bot_controller_mode}, engine={bot_engine_mode}")
                 
-                ai_agent_module.ai_agent = initialize_ai_agent(api_key, db_session_factory=SessionLocal, mode=ai_agent_mode)
-                await ai_agent_module.ai_agent.start()
-                logger.info(f"[OK] AI Trading Agent initialized with monitoring loop (mode: {ai_agent_mode})")
+                # ⚠️ DO NOT start global AI Agent - it will be created per-user on demand
+                # AI Agents are now created via ai_agent_manager when user calls /api/ai-agent/start
+                logger.info("[SKIP] Global AI Agent disabled - using per-user AI Agent system")
                 
-                # Connect AI Agent to Bot Engine
+                # Keep legacy reference as None for backwards compatibility
+                ai_agent_module.ai_agent = None
+                
+                # Bot Engine AI integration disabled (will be managed per-user)
                 if bot_engine_module.bot_engine:
-                    bot_engine_module.bot_engine.set_ai_agent(ai_agent_module.ai_agent)
-                    
-                    # Configure Bot Engine AI integration
-                    bot_engine_module.bot_engine.configure_ai(
-                        enabled=True,
-                        mode=bot_engine_mode,
-                        min_confidence=int(os.getenv("AI_MIN_CONFIDENCE", "60"))
-                    )
-                    logger.info(f"[OK] AI Agent connected to Bot Engine (mode: {bot_engine_mode})")
+                    logger.info("[INFO] Bot Engine AI will be configured per-user")
                 
-                # Initialize AI Bot Controller
-                ai_bot_controller_module.ai_bot_controller = initialize_ai_bot_controller(
-                    SessionLocal, bot_engine_module.bot_engine
-                )
-                ai_bot_controller_module.ai_bot_controller.mode = bot_controller_mode
-                
-                # Connect AI Agent to Bot Controller
-                ai_bot_controller_module.ai_bot_controller.set_ai_agent(ai_agent_module.ai_agent)
-                logger.info("🔗 AI Agent connected to Bot Controller")
-                
-                # Auto-start controller if not in observation mode
-                if bot_controller_mode != "observation":
-                    await ai_bot_controller_module.ai_bot_controller.start()
-                    logger.info(f"[OK] AI Bot Controller started (mode: {bot_controller_mode})")
-                else:
+                # ⚠️ DO NOT start global Bot Controller - it will be created per-user on demand
+                logger.info("[SKIP] Global Bot Controller disabled - using per-user Bot Controller system")
                     logger.info(f"[OK] AI Bot Controller ready (mode: {bot_controller_mode} - not auto-started)")
             else:
                 logger.warning("⚠️ DEEPSEEK_API_KEY not found - AI Agent disabled")
@@ -218,12 +200,23 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("🛑 CRBot API Shutting down...")
+    
+    # Stop all per-user AI Agents and Controllers
+    from app.services.ai_agent_manager import ai_agent_manager
+    for user_id in list(ai_agent_manager.user_agents.keys()):
+        await ai_agent_manager.stop_agent(user_id)
+    for user_id in list(ai_agent_manager.user_controllers.keys()):
+        await ai_agent_manager.stop_controller(user_id)
+    logger.info("[OK] All per-user AI Agents and Controllers stopped")
+    
+    # Legacy global instances (should be None now)
     if ai_bot_controller_module.ai_bot_controller and ai_bot_controller_module.ai_bot_controller._running:
         await ai_bot_controller_module.ai_bot_controller.stop()
-        logger.info("[OK] AI Bot Controller stopped")
+        logger.info("[OK] Global AI Bot Controller stopped")
     if ai_agent_module.ai_agent:
         await ai_agent_module.ai_agent.stop()
-        logger.info("[OK] AI Agent stopped")
+        logger.info("[OK] Global AI Agent stopped")
+    
     if bot_engine_module.bot_engine:
         await bot_engine_module.bot_engine.stop()
         logger.info("[OK] Bot Engine stopped")
