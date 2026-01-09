@@ -38,7 +38,7 @@ class AITradingAgent:
         
         # Configuration
         self.check_interval = 300  # 5 minutes between analyses
-        self.min_confidence_to_log = 50  # Minimum confidence to store in DB
+        self.min_confidence_to_log = 60  # Minimum confidence to store in DB
         
         # Store decision history for learning
         self.decision_history: List[Dict[str, Any]] = []

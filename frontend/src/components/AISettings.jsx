@@ -29,6 +29,7 @@ export default function AISettings() {
     risk_percentage: 2,
     stop_loss_percentage: 5,
     confidence_threshold: 65,
+    min_confidence: 60,
     cooldown_minutes: 30,
     watchlist_symbols: ['BTC/USDT', 'ETH/USDT'],
     enabled: true
@@ -58,6 +59,7 @@ export default function AISettings() {
           risk_percentage: data.config.risk_percentage || 2,
           stop_loss_percentage: data.config.stop_loss_percentage || 5,
           confidence_threshold: data.config.confidence_threshold || 65,
+          min_confidence: data.config.min_confidence || 60,
           cooldown_minutes: data.config.cooldown_minutes || 30,
           watchlist_symbols: data.config.watchlist_symbols || ['BTC/USDT', 'ETH/USDT'],
           enabled: data.config.enabled !== undefined ? data.config.enabled : true
@@ -81,6 +83,7 @@ export default function AISettings() {
         risk_percentage: 2,
         stop_loss_percentage: 5,
         confidence_threshold: 65,
+        min_confidence: 60,
         cooldown_minutes: 30
       };
       safeValue = defaults[field] || 0;
@@ -155,6 +158,7 @@ export default function AISettings() {
         risk_percentage: 2,
         stop_loss_percentage: 5,
         confidence_threshold: 65,
+        min_confidence: 60,
         cooldown_minutes: 30,
         watchlist_symbols: ['BTC/USDT', 'ETH/USDT'],
         enabled: true
@@ -336,6 +340,35 @@ export default function AISettings() {
               <span className="current-value">{config.confidence_threshold}%</span>
             </div>
 
+            {/* Bot Creation Confidence */}
+            <div className="setting-item">
+              <label htmlFor="min-confidence">
+                Bot Creation Confidence
+                <span className="help-text">Min confidence for bot creation</span>
+              </label>
+              <div className="input-with-slider">
+                <input
+                  id="min-confidence"
+                  type="number"
+                  min="40"
+                  max="100"
+                  step="5"
+                  value={config.min_confidence}
+                  onChange={(e) => handleInputChange('min_confidence', parseInt(e.target.value))}
+                />
+                <input
+                  type="range"
+                  min="40"
+                  max="100"
+                  step="5"
+                  value={config.min_confidence}
+                  onChange={(e) => handleInputChange('min_confidence', parseInt(e.target.value))}
+                  className="slider"
+                />
+              </div>
+              <span className="current-value">{config.min_confidence}%</span>
+            </div>
+
             {/* Cooldown */}
             <div className="setting-item">
               <label htmlFor="cooldown-minutes">
@@ -471,6 +504,7 @@ export default function AISettings() {
             <li><strong>Risk Per Trade:</strong> Maximum portfolio % risked on each trade</li>
             <li><strong>Stop Loss:</strong> Automatic exit price below entry (prevents large losses)</li>
             <li><strong>Confidence Threshold:</strong> AI only executes trades above this confidence level</li>
+            <li><strong>Bot Creation Confidence:</strong> Minimum AI confidence required for automatic bot creation (currently 60%)</li>
             <li><strong>Cooldown Period:</strong> Minimum time between consecutive analyses</li>
             <li><strong>Watchlist:</strong> Symbols AI monitors for trading opportunities</li>
           </ul>

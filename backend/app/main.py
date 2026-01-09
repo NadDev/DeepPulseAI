@@ -157,7 +157,7 @@ async def lifespan(app: FastAPI):
                     bot_engine_module.bot_engine.configure_ai(
                         enabled=True,
                         mode=bot_engine_mode,
-                        min_confidence=int(os.getenv("AI_MIN_CONFIDENCE", "40"))
+                        min_confidence=int(os.getenv("AI_MIN_CONFIDENCE", "60"))
                     )
                     logger.info(f"[OK] AI Agent connected to Bot Engine (mode: {bot_engine_mode})")
                 

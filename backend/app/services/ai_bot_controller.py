@@ -57,7 +57,7 @@ class AIBotController:
             "max_stop_loss_percent": 3.0,     # Maximum allowed stop loss
             
             # === AI Settings ===
-            "min_confidence": 40,             # Minimum AI confidence to act (40 for testing, 65-80 for production)
+            "min_confidence": 60,             # Minimum AI confidence to act (60% threshold for reliable signals)
             "check_interval": 300,            # Analysis interval in seconds (5 min)
             "cooldown_minutes": 30,           # Minutes between analyses
             
