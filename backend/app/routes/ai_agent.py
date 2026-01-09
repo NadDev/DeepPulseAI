@@ -178,6 +178,12 @@ class ModeToggleRequest(BaseModel):
     target: Optional[str] = "controller"  # controller or engine
 
 
+class StartAgentRequest(BaseModel):
+    """Request to start AI Agent"""
+    mode: Optional[str] = "trading"  # trading mode by default
+    controller_mode: Optional[str] = "paper"  # paper mode by default
+
+
 # ============================================
 # Health & Status Endpoints
 # ============================================
@@ -791,6 +797,7 @@ async def get_ai_decisions_stats(
 
 @router.post("/start")
 async def start_ai_agent(
+    request: StartAgentRequest = StartAgentRequest(),
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Start/Resume the AI Agent (per-user AI)"""
@@ -819,14 +826,14 @@ async def start_ai_agent(
         
         # Start both
         if not agent._running:
-            agent.mode = "trading"  # Default to trading mode
+            agent.mode = request.mode
             await agent.start()
-            logger.info(f"🚀 AI Agent started for user {user_id}")
+            logger.info(f"🚀 AI Agent started for user {user_id} in {request.mode} mode")
         
         if not controller._running:
-            controller.mode = "paper"  # Default to paper mode
+            controller.mode = request.controller_mode
             await controller.start()
-            logger.info(f"🚀 Bot Controller started for user {user_id}")
+            logger.info(f"🚀 Bot Controller started for user {user_id} in {request.controller_mode} mode")
         
         return {
             "message": "AI Agent started successfully",
