@@ -10,11 +10,13 @@ from datetime import datetime, timedelta
 from app.db.database import get_db
 from app.auth.supabase_auth import get_current_user, UserResponse
 from app.services import ai_agent as ai_agent_module
+from app.services.ai_agent_manager import ai_agent_manager
 from app.services.ai_bot_controller import get_ai_bot_controller
 from app.services import bot_engine as bot_engine_module
 from app.services.market_data import market_data_collector
 from app.services.technical_analysis import TechnicalAnalysis
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +27,16 @@ ta = TechnicalAnalysis()
 
 # Helper functions to get runtime instances
 def get_ai_agent():
+    """Get global AI agent (legacy, for backwards compatibility)"""
     return ai_agent_module.ai_agent
+
+def get_user_ai_agent(user_id: str):
+    """Get AI agent for specific user"""
+    return ai_agent_manager.user_agents.get(user_id)
+
+def get_user_bot_controller(user_id: str):
+    """Get Bot Controller for specific user"""
+    return ai_agent_manager.user_controllers.get(user_id)
 
 def get_bot_engine():
     return bot_engine_module.bot_engine
@@ -175,27 +186,25 @@ class ModeToggleRequest(BaseModel):
 async def get_ai_status(
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """Get AI Agent and Bot Engine status"""
-    agent = get_ai_agent()
-    controller = get_controller()
+    """Get AI Agent and Bot Engine status (per-user AI)"""
+    user_id = str(current_user.id)
+    
+    # Get user's AI Agent status
+    agent_status = ai_agent_manager.get_agent_status(user_id)
+    controller_status = ai_agent_manager.get_controller_status(user_id)
+    
+    # Get user's AI Agent instance if exists
+    user_agent = get_user_ai_agent(user_id)
+    if user_agent:
+        agent_status["decision_history_count"] = len(user_agent.decision_history)
+    
+    # Get user's Bot Controller instance if exists
+    user_controller = get_user_bot_controller(user_id)
+    if user_controller:
+        controller_status.update(user_controller.get_status())
+    
+    # Bot Engine is still global (manages all bots)
     engine = get_bot_engine()
-    
-    if not agent:
-        raise HTTPException(status_code=503, detail="AI Agent not initialized")
-    
-    # Get AI Agent status including running state
-    ai_status = {
-        "enabled": agent.enabled,
-        "running": agent._running,  # Add running state
-        "mode": agent.mode,
-        "decision_history_count": len(agent.decision_history) if hasattr(agent, 'decision_history') else 0
-    }
-    
-    controller_status = controller.get_status() if controller else {}
-    # Add controller running state too
-    if controller:
-        controller_status["running"] = controller.enabled
-    
     engine_status = {}
     if engine:
         engine_status = {
@@ -207,10 +216,11 @@ async def get_ai_status(
         }
     
     return {
-        "ai_agent": ai_status,
+        "ai_agent": agent_status,
         "controller": controller_status,
         "engine": engine_status,
-        "running": ai_status["running"],  # Top-level running state for convenience
+        "running": agent_status.get("running", False),  # Top-level running state for convenience
+        "user_id": user_id,
         "timestamp": datetime.utcnow().isoformat()
     }
 
@@ -447,35 +457,40 @@ async def toggle_ai_mode(
     request: ModeToggleRequest,
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """Toggle AI Agent mode"""
-    controller = get_controller()
-    engine = get_bot_engine()
+    """Toggle AI Agent mode (per-user AI)"""
+    user_id = str(current_user.id)
     
     try:
         if request.target == "controller":
+            # Get or create user's Bot Controller
+            controller = await ai_agent_manager.get_or_create_controller(
+                user_id=user_id,
+                bot_engine=get_bot_engine()
+            )
+            
             if not controller:
                 raise ValueError("AI Bot Controller not available")
             
-            controller.set_mode(request.mode)
+            controller.mode = request.mode
             
             # Start/stop controller based on mode
             if request.mode == "observation":
                 if controller._running:
-                    import asyncio
-                    asyncio.create_task(controller.stop())
+                    await ai_agent_manager.stop_controller(user_id)
             elif request.mode in ["paper", "live"]:
                 if not controller._running:
-                    import asyncio
-                    asyncio.create_task(controller.start())
+                    await ai_agent_manager.start_controller(user_id, mode=request.mode)
             
             return {
                 "status": "success",
                 "target": "controller",
                 "mode": request.mode,
-                "message": f"AI Bot Controller mode changed to {request.mode}"
+                "message": f"AI Bot Controller mode changed to {request.mode}",
+                "user_id": user_id
             }
         
         elif request.target == "engine":
+            engine = get_bot_engine()
             if not engine:
                 raise ValueError("Bot Engine not available")
             
@@ -778,25 +793,49 @@ async def get_ai_decisions_stats(
 async def start_ai_agent(
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """Start/Resume the AI Agent"""
-    agent = get_ai_agent()
-    if not agent:
-        raise HTTPException(status_code=503, detail="AI Agent not initialized")
+    """Start/Resume the AI Agent (per-user AI)"""
+    user_id = str(current_user.id)
     
     try:
-        if agent._running:
-            return {"message": "AI Agent already running", "running": True}
+        # Get or create user's AI Agent
+        api_key = os.getenv("DEEPSEEK_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="DeepSeek API key not configured")
         
-        await agent.start()
-        logger.info(f"🚀 AI Agent started by user {current_user.id}")
+        agent = await ai_agent_manager.get_or_create_agent(
+            user_id=user_id,
+            api_key=api_key,
+            model="deepseek-chat"
+        )
+        
+        # Get or create user's Bot Controller
+        controller = await ai_agent_manager.get_or_create_controller(
+            user_id=user_id,
+            bot_engine=get_bot_engine()
+        )
+        
+        # Link agent to controller
+        controller.set_ai_agent(agent)
+        
+        # Start both
+        if not agent._running:
+            agent.mode = "trading"  # Default to trading mode
+            await agent.start()
+            logger.info(f"🚀 AI Agent started for user {user_id}")
+        
+        if not controller._running:
+            controller.mode = "paper"  # Default to paper mode
+            await controller.start()
+            logger.info(f"🚀 Bot Controller started for user {user_id}")
         
         return {
             "message": "AI Agent started successfully",
             "running": True,
-            "mode": agent.mode
+            "mode": agent.mode,
+            "user_id": user_id
         }
     except Exception as e:
-        logger.error(f"Error starting AI Agent: {str(e)}")
+        logger.error(f"Error starting AI Agent for user {user_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -804,11 +843,26 @@ async def start_ai_agent(
 async def stop_ai_agent(
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """Stop/Pause the AI Agent"""
-    agent = get_ai_agent()
-    if not agent:
-        raise HTTPException(status_code=503, detail="AI Agent not initialized")
+    """Stop/Pause the AI Agent (per-user AI)"""
+    user_id = str(current_user.id)
     
+    try:
+        # Stop user's AI Agent
+        await ai_agent_manager.stop_agent(user_id)
+        
+        # Stop user's Bot Controller
+        await ai_agent_manager.stop_controller(user_id)
+        
+        logger.info(f"🛑 AI Agent stopped for user {user_id}")
+        
+        return {
+            "message": "AI Agent stopped successfully",
+            "running": False,
+            "user_id": user_id
+        }
+    except Exception as e:
+        logger.error(f"Error stopping AI Agent for user {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
     try:
         if not agent._running:
             return {"message": "AI Agent already stopped", "running": False}
