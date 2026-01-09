@@ -24,13 +24,14 @@ class AIBotController:
     Can create new bots, adjust existing bots, and stop underperforming bots.
     """
     
-    def __init__(self, db_session_factory, bot_engine=None):
+    def __init__(self, db_session_factory, bot_engine=None, user_id: str = None):
         """
         Initialize AI Bot Controller
         
         Args:
             db_session_factory: Factory for database sessions
             bot_engine: Reference to BotEngine for bot operations
+            user_id: User ID this controller manages bots for (per-user AI)
         """
         self.db_session_factory = db_session_factory
         self.bot_engine = bot_engine
@@ -39,6 +40,7 @@ class AIBotController:
         self.mode = "observation"  # observation, paper, live
         self._running = False
         self._task: Optional[asyncio.Task] = None
+        self.user_id = user_id  # Store user_id for per-user bots
         
         # ============================================
         # CONFIGURATION - All values are configurable
@@ -380,7 +382,7 @@ class AIBotController:
             # Create bot record
             new_bot = Bot(
                 id=uuid.uuid4(),
-                user_id=self._get_ai_user_id(),  # System AI user
+                user_id=self.user_id if self.user_id else self._get_ai_user_id(),  # User's bot, fallback to system
                 name=bot_name,
                 strategy=strategy,
                 symbols=json.dumps([symbol]),  # Convert to JSON for jsonb column

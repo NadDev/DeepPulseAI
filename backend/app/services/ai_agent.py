@@ -18,7 +18,7 @@ class AITradingAgent:
     Analyzes market data and recommends trading actions
     """
     
-    def __init__(self, api_key: str, model: str = "deepseek-chat", db_session_factory: Callable = None):
+    def __init__(self, api_key: str, model: str = "deepseek-chat", db_session_factory: Callable = None, user_id: str = None):
         """
         Initialize AI Trading Agent
         
@@ -26,6 +26,7 @@ class AITradingAgent:
             api_key: DeepSeek API key
             model: DeepSeek model to use
             db_session_factory: Factory for database sessions
+            user_id: User ID this AI agent belongs to (for per-user AI)
         """
         self.api_key = api_key
         self.model = model
@@ -35,6 +36,7 @@ class AITradingAgent:
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self.db_session_factory = db_session_factory
+        self.user_id = user_id  # Store user_id for per-user AI
         
         # Configuration
         self.check_interval = 300  # 5 minutes between analyses
@@ -144,19 +146,29 @@ class AITradingAgent:
                 await asyncio.sleep(60)  # Wait 1 min on error before retrying
     
     async def _get_watchlist_symbols(self) -> List[str]:
-        """Get symbols from watchlist table"""
+        """Get symbols from watchlist table for this user"""
         if not self.db_session_factory:
             # Fallback to default symbols
             return ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
         
         try:
             from app.models.database_models import WatchlistItem
+            from uuid import UUID
             
             db = self.db_session_factory()
             try:
-                items = db.query(WatchlistItem).filter(
+                query = db.query(WatchlistItem).filter(
                     WatchlistItem.is_active == True
-                ).order_by(WatchlistItem.priority.desc()).limit(20).all()
+                )
+                
+                # Filter by user_id if provided (per-user AI)
+                if self.user_id:
+                    try:
+                        query = query.filter(WatchlistItem.user_id == UUID(self.user_id))
+                    except Exception as uuid_error:
+                        logger.warning(f"Invalid user_id format: {self.user_id}, using all watchlist items")
+                
+                items = query.order_by(WatchlistItem.priority.desc()).limit(20).all()
                 
                 # Convert BTC/USDT to BTCUSDT format
                 symbols = [item.symbol.replace("/", "") for item in items]
