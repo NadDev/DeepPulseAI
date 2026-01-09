@@ -107,6 +107,38 @@ async def lifespan(app: FastAPI):
             except Exception as create_error:
                 logger.error(f"❌ Failed to create exchange_configs table: {create_error}")
         
+        # Create AI system user if not exists
+        try:
+            db.execute(text("SELECT 1 FROM users WHERE id = '00000000-0000-0000-0000-000000000001'::uuid LIMIT 1"))
+            logger.info("[OK] AI system user exists")
+        except Exception as check_error:
+            try:
+                logger.info(f"⚙️ Creating AI system user...")
+                
+                migration_paths = [
+                    "/app/database/migrations/005_create_ai_system_user.sql",
+                    "database/migrations/005_create_ai_system_user.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/005_create_ai_system_user.sql"
+                ]
+                
+                migration_sql = None
+                for path in migration_paths:
+                    try:
+                        migration_sql = open(path).read()
+                        logger.info(f"✅ Found migration at: {path}")
+                        break
+                    except:
+                        continue
+                
+                if migration_sql:
+                    db.execute(text(migration_sql))
+                    db.commit()
+                    logger.info("✅ AI system user created successfully")
+                else:
+                    logger.error(f"❌ Could not find AI system user migration file")
+            except Exception as create_error:
+                logger.error(f"❌ Failed to create AI system user: {create_error}")
+        
         db.close()
     except Exception as e:
         logger.warning(f"⚠️ Could not verify/create tables: {e}")
