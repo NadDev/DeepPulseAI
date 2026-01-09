@@ -459,66 +459,62 @@ async def chat_with_ai(
 # ============================================
 
 @router.post("/toggle")
-async def toggle_ai_mode(
-    request: ModeToggleRequest,
+async def toggle_ai_agent(
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """Toggle AI Agent mode (per-user AI)"""
+    """Toggle AI Agent on/off (per-user AI) - Simple start/stop"""
     user_id = str(current_user.id)
     
     try:
-        if request.target == "controller":
-            # Get or create user's Bot Controller
+        # Check if user has an agent
+        agent_status = ai_agent_manager.get_agent_status(user_id)
+        
+        if agent_status.get("running"):
+            # Stop the agent
+            await ai_agent_manager.stop_agent(user_id)
+            await ai_agent_manager.stop_controller(user_id)
+            
+            return {
+                "status": "success",
+                "running": False,
+                "message": "AI Agent stopped",
+                "user_id": user_id
+            }
+        else:
+            # Start the agent
+            api_key = os.getenv("DEEPSEEK_API_KEY")
+            if not api_key:
+                raise HTTPException(status_code=500, detail="DeepSeek API key not configured")
+            
+            # Create and start agent
+            agent = await ai_agent_manager.get_or_create_agent(
+                user_id=user_id,
+                api_key=api_key,
+                model="deepseek-chat"
+            )
+            agent.mode = "trading"
+            
+            # Create and start controller
             controller = await ai_agent_manager.get_or_create_controller(
                 user_id=user_id,
                 bot_engine=get_bot_engine()
             )
+            controller.set_ai_agent(agent)
+            controller.mode = "paper"
             
-            if not controller:
-                raise ValueError("AI Bot Controller not available")
-            
-            controller.mode = request.mode
-            
-            # Start/stop controller based on mode
-            if request.mode == "observation":
-                if controller._running:
-                    await ai_agent_manager.stop_controller(user_id)
-            elif request.mode in ["paper", "live"]:
-                if not controller._running:
-                    await ai_agent_manager.start_controller(user_id, mode=request.mode)
+            # Start both
+            await agent.start()
+            await controller.start()
             
             return {
                 "status": "success",
-                "target": "controller",
-                "mode": request.mode,
-                "message": f"AI Bot Controller mode changed to {request.mode}",
+                "running": True,
+                "message": "AI Agent started",
                 "user_id": user_id
             }
         
-        elif request.target == "engine":
-            engine = get_bot_engine()
-            if not engine:
-                raise ValueError("Bot Engine not available")
-            
-            # Toggle engine AI mode (advisory/autonomous)
-            engine.configure_ai(
-                enabled=True,
-                mode=request.mode,
-                min_confidence=engine.ai_min_confidence
-            )
-            
-            return {
-                "status": "success",
-                "target": "engine",
-                "mode": request.mode,
-                "message": f"Bot Engine AI mode changed to {request.mode}"
-            }
-        
-        else:
-            raise ValueError(f"Unknown target: {request.target}")
-        
     except Exception as e:
-        logger.error(f"Error toggling mode: {str(e)}")
+        logger.error(f"Error toggling AI Agent: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
