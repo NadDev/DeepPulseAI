@@ -145,6 +145,7 @@ async def get_watchlist(
 
 
 @router.post("/")
+@router.post("/add")  # Alias for frontend compatibility
 async def add_to_watchlist(
     request: WatchlistItemCreate,
     db: Session = Depends(get_db),

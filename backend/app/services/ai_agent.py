@@ -115,12 +115,18 @@ class AITradingAgent:
                                 action = analysis.get("action", "NONE")
                                 confidence = analysis.get("confidence", 0)
                                 
+                                # Store ALL decisions in decision_history for Bot Controller
+                                analysis['timestamp'] = datetime.utcnow().isoformat()
+                                analysis['symbol'] = symbol
+                                self.decision_history.append(analysis)
+                                if len(self.decision_history) > self.max_history:
+                                    self.decision_history = self.decision_history[-self.max_history:]
+                                
                                 if action in ["BUY", "SELL"] and confidence >= self.min_confidence_to_log:
                                     logger.info(f"💡 {symbol}: {action} signal (confidence: {confidence}%)")
                                     
-                                    # Store decision in DB (for observation mode)
-                                    if self.mode == "observation":
-                                        await self._store_decision(analysis)
+                                    # Store decision in DB
+                                    await self._store_decision(analysis)
                                 
                                 # Small delay between analyses to avoid rate limits
                                 await asyncio.sleep(2)

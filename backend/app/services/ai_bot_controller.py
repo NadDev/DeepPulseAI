@@ -198,13 +198,19 @@ class AIBotController:
         
         # Get recent decisions from AI Agent (last 10)
         recent_decisions = self.ai_agent_ref.decision_history[-10:] if self.ai_agent_ref.decision_history else []
+        logger.debug(f"📋 AI Agent decision_history has {len(self.ai_agent_ref.decision_history)} entries")
         
-        # Filter for high-confidence decisions from last hour
+        # Filter for BUY signals with high confidence from last hour
         from datetime import timedelta
         one_hour_ago = datetime.utcnow() - timedelta(hours=1)
         
         recommendations = []
         for decision in recent_decisions:
+            # Only consider BUY signals for bot creation
+            action = decision.get('action', 'HOLD')
+            if action != 'BUY':
+                continue
+                
             # Check if decision is recent and high confidence
             decision_time = decision.get('timestamp')
             if isinstance(decision_time, str):
@@ -217,8 +223,9 @@ class AIBotController:
                 confidence = decision.get('confidence', 0)
                 if confidence >= self.config['min_confidence']:
                     recommendations.append(decision)
+                    logger.info(f"🎯 Found actionable BUY: {decision.get('symbol')} at {confidence}%")
         
-        logger.info(f"📊 Found {len(recommendations)} high-confidence recommendations from AI Agent")
+        logger.info(f"📊 Found {len(recommendations)} BUY recommendations from AI Agent (min_confidence: {self.config['min_confidence']}%)")
         return recommendations
     
     async def _get_watchlist_symbols(self) -> List[str]:
