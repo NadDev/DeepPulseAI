@@ -286,21 +286,27 @@ async def analyze_watchlist(
     db: Session = Depends(get_db),
     current_user: UserResponse = Depends(get_current_user),
     limit: int = Query(10, ge=1, le=50),
-    min_confidence: int = Query(40, ge=0, le=100)  # Lowered from 50 to 40 to show more results
+    min_confidence: int = Query(40, ge=0, le=100)
 ):
     """
-    Analyze all symbols from user's watchlist with AI.
+    Analyze all symbols from user's watchlist with AI (per-user AI).
     Returns recommendations sorted by confidence.
     """
     from app.models.database_models import WatchlistItem
+    from uuid import UUID
     
-    agent = get_ai_agent()
+    user_id = str(current_user.id)
+    
+    # Get user's AI Agent
+    agent = get_user_ai_agent(user_id)
     if not agent or not agent.enabled:
-        raise HTTPException(status_code=503, detail="AI Agent is disabled")
+        raise HTTPException(
+            status_code=503, 
+            detail="AI Agent is not running. Please enable it first by clicking the toggle button."
+        )
     
     try:
         # Get user's active watchlist items from database
-        from uuid import UUID
         watchlist_items = db.query(WatchlistItem).filter(
             WatchlistItem.user_id == UUID(current_user.id),
             WatchlistItem.is_active == True
@@ -553,15 +559,22 @@ async def update_config(
 async def get_config(
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """Get current AI Agent configuration"""
-    controller = get_controller()
+    """Get current AI Agent configuration (per-user)"""
+    user_id = str(current_user.id)
+    
+    # Get user's Bot Controller
+    controller = get_user_bot_controller(user_id)
     if not controller:
-        raise HTTPException(status_code=503, detail="AI Bot Controller not available")
+        raise HTTPException(
+            status_code=503, 
+            detail="AI Bot Controller not running. Please enable AI Agent first."
+        )
     
     return {
         "config": controller.config,
         "mode": controller.mode,
-        "enabled": controller.enabled
+        "enabled": controller.enabled,
+        "user_id": user_id
     }
 
 
