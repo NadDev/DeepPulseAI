@@ -383,7 +383,7 @@ class AIBotController:
                 user_id=self._get_ai_user_id(),  # System AI user
                 name=bot_name,
                 strategy=strategy,
-                symbols=[symbol],
+                symbols=json.dumps([symbol]),  # Convert to JSON for jsonb column
                 paper_trading=self.config["default_paper_trading"] or self.mode == "paper",
                 status="IDLE",
                 risk_percent=self.config["default_risk_percent"],
