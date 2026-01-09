@@ -190,7 +190,6 @@ async def lifespan(app: FastAPI):
                 
                 # ⚠️ DO NOT start global Bot Controller - it will be created per-user on demand
                 logger.info("[SKIP] Global Bot Controller disabled - using per-user Bot Controller system")
-                    logger.info(f"[OK] AI Bot Controller ready (mode: {bot_controller_mode} - not auto-started)")
             else:
                 logger.warning("⚠️ DEEPSEEK_API_KEY not found - AI Agent disabled")
         except Exception as e:
