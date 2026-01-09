@@ -75,6 +75,38 @@ async def lifespan(app: FastAPI):
             except Exception as create_error:
                 logger.error(f"❌ Failed to create ai_decisions table: {create_error}")
         
+        # Check if exchange_configs table exists, if not create it
+        try:
+            db.execute(text("SELECT 1 FROM exchange_configs LIMIT 1"))
+            logger.info("[OK] exchange_configs table exists")
+        except Exception as check_error:
+            try:
+                logger.info(f"⚙️ Creating exchange_configs table...")
+                
+                migration_paths = [
+                    "/app/database/migrations/002_create_exchange_configs_table_railway.sql",
+                    "database/migrations/002_create_exchange_configs_table_railway.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/002_create_exchange_configs_table_railway.sql"
+                ]
+                
+                migration_sql = None
+                for path in migration_paths:
+                    try:
+                        migration_sql = open(path).read()
+                        logger.info(f"✅ Found migration at: {path}")
+                        break
+                    except:
+                        continue
+                
+                if migration_sql:
+                    db.execute(text(migration_sql))
+                    db.commit()
+                    logger.info("✅ exchange_configs table created successfully")
+                else:
+                    logger.error(f"❌ Could not find exchange_configs migration file")
+            except Exception as create_error:
+                logger.error(f"❌ Failed to create exchange_configs table: {create_error}")
+        
         db.close()
     except Exception as e:
         logger.warning(f"⚠️ Could not verify/create tables: {e}")

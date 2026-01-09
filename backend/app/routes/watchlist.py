@@ -65,6 +65,19 @@ class WatchlistItemCreate(BaseModel):
         if '/' not in v:
             v = f"{v}/USDT"  # Auto-add /USDT if missing
         return v
+    
+    @validator('priority', pre=True)
+    def validate_priority(cls, v):
+        """Convert string priority to integer"""
+        if isinstance(v, str):
+            priority_map = {
+                'low': 0,
+                'medium': 5,
+                'high': 10,
+                'critical': 15
+            }
+            return priority_map.get(v.lower(), 5)  # Default to medium (5)
+        return v
 
 
 class WatchlistItemUpdate(BaseModel):
