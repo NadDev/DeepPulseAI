@@ -56,12 +56,14 @@ class WatchlistItemCreate(BaseModel):
     symbol: str
     notes: Optional[str] = None
     priority: int = 0
+    watchlist_id: Optional[str] = None  # Ignored - for frontend compatibility
     
     @validator('symbol')
     def validate_symbol(cls, v):
         v = v.upper().strip()
+        # Accept both BTC and BTC/USDT formats
         if '/' not in v:
-            raise ValueError("Symbol must be in format BASE/QUOTE (e.g., BTC/USDT)")
+            v = f"{v}/USDT"  # Auto-add /USDT if missing
         return v
 
 
