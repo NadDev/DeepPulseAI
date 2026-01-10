@@ -436,7 +436,7 @@ class AIBotController:
             db.close()
     
     async def _close_ai_bot(self, symbol: str, recommendation: Dict[str, Any]):
-        """Close/stop a bot for a symbol and close its open trades"""
+        """Close/stop a bot for a symbol and close its open trades at market price"""
         # Find AI bot for this symbol
         bot_id = None
         for bid, bot_info in self.ai_bots.items():
@@ -448,7 +448,7 @@ class AIBotController:
             logger.info(f"ℹ️ No active AI bot found for {symbol} to close")
             return
         
-        # === ENHANCEMENT: Close open trades before deactivating bot ===
+        # === ENHANCEMENT: Close open trades at market price before deactivating bot ===
         db = self.db_session_factory()
         try:
             bot = db.query(Bot).filter(Bot.id == bot_id).first()
@@ -464,17 +464,37 @@ class AIBotController:
                     ).first()
                     
                     for trade in open_trades:
-                        # Close at entry price (neutral exit)
-                        trade.status = "CLOSED"
-                        trade.exit_price = trade.entry_price
-                        trade.exit_time = datetime.utcnow()
-                        trade.pnl = 0
-                        trade.pnl_percent = 0
+                        try:
+                            # Fetch current market price
+                            market_data = await self.bot_engine.market_collector.get_latest_market_data(symbol) if self.bot_engine else None
+                            exit_price = float(market_data.get('close', trade.entry_price)) if market_data else float(trade.entry_price)
+                            
+                            # Close at market price with real PnL
+                            trade.status = "CLOSED"
+                            trade.exit_price = exit_price
+                            trade.exit_time = datetime.utcnow()
+                            
+                            pnl = (exit_price - float(trade.entry_price)) * float(trade.quantity)
+                            pnl_percent = ((exit_price - float(trade.entry_price)) / float(trade.entry_price)) * 100 if float(trade.entry_price) > 0 else 0
+                            
+                            trade.pnl = pnl
+                            trade.pnl_percent = pnl_percent
+                            
+                            # Restore portfolio
+                            if portfolio:
+                                proceeds = exit_price * float(trade.quantity)
+                                portfolio.cash_balance = float(portfolio.cash_balance) + proceeds
+                            
+                            logger.info(f"🔄 AI Bot closed {symbol} trade: Entry={float(trade.entry_price):.2f}, Exit={exit_price:.2f}, PnL={float(pnl):.2f}")
                         
-                        # Restore portfolio
-                        if portfolio:
-                            proceeds = float(trade.entry_price) * float(trade.quantity)
-                            portfolio.cash_balance = float(portfolio.cash_balance) + proceeds
+                        except Exception as e:
+                            logger.error(f"❌ Error closing AI trade {symbol}: {str(e)}")
+                            # Fallback: close at entry price
+                            trade.status = "CLOSED"
+                            trade.exit_price = float(trade.entry_price)
+                            trade.exit_time = datetime.utcnow()
+                            trade.pnl = 0
+                            trade.pnl_percent = 0
                     
                     db.add_all(open_trades)
                     if portfolio:

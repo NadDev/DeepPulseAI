@@ -315,7 +315,7 @@ async def delete_bot(
     db: Session = Depends(get_db),
     current_user: Optional[UserResponse] = Depends(get_optional_user)
 ):
-    """Delete a bot and close its open trades"""
+    """Delete a bot and close its open trades at current market price"""
     query = db.query(Bot).filter(Bot.id == bot_id)
     
     # Filter by user_id if authenticated
@@ -336,41 +336,74 @@ async def delete_bot(
     
     bot_name = bot.name
     
-    # === FIX Bug #7: Close open trades before deleting bot ===
+    # === FIX Bug #7: Close open trades at current market price before deleting bot ===
     open_trades = db.query(Trade).filter(
         Trade.bot_id == bot_id,
         Trade.status == "OPEN"
     ).all()
     
     closed_count = 0
+    closed_details = []
+    
     if open_trades:
-        # Get bot's user for portfolio update
-        portfolio = db.query(Portfolio).filter(
-            Portfolio.user_id == bot.user_id
-        ).first()
+        # Get bot engine to fetch market prices
+        bot_engine = get_bot_engine()
         
         for trade in open_trades:
-            # Close at entry price (neutral exit, zero PnL)
-            trade.status = "CLOSED"
-            trade.exit_price = trade.entry_price
-            trade.exit_time = datetime.utcnow()
-            trade.pnl = 0
-            trade.pnl_percent = 0
-            
-            # Restore cash balance from trade proceeds
-            if portfolio:
-                proceeds = float(trade.entry_price) * float(trade.quantity)
-                portfolio.cash_balance = float(portfolio.cash_balance) + proceeds
-            
-            closed_count += 1
+            try:
+                # Fetch current market price for the symbol
+                market_data = await bot_engine.market_collector.get_latest_market_data(trade.symbol)
+                exit_price = float(market_data.get('close', trade.entry_price)) if market_data else float(trade.entry_price)
+                
+                # Close trade at current market price with real PnL calculation
+                trade.status = "CLOSED"
+                trade.exit_price = exit_price
+                trade.exit_time = datetime.utcnow()
+                
+                # Calculate real PnL based on market price
+                pnl = (exit_price - float(trade.entry_price)) * float(trade.quantity)
+                pnl_percent = ((exit_price - float(trade.entry_price)) / float(trade.entry_price)) * 100 if float(trade.entry_price) > 0 else 0
+                
+                trade.pnl = pnl
+                trade.pnl_percent = pnl_percent
+                
+                # Update portfolio with actual proceeds
+                portfolio = db.query(Portfolio).filter(
+                    Portfolio.user_id == bot.user_id
+                ).first()
+                
+                if portfolio:
+                    proceeds = exit_price * float(trade.quantity)
+                    portfolio.cash_balance = float(portfolio.cash_balance) + proceeds
+                    db.add(portfolio)
+                
+                closed_count += 1
+                closed_details.append({
+                    "symbol": trade.symbol,
+                    "quantity": float(trade.quantity),
+                    "entry_price": float(trade.entry_price),
+                    "exit_price": exit_price,
+                    "pnl": float(pnl),
+                    "pnl_percent": float(pnl_percent)
+                })
+                
+                logger.info(f"🔄 Closed trade {trade.symbol}: Entry={float(trade.entry_price):.2f}, Exit={exit_price:.2f}, PnL={float(pnl):.2f} ({float(pnl_percent):.2f}%)")
+                
+            except Exception as e:
+                logger.error(f"❌ Error closing trade {trade.symbol} for bot {bot_name}: {str(e)}")
+                # Still close the trade in DB even if price fetch fails (use entry price)
+                trade.status = "CLOSED"
+                trade.exit_price = float(trade.entry_price)
+                trade.exit_time = datetime.utcnow()
+                trade.pnl = 0
+                trade.pnl_percent = 0
+                closed_count += 1
         
-        # Persist changes
+        # Persist all changes
         db.add_all(open_trades)
-        if portfolio:
-            db.add(portfolio)
         db.commit()
         
-        logger.info(f"🔄 Closed {closed_count} orphan trades for bot {bot_name}")
+        logger.info(f"✅ Closed {closed_count} orphan trades for bot {bot_name}")
     
     # Now delete the bot
     db.delete(bot)
@@ -378,7 +411,8 @@ async def delete_bot(
     
     return {
         "message": f"Bot '{bot_name}' deleted successfully",
-        "closed_trades": closed_count
+        "closed_trades": closed_count,
+        "trade_details": closed_details
     }
     open_trades = [t for t in trades if t.status == "OPEN"]
     closed_trades = [t for t in trades if t.status == "CLOSED"]
