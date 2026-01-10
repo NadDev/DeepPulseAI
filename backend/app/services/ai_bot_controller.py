@@ -1054,10 +1054,16 @@ class AIBotController:
         try:
             bots_list = []
             
+            # Debug: Log what's in memory
+            logger.info(f"🔍 get_ai_bots called - user_id={user_id}, total_bots_in_memory={len(self.ai_bots)}")
+            for bot_id, bot_info in self.ai_bots.items():
+                logger.info(f"  Bot {bot_id}: name={bot_info.get('name')}, bot_user_id={bot_info.get('user_id')}, status={bot_info.get('status')}")
+            
             # Return bots from controller memory first (most reliable)
             for bot_id, bot_info in self.ai_bots.items():
                 # Filter by user_id if provided
                 if user_id and bot_info.get("user_id") != user_id:
+                    logger.debug(f"  ⊘ Skipping bot {bot_id}: user_id mismatch ({bot_info.get('user_id')} != {user_id})")
                     continue
                 
                 bots_list.append({
@@ -1075,11 +1081,13 @@ class AIBotController:
                     "source": "memory"  # Track where data came from
                 })
             
-            logger.debug(f"📊 Retrieved {len(bots_list)} AI bots from memory for user {user_id}")
+            logger.info(f"✅ Retrieved {len(bots_list)} AI bots for user {user_id}")
             return bots_list
         
         except Exception as e:
             logger.error(f"❌ Error in get_ai_bots: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             return []  # Return empty list instead of crashing
     
     async def chat(self, message: str) -> Dict[str, Any]:
