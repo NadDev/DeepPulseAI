@@ -607,16 +607,23 @@ async def get_decision_history(
 
 
 @router.get("/bots")
-async def get_ai_bots(
+async def get_ai_bots_endpoint(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Get list of AI-managed bots for current user"""
-    controller = get_controller()
+    from app.services.ai_agent_manager import ai_agent_manager
+    
+    # Get the Bot Controller for this specific user
+    controller = await ai_agent_manager.get_or_create_controller(
+        user_id=current_user.id,
+        bot_engine=None  # Not needed for reading bots
+    )
+    
     if not controller:
-        raise HTTPException(status_code=503, detail="AI Bot Controller not available")
+        raise HTTPException(status_code=503, detail="Bot Controller not available")
     
     try:
-        # Pass user_id to get only user's AI bots
+        # Get AI bots - controller already knows its user_id
         bots = controller.get_ai_bots(user_id=current_user.id)
         
         return {
@@ -626,7 +633,7 @@ async def get_ai_bots(
         }
         
     except Exception as e:
-        logger.error(f"Error getting AI bots: {str(e)}")
+        logger.error(f"❌ Error getting AI bots for user {current_user.id}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
