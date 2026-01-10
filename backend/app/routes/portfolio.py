@@ -129,6 +129,9 @@ async def get_positions(
     current_user: Optional[UserResponse] = Depends(get_optional_user)
 ):
     """Get current open positions"""
+    from app.models.database_models import Bot
+    from sqlalchemy import func as db_func
+    
     query = db.query(Trade).filter(Trade.status == "OPEN")
     
     # Filter by user if authenticated
@@ -139,9 +142,17 @@ async def get_positions(
     
     positions = []
     for trade in open_trades:
-        # For consistency with portfolio_value calculation, use entry_price
-        # In a real app, would fetch current market price
-        current_price = trade.entry_price  # Use entry price for consistency in tests
+        # Get bot name if this trade is from a bot
+        bot_name = None
+        if trade.bot_id:
+            bot = db.query(Bot).filter(Bot.id == trade.bot_id).first()
+            if bot:
+                bot_name = bot.name
+        
+        # For now, use entry_price as current_price (would fetch from market API in production)
+        # TODO: Integrate with real market data provider (Binance API, etc.)
+        current_price = trade.entry_price
+        
         pnl = (current_price - trade.entry_price) * trade.quantity if trade.side == "BUY" else (trade.entry_price - current_price) * trade.quantity
         pnl_percent = (pnl / (trade.entry_price * trade.quantity)) * 100 if trade.entry_price * trade.quantity != 0 else 0
         
@@ -156,6 +167,7 @@ async def get_positions(
             "unrealized_pnl": pnl,
             "unrealized_pnl_percent": pnl_percent,
             "strategy": trade.strategy,
+            "bot_name": bot_name,
             "entry_time": trade.entry_time.isoformat()
         })
         
@@ -248,6 +260,8 @@ async def get_trades(
     current_user: Optional[UserResponse] = Depends(get_optional_user)
 ):
     """Get trades with pagination and filtering"""
+    from app.models.database_models import Bot
+    
     query = db.query(Trade)
     
     # Filter by user if authenticated
@@ -260,27 +274,36 @@ async def get_trades(
     total = query.count()
     trades = query.order_by(desc(Trade.entry_time)).offset(offset).limit(limit).all()
     
+    trades_response = []
+    for trade in trades:
+        # Get bot name if this trade is from a bot
+        bot_name = None
+        if trade.bot_id:
+            bot = db.query(Bot).filter(Bot.id == trade.bot_id).first()
+            if bot:
+                bot_name = bot.name
+        
+        trades_response.append({
+            "id": trade.id,
+            "symbol": trade.symbol,
+            "side": trade.side,
+            "entry_price": trade.entry_price,
+            "exit_price": trade.exit_price,
+            "quantity": trade.quantity,
+            "pnl": trade.pnl,
+            "pnl_percent": trade.pnl_percent,
+            "status": trade.status,
+            "strategy": trade.strategy,
+            "bot_name": bot_name,
+            "entry_time": trade.entry_time.isoformat() if trade.entry_time else None,
+            "exit_time": trade.exit_time.isoformat() if trade.exit_time else None,
+        })
+    
     return {
         "total": total,
         "offset": offset,
         "limit": limit,
-        "trades": [
-            {
-                "id": trade.id,
-                "symbol": trade.symbol,
-                "side": trade.side,
-                "entry_price": trade.entry_price,
-                "exit_price": trade.exit_price,
-                "quantity": trade.quantity,
-                "pnl": trade.pnl,
-                "pnl_percent": trade.pnl_percent,
-                "status": trade.status,
-                "strategy": trade.strategy,
-                "entry_time": trade.entry_time.isoformat() if trade.entry_time else None,
-                "exit_time": trade.exit_time.isoformat() if trade.exit_time else None,
-            }
-            for trade in trades
-        ]
+        "trades": trades_response
     }
 
 @router.get("/portfolio/equity-curve")

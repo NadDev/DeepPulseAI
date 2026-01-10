@@ -1051,35 +1051,54 @@ class AIBotController:
     
     def get_ai_bots(self, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get list of AI-managed bots - simple and robust version"""
+        db = self.db_session_factory()
         try:
             bots_list = []
             
             # Debug: Log what's in memory
             logger.info(f"🔍 get_ai_bots called - user_id={user_id}, total_bots_in_memory={len(self.ai_bots)}")
             for bot_id, bot_info in self.ai_bots.items():
-                logger.info(f"  Bot {bot_id}: name={bot_info.get('name')}, bot_user_id={bot_info.get('user_id')}, status={bot_info.get('status')}")
+                stored_user_id = bot_info.get('user_id')
+                logger.info(f"  Bot {bot_id}: name={bot_info.get('name')}, bot_user_id={stored_user_id} (type={type(stored_user_id).__name__}), status={bot_info.get('status')}")
             
-            # Return bots from controller memory first (most reliable)
-            for bot_id, bot_info in self.ai_bots.items():
-                # Filter by user_id if provided
-                if user_id and bot_info.get("user_id") != user_id:
-                    logger.debug(f"  ⊘ Skipping bot {bot_id}: user_id mismatch ({bot_info.get('user_id')} != {user_id})")
+            # Query database directly for AI bots to ensure we get latest data
+            query = db.query(Bot).filter(Bot.name.like("AI-%"))
+            
+            if user_id:
+                query = query.filter(Bot.user_id == user_id)
+            
+            bots = query.all()
+            logger.info(f"  Database query returned {len(bots)} bots for user {user_id}")
+            
+            for bot in bots:
+                try:
+                    # Parse symbols
+                    symbols = bot.symbols
+                    if isinstance(symbols, str):
+                        try:
+                            symbols = json.loads(symbols)
+                        except:
+                            symbols = [symbols]
+                    elif not isinstance(symbols, list):
+                        symbols = [symbols] if symbols else []
+                    
+                    bots_list.append({
+                        "id": str(bot.id),
+                        "bot_id": str(bot.id),
+                        "name": bot.name,
+                        "symbol": symbols[0] if symbols else "UNKNOWN",
+                        "symbols": symbols,
+                        "strategy": bot.strategy,
+                        "status": bot.status,
+                        "created_at": bot.created_at.isoformat() if bot.created_at else None,
+                        "pnl": 0,
+                        "win_rate": 0,
+                        "trades_count": 0,
+                        "user_id": str(bot.user_id) if bot.user_id else None,
+                    })
+                except Exception as e:
+                    logger.error(f"❌ Error processing bot {bot.id}: {str(e)}")
                     continue
-                
-                bots_list.append({
-                    "id": bot_id,
-                    "bot_id": bot_id,
-                    "name": bot_info.get("name", "Unknown"),
-                    "symbol": bot_info.get("symbol", "UNKNOWN"),
-                    "symbols": [bot_info.get("symbol")] if bot_info.get("symbol") else [],
-                    "strategy": bot_info.get("strategy", "UNKNOWN"),
-                    "status": bot_info.get("status", "UNKNOWN"),
-                    "created_at": bot_info.get("created_at").isoformat() if bot_info.get("created_at") else None,
-                    "pnl": bot_info.get("total_pnl", 0),
-                    "win_rate": bot_info.get("win_rate", 0),
-                    "trades_count": bot_info.get("trades_count", 0),
-                    "source": "memory"  # Track where data came from
-                })
             
             logger.info(f"✅ Retrieved {len(bots_list)} AI bots for user {user_id}")
             return bots_list
@@ -1089,6 +1108,9 @@ class AIBotController:
             import traceback
             logger.error(traceback.format_exc())
             return []  # Return empty list instead of crashing
+        
+        finally:
+            db.close()
     
     async def chat(self, message: str) -> Dict[str, Any]:
         """
