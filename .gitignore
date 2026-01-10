@@ -9,46 +9,12 @@ backend/.env.*
 frontend/.env
 frontend/.env.*
 *.env
-docs/*
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-.venv/
-venv/
-ENV/
-env/
-*.egg-info/
-.eggs/
-
-# Node
-node_modules/
-dist/
-build/
-.next/
-
-# IDEs
-.idea/
-.vscode/settings.json
-*.swp
-*.swo
-.DS_Store
-
-# Logs
-logs/
-*.log
-npm-debug.log*
-
-# Bug tracking & Analysis (local use only)
-todoBug.md
+# Local development & analysis files (not pushed to git)
 docs/planning/todoBug.md
 docs/planning/BUG*_ANALYSIS.md
-
-# Analysis & Development Notes (local use only)
 ML_INTEGRATION_ANALYSIS.md
+todoBug.md
 
 # Database files
 *.db

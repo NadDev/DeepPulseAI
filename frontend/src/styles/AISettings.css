@@ -185,7 +185,8 @@
   border-radius: 5px;
   background: linear-gradient(90deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2));
   outline: none;
-  -webkit-appearance: none;
+-webkit-appearance: none;
+  appearance: none;
 }
 
 .slider::-webkit-slider-thumb {

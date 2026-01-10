@@ -425,6 +425,7 @@ class BotEngine:
             )
             
             db.add(trade)
+            db.add(portfolio)  # Ensure portfolio changes are persisted
             
             # Update bot stats
             bot = db.query(Bot).filter(Bot.id == bot_id).first()
@@ -541,6 +542,7 @@ class BotEngine:
                 proceeds = exit_price * float(trade.quantity)
                 portfolio.cash_balance = float(portfolio.cash_balance) + proceeds
                 portfolio.total_pnl = float(portfolio.total_pnl or 0) + (trade.pnl or 0)
+                db.add(portfolio)  # Ensure portfolio changes are persisted
         
         # Update bot stats
         bot = db.query(Bot).filter(Bot.id == bot_state["bot_id"]).first()
