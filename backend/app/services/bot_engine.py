@@ -384,6 +384,12 @@ class BotEngine:
                 logger.warning(f"❌ Portfolio not found for user {user_id}")
                 return
             
+            # === CRITICAL: Protect portfolio from negative balance ===
+            min_cash_buffer = 10.0  # Keep minimum $10 in portfolio
+            if float(portfolio.cash_balance) < min_cash_buffer:
+                logger.warning(f"❌ [BLOCKED] {symbol} BUY: Portfolio balance too low (${float(portfolio.cash_balance):.2f}, need min ${min_cash_buffer:.2f})")
+                return
+            
             # Calculate position size
             current_price = market_data['close']
             stop_loss = strategy.get_stop_loss(current_price, "BUY", market_data)
@@ -394,8 +400,17 @@ class BotEngine:
             
             # Check if enough balance (paper trading)
             if bot_state["paper_trading"]:
-                if cost > float(portfolio.cash_balance):
-                    logger.info(f"⚠️ [BLOCKED] {symbol} BUY: Need ${cost:.2f}, Have ${float(portfolio.cash_balance):.2f}")
+                # === NEW: Add 5% safety margin for slippage ===
+                safety_margin = cost * 0.05
+                total_required = cost + safety_margin
+                
+                if total_required > float(portfolio.cash_balance):
+                    logger.info(f"⚠️ [BLOCKED] {symbol} BUY: Need ${total_required:.2f} (w/ 5% margin), Have ${float(portfolio.cash_balance):.2f}")
+                    return
+                
+                # === CRITICAL: Verify cash won't go below minimum ===
+                if float(portfolio.cash_balance) - cost < min_cash_buffer:
+                    logger.warning(f"⚠️ [BLOCKED] {symbol} BUY: Would leave balance below minimum (${float(portfolio.cash_balance) - cost:.2f} < ${min_cash_buffer:.2f})")
                     return
                 
                 # Deduct from balance
@@ -540,7 +555,17 @@ class BotEngine:
             portfolio = db.query(Portfolio).filter(Portfolio.user_id == bot_state["user_id"]).first()
             if portfolio:
                 proceeds = exit_price * float(trade.quantity)
-                portfolio.cash_balance = float(portfolio.cash_balance) + proceeds
+                new_balance = float(portfolio.cash_balance) + proceeds
+                
+                # === CRITICAL: Protect against negative balance ===
+                if new_balance < 0:
+                    logger.error(f"🚨 CRITICAL: Portfolio balance would go negative! ({new_balance:.2f})")
+                    logger.error(f"   Current: ${float(portfolio.cash_balance):.2f}, Proceeds: ${proceeds:.2f}")
+                    logger.error(f"   Trade: {trade.symbol} {trade.side} {float(trade.quantity):.6f} @ ${exit_price:.2f}")
+                    # Still allow the transaction but alert the user
+                    # This shouldn't happen if protections work, but catches bugs
+                
+                portfolio.cash_balance = new_balance
                 portfolio.total_pnl = float(portfolio.total_pnl or 0) + (trade.pnl or 0)
                 db.add(portfolio)  # Ensure portfolio changes are persisted
         

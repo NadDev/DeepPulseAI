@@ -50,16 +50,16 @@ try:
     # Create portfolio
     portfolio = Portfolio(
         user_id=TEST_USER_ID,
-        total_value=100000.0,
-        cash_balance=99850.0,
+        total_value=500000.0,  # Increased from 100,000 for better testing
+        cash_balance=500000.0,  # Much higher starting balance
         daily_pnl=0.0,
         total_pnl=0.0,
         win_rate=0.0,
-        max_drawdown=10.58
+        max_drawdown=0.0
     )
     db.add(portfolio)
     db.commit()
-    print("✅ Portfolio created")
+    print("✅ Portfolio created - Starting balance: $500,000")
     
     # Create bots
     bots_data = [
