@@ -34,6 +34,7 @@ const ActivePositions = ({ positions, onClosePosition }) => {
               <th>Value</th>
               <th>Unrealized PnL</th>
               <th>Strategy</th>
+              <th>Bot Name</th>
               <th>Action</th>
             </tr>
           </thead>
@@ -60,6 +61,7 @@ const ActivePositions = ({ positions, onClosePosition }) => {
                   </div>
                 </td>
                 <td>{pos.strategy}</td>
+                <td>{pos.bot_name || '-'}</td>
                 <td>
                   <button 
                     className="close-btn"

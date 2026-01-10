@@ -39,6 +39,7 @@ const TradeHistory = ({ trades }) => {
               <th>Status</th>
               <th>PnL</th>
               <th>Strategy</th>
+              <th>Bot Name</th>
             </tr>
           </thead>
           <tbody>
@@ -51,7 +52,7 @@ const TradeHistory = ({ trades }) => {
                     {trade.side}
                   </span>
                 </td>
-                <td>{formatCurrency(trade.entry_price)}</td>
+                <td>{formatCurrency(trade.status === 'CLOSED' && trade.exit_price ? trade.exit_price : trade.entry_price)}</td>
                 <td>{trade.quantity}</td>
                 <td>
                   <span className={`status-badge ${trade.status.toLowerCase()}`}>
@@ -66,6 +67,7 @@ const TradeHistory = ({ trades }) => {
                   ) : '-'}
                 </td>
                 <td>{trade.strategy}</td>
+                <td>{trade.bot_name || '-'}</td>
               </tr>
             ))}
           </tbody>
