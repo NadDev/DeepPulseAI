@@ -482,9 +482,11 @@ class AIBotController:
                     
                     for trade in open_trades:
                         try:
-                            # Fetch current market price
-                            market_data = await self.bot_engine.market_collector.get_latest_market_data(symbol) if self.bot_engine else None
-                            exit_price = float(market_data.get('close', trade.entry_price)) if market_data else float(trade.entry_price)
+                            # Fetch current market price using market data collector
+                            from app.services.market_data import MarketDataCollector
+                            market_collector = MarketDataCollector()
+                            candles = await market_collector.get_candles(symbol, timeframe="1h", limit=1)
+                            exit_price = float(candles[-1]['close']) if candles and len(candles) > 0 else float(trade.entry_price)
                             
                             # Close at market price with real PnL
                             trade.status = "CLOSED"
@@ -497,10 +499,14 @@ class AIBotController:
                             trade.pnl = pnl
                             trade.pnl_percent = pnl_percent
                             
-                            # Restore portfolio
+                            # BUG FIX: Restore portfolio with PnL only, not proceeds
+                            # When closing at exit_price:
+                            #   - Proceeds = exit_price * quantity (total cash)
+                            #   - Cost = entry_price * quantity (initial spend)
+                            #   - Gain/Loss = PnL = (exit_price - entry_price) * quantity
                             if portfolio:
-                                proceeds = exit_price * float(trade.quantity)
-                                portfolio.cash_balance = float(portfolio.cash_balance) + proceeds
+                                portfolio.cash_balance = float(portfolio.cash_balance) + float(pnl)
+                                portfolio.total_pnl = float(portfolio.total_pnl or 0) + float(pnl)
                             
                             logger.info(f"🔄 AI Bot closed {symbol} trade: Entry={float(trade.entry_price):.2f}, Exit={exit_price:.2f}, PnL={float(pnl):.2f}")
                         

@@ -554,19 +554,24 @@ class BotEngine:
         if bot_state["paper_trading"]:
             portfolio = db.query(Portfolio).filter(Portfolio.user_id == bot_state["user_id"]).first()
             if portfolio:
-                proceeds = exit_price * float(trade.quantity)
-                new_balance = float(portfolio.cash_balance) + proceeds
+                # BUG FIX: Add only the PnL (gain/loss), not the full proceeds
+                # When selling at exit_price:
+                #   - Proceeds = exit_price * quantity (total cash received)
+                #   - But we spent = entry_price * quantity (initial cost)
+                #   - Gain/Loss = PnL = (exit_price - entry_price) * quantity
+                pnl = trade.pnl or 0
+                new_balance = float(portfolio.cash_balance) + pnl
                 
                 # === CRITICAL: Protect against negative balance ===
                 if new_balance < 0:
                     logger.error(f"🚨 CRITICAL: Portfolio balance would go negative! ({new_balance:.2f})")
-                    logger.error(f"   Current: ${float(portfolio.cash_balance):.2f}, Proceeds: ${proceeds:.2f}")
-                    logger.error(f"   Trade: {trade.symbol} {trade.side} {float(trade.quantity):.6f} @ ${exit_price:.2f}")
+                    logger.error(f"   Current: ${float(portfolio.cash_balance):.2f}, PnL: ${pnl:.2f}")
+                    logger.error(f"   Trade: {trade.symbol} {trade.side} {float(trade.quantity):.6f} @ Entry: ${float(trade.entry_price):.2f}, Exit: ${exit_price:.2f}")
                     # Still allow the transaction but alert the user
                     # This shouldn't happen if protections work, but catches bugs
                 
                 portfolio.cash_balance = new_balance
-                portfolio.total_pnl = float(portfolio.total_pnl or 0) + (trade.pnl or 0)
+                portfolio.total_pnl = float(portfolio.total_pnl or 0) + pnl
                 db.add(portfolio)  # Ensure portfolio changes are persisted
         
         # Update bot stats

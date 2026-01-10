@@ -346,14 +346,19 @@ async def delete_bot(
     closed_details = []
     
     if open_trades:
-        # Get bot engine to fetch market prices
-        bot_engine = get_bot_engine()
+        # Get market data collector to fetch current prices
+        from app.services.market_data import MarketDataCollector
+        market_collector = MarketDataCollector()
         
         for trade in open_trades:
             try:
                 # Fetch current market price for the symbol
-                market_data = await bot_engine.market_collector.get_latest_market_data(trade.symbol)
-                exit_price = float(market_data.get('close', trade.entry_price)) if market_data else float(trade.entry_price)
+                candles = await market_collector.get_candles(trade.symbol, timeframe="1h", limit=1)
+                if candles and len(candles) > 0:
+                    exit_price = float(candles[-1]['close'])
+                else:
+                    # Fallback: use entry price if price fetch fails
+                    exit_price = float(trade.entry_price)
                 
                 # Close trade at current market price with real PnL calculation
                 trade.status = "CLOSED"
@@ -367,14 +372,19 @@ async def delete_bot(
                 trade.pnl = pnl
                 trade.pnl_percent = pnl_percent
                 
-                # Update portfolio with actual proceeds
+                # Update portfolio with PnL (not proceeds!)
+                # BUG FIX: Add only the PnL (gain/loss), not the full proceeds
+                # When closing at exit_price:
+                #   - Cash recovered = exit_price * quantity
+                #   - Cash spent = entry_price * quantity  
+                #   - Gain/Loss = PnL = (exit_price - entry_price) * quantity
                 portfolio = db.query(Portfolio).filter(
                     Portfolio.user_id == bot.user_id
                 ).first()
                 
                 if portfolio:
-                    proceeds = exit_price * float(trade.quantity)
-                    portfolio.cash_balance = float(portfolio.cash_balance) + proceeds
+                    portfolio.cash_balance = float(portfolio.cash_balance) + float(pnl)
+                    portfolio.total_pnl = float(portfolio.total_pnl or 0) + float(pnl)
                     db.add(portfolio)
                 
                 closed_count += 1
