@@ -322,7 +322,6 @@ class AITradingAgent:
                     risk_level=analysis.get("risk_level", "MEDIUM"),
                     target_price=analysis.get("target_price"),
                     stop_loss=analysis.get("stop_loss"),
-                    market_data=json.dumps(analysis),
                     mode=self.mode,
                     executed=False  # Observation mode doesn't execute
                 )
