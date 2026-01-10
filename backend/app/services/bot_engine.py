@@ -220,7 +220,7 @@ class BotEngine:
                 # Check for new signals from strategy
                 signal = strategy.get_signal_direction(market_data)
                 
-                logger.debug(f"🔍 Bot {bot_state['name']} | {symbol} | Strategy Signal: {signal}")
+                logger.info(f"📊 [SIGNAL] {bot_state['name']} | {symbol} | Signal: {signal}")
                 
                 # === AI AGENT VALIDATION ===
                 ai_validation = None
@@ -375,7 +375,7 @@ class BotEngine:
             ).first()
             
             if open_position:
-                logger.debug(f"⚠️ Already have open BUY position for {symbol}")
+                logger.info(f"⚠️ [SKIP] Already have open BUY position for {symbol} (ID: {open_position.id})")
                 return
             
             # Get portfolio
@@ -395,7 +395,7 @@ class BotEngine:
             # Check if enough balance (paper trading)
             if bot_state["paper_trading"]:
                 if cost > float(portfolio.cash_balance):
-                    logger.debug(f"⚠️ Insufficient balance for {symbol} BUY")
+                    logger.info(f"⚠️ [BLOCKED] {symbol} BUY: Need ${cost:.2f}, Have ${float(portfolio.cash_balance):.2f}")
                     return
                 
                 # Deduct from balance
@@ -467,7 +467,7 @@ class BotEngine:
             ).first()
             
             if not open_position:
-                logger.debug(f"⚠️ No open BUY position to SELL for {symbol}")
+                logger.info(f"⚠️ [SKIP] No open BUY position to SELL for {symbol}")
                 return
             
             # Log AI info
