@@ -373,15 +373,19 @@ class AIBotController:
             
             # === ENHANCEMENT: Check for duplicate bot (same strategy + symbol) ===
             strategy = self._select_strategy(recommendation)
+            
+            # Only block if EXACT SAME bot exists (same strategy + symbol + ACTIVE)
+            # Allow multiple strategies on same symbol (e.g., grid_trading + dca on BTCUSDT)
             duplicate_bot = db.query(Bot).filter(
                 Bot.user_id == (self.user_id if self.user_id else self._get_ai_user_id()),
                 Bot.strategy == strategy,
-                Bot.status != "STOPPED",
-                Bot.symbols.contains(symbol)  # Check if symbols JSONB contains symbol
+                Bot.status == "RUNNING",  # Only block if actively running (not stopped/paused)
+                Bot.symbols.contains(symbol),
+                Bot.name.like("AI-%")  # Only check AI-created bots
             ).first()
             
             if duplicate_bot:
-                logger.warning(f"⚠️ BLOCKED: AI bot with strategy '{strategy}' already trading {symbol}")
+                logger.warning(f"⚠️ BLOCKED: AI bot with strategy '{strategy}' already RUNNING on {symbol} (ID: {duplicate_bot.id})")
                 return
             
             # Generate unique bot name
