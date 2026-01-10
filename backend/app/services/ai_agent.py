@@ -306,7 +306,14 @@ class AITradingAgent:
     
     async def _store_decision(self, analysis: Dict[str, Any]):
         """Store AI decision in database for tracking and learning"""
+        # === CRITICAL: Only store if we have a valid user_id (per-user AI) ===
+        # Check for None, string "None", empty string, etc.
+        if not self.user_id or self.user_id == "None" or str(self.user_id).strip() == "":
+            logger.warning(f"⚠️ Skipping decision storage - user_id missing or invalid (got: {repr(self.user_id)})")
+            return
+            
         if not self.db_session_factory:
+            logger.debug(f"Skipping decision storage - no DB connection")
             return
             
         try:
@@ -315,6 +322,7 @@ class AITradingAgent:
             db = self.db_session_factory()
             try:
                 decision = AIDecision(
+                    user_id=self.user_id,  # Per-user AI tracking - required non-null
                     symbol=analysis.get("symbol", "UNKNOWN"),
                     action=analysis.get("action", "NONE"),
                     confidence=analysis.get("confidence", 0),
@@ -327,7 +335,7 @@ class AITradingAgent:
                 )
                 db.add(decision)
                 db.commit()
-                logger.debug(f"📝 Stored AI decision for {analysis.get('symbol')}")
+                logger.debug(f"📝 Stored AI decision for {analysis.get('symbol')} (user_id={self.user_id})")
             finally:
                 db.close()
                 
