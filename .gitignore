@@ -9,6 +9,7 @@ backend/.env.*
 frontend/.env
 frontend/.env.*
 *.env
+docs/*
 
 # Python
 __pycache__/
@@ -41,8 +42,10 @@ logs/
 *.log
 npm-debug.log*
 
-# Bug tracking (local use only)
+# Bug tracking & Analysis (local use only)
 todoBug.md
+docs/planning/todoBug.md
+docs/planning/BUG*_ANALYSIS.md
 
 # Analysis & Development Notes (local use only)
 ML_INTEGRATION_ANALYSIS.md
