@@ -192,7 +192,7 @@ async def create_bot(
         duplicate_bot = db.query(Bot).filter(
             Bot.user_id == current_user.id,
             Bot.strategy == bot_data.strategy,
-            Bot.status != "STOPPED",
+            Bot.status == "RUNNING",  # Only block if actively RUNNING (not IDLE, PAUSED, ERROR)
             Bot.symbols.contains(first_symbol)  # Check if symbols JSONB contains symbol
         ).first()
         
