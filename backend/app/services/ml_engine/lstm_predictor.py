@@ -59,12 +59,14 @@ class LSTMPredictor:
             return
         
         self.model = self.keras.Sequential([
+            # Input layer (best practice for Keras)
+            self.layers.Input(shape=input_shape),
+            
             # LSTM layer 1 - 128 units
             self.layers.LSTM(
                 128,
                 activation='relu',
-                return_sequences=True,
-                input_shape=input_shape
+                return_sequences=True
             ),
             self.layers.Dropout(0.2),
             
