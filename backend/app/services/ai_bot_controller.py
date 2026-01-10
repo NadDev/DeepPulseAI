@@ -1036,9 +1036,69 @@ class AIBotController:
             "config": self.config
         }
     
-    def get_ai_bots(self) -> List[Dict[str, Any]]:
-        """Get list of AI-managed bots"""
-        return list(self.ai_bots.values())
+    def get_ai_bots(self, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get list of AI-managed bots from database for a specific user"""
+        db = self.db_session_factory()
+        try:
+            # Query bots with "AI-" prefix (created by AI Agent)
+            query = db.query(Bot).filter(Bot.name.like("AI-%"))
+            
+            # Filter by user_id if provided
+            if user_id:
+                query = query.filter(Bot.user_id == user_id)
+            
+            ai_bots = query.all()
+            
+            bots_list = []
+            for bot in ai_bots:
+                try:
+                    # Parse config
+                    config = json.loads(bot.config) if isinstance(bot.config, str) else bot.config or {}
+                    symbols = json.loads(bot.symbols) if isinstance(bot.symbols, str) else bot.symbols or []
+                    
+                    # Get bot's trades for stats
+                    all_trades = db.query(Trade).filter(Trade.bot_id == bot.id).all()
+                    open_trades = [t for t in all_trades if t.status == "OPEN"]
+                    closed_trades = [t for t in all_trades if t.status == "CLOSED"]
+                    
+                    # Calculate stats
+                    total_pnl = sum(float(t.pnl or 0) for t in closed_trades)
+                    win_count = sum(1 for t in closed_trades if float(t.pnl or 0) > 0)
+                    win_rate = (win_count / len(closed_trades) * 100) if closed_trades else 0
+                    
+                    bots_list.append({
+                        "id": str(bot.id),
+                        "bot_id": str(bot.id),
+                        "name": bot.name,
+                        "symbol": symbols[0] if symbols else "UNKNOWN",
+                        "symbols": symbols,
+                        "strategy": bot.strategy,
+                        "status": bot.status,
+                        "created_at": bot.created_at.isoformat() if bot.created_at else None,
+                        "pnl": total_pnl,
+                        "pnl_percent": 0,  # TODO: Calculate from portfolio
+                        "trades_count": len(all_trades),
+                        "open_trades": len(open_trades),
+                        "closed_trades": len(closed_trades),
+                        "win_rate": win_rate,
+                        "paper_trading": bot.paper_trading,
+                        "config": config,
+                        "in_memory": str(bot.id) in self.ai_bots  # Track if in controller memory
+                    })
+                except Exception as e:
+                    logger.error(f"❌ Error processing bot {bot.id}: {str(e)}")
+                    continue
+            
+            logger.debug(f"📊 Retrieved {len(bots_list)} AI bots from database")
+            return bots_list
+        
+        except Exception as e:
+            logger.error(f"❌ Error retrieving AI bots from database: {str(e)}")
+            # Fallback to in-memory bots
+            return list(self.ai_bots.values())
+        
+        finally:
+            db.close()
     
     async def chat(self, message: str) -> Dict[str, Any]:
         """

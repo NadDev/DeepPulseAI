@@ -610,13 +610,14 @@ async def get_decision_history(
 async def get_ai_bots(
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """Get list of AI-managed bots"""
+    """Get list of AI-managed bots for current user"""
     controller = get_controller()
     if not controller:
         raise HTTPException(status_code=503, detail="AI Bot Controller not available")
     
     try:
-        bots = controller.get_ai_bots()
+        # Pass user_id to get only user's AI bots
+        bots = controller.get_ai_bots(user_id=current_user.id)
         
         return {
             "bots": bots,
