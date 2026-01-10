@@ -669,6 +669,7 @@ Format your response as JSON:
   "confidence": <0-100>,
   "reasoning": "<cite specific indicators like 'RSI at 32 shows oversold, MACD bullish crossover, price above Ichimoku cloud'>",
   "risk_level": "LOW|MEDIUM|HIGH",
+  "suggested_strategy": "grid_trading|trend_following|mean_reversion|momentum|scalping|breakout|rsi_divergence|macd_crossover|dca",
   "target_price": <number based on Fib extensions or resistance>,
   "stop_loss": <number based on Fib retracements or support>,
   "timeframe": "1h|4h|1d",
@@ -713,8 +714,26 @@ IMPORTANT GUIDELINES:
 - Advanced Patterns (Ichimoku Cloud, Elliott Waves, Fibonacci)
 - Multi-timeframe Analysis
 - Volume Profile Analysis
+- Trading Strategy Selection
 
-Your job is to analyze market data and provide ACTIONABLE trading recommendations.
+Your job is to analyze market data and provide ACTIONABLE trading recommendations with appropriate strategy selection.
+
+AVAILABLE TRADING STRATEGIES:
+1. **grid_trading**: Best for volatile/sideways markets, creates buy/sell grid
+2. **trend_following**: Best for LOW RISK + strong trends, smooth steady gains
+3. **mean_reversion**: Best for MEDIUM RISK + price at extremes, trades reversals
+4. **momentum**: Best for HIGH RISK + strong directional moves, captures fast momentum
+5. **scalping**: Best for 5-15min timeframes, quick entry/exit for small profits
+6. **breakout**: Best for HIGH RISK + clear support/resistance breaks
+7. **rsi_divergence**: Best for catching reversals when RSI diverges from price
+8. **macd_crossover**: Best for trend confirmation with MACD signals
+9. **dca**: Best for LOW RISK + conservative accumulation over time
+
+STRATEGY SELECTION RULES:
+- For BUY signals: Pick strategy based on risk_level and signal strength
+- For HOLD/SELL: Still suggest a strategy for consistency
+- Consider the timeframe and number of aligned signals
+- Match strategy to market conditions (trending vs ranging, volatile vs stable)
 
 CRITICAL RULES:
 1. Be DECISIVE - If multiple indicators align (3+), recommend BUY or SELL with high confidence
@@ -727,6 +746,7 @@ CRITICAL RULES:
    - <2 aligned signals = HOLD recommendation
 5. Volume confirms moves - high volume = +10% confidence
 6. Multi-timeframe alignment = +10% confidence
+7. ALWAYS suggest an appropriate strategy - never omit suggested_strategy field
 
 Always respond with valid JSON only, no markdown code blocks."""
                             },

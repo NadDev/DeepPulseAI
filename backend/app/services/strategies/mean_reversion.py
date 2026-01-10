@@ -109,14 +109,27 @@ Trades pullbacks expecting price to return to the mean.
         if not all([bb_upper, bb_middle, bb_lower, rsi, current_price]):
             return 'NONE'
         
-        # BUY signal: Price at lower band and RSI oversold
-        if (current_price <= bb_lower and 
-            rsi < self.config['rsi_oversold']):
+        # Calculate band width for dynamic threshold
+        band_width = bb_upper - bb_lower
+        upper_threshold = bb_upper - (band_width * 0.1)  # 10% from upper band
+        lower_threshold = bb_lower + (band_width * 0.1)  # 10% from lower band
+        
+        # BUY signal: Price near lower band OR RSI oversold
+        # More lenient: price within 10% of band + RSI oversold = good signal
+        if current_price <= lower_threshold and rsi < self.config['rsi_oversold']:
             return 'BUY'
         
-        # SELL signal: Price at upper band and RSI overbought
-        if (current_price >= bb_upper and 
-            rsi > self.config['rsi_overbought']):
+        # Alternative BUY: Very oversold RSI (below 20) with price below middle band
+        if rsi < 20 and current_price < bb_middle:
+            return 'BUY'
+        
+        # SELL signal: Price near upper band OR RSI overbought
+        # More lenient: price within 10% of band + RSI overbought = good signal
+        if current_price >= upper_threshold and rsi > self.config['rsi_overbought']:
+            return 'SELL'
+        
+        # Alternative SELL: Very overbought RSI (above 80) with price above middle band
+        if rsi > 80 and current_price > bb_middle:
             return 'SELL'
         
         return 'NONE'

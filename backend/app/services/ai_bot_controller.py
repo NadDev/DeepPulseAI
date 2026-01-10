@@ -531,19 +531,74 @@ class AIBotController:
             db.close()
     
     def _select_strategy(self, recommendation: Dict[str, Any]) -> str:
-        """Select appropriate strategy based on AI recommendation"""
+        """
+        Select appropriate strategy based on AI recommendation
+        Uses all 9 available strategies based on market conditions
+        """
+        # Check if AI already recommended a strategy
+        if "suggested_strategy" in recommendation and recommendation["suggested_strategy"]:
+            strategy = recommendation["suggested_strategy"]
+            logger.info(f"🤖 Using AI-suggested strategy: {strategy}")
+            return strategy
+        
+        # Fallback: Automatic selection based on market conditions
         risk_level = recommendation.get("risk_level", "MEDIUM")
         timeframe = recommendation.get("timeframe", "1h")
+        signals_summary = recommendation.get("signals_summary", {})
         
-        # Strategy selection logic
-        if timeframe in ["5m", "15m"]:
+        # Count bullish and bearish signals
+        bullish_count = len(signals_summary.get("bullish", []))
+        bearish_count = len(signals_summary.get("bearish", []))
+        
+        # === STRATEGY MATRIX ===
+        # Based on: timeframe + risk_level + signal alignment
+        
+        # 5-minute scalping
+        if timeframe in ["5m"]:
             return "scalping"
-        elif risk_level == "LOW":
-            return "trend_following"
-        elif risk_level == "HIGH":
-            return "momentum"
-        else:
-            return "mean_reversion"
+        
+        # 15-minute fast entry
+        if timeframe in ["15m"]:
+            return "momentum" if risk_level == "HIGH" else "scalping"
+        
+        # Low risk = conservative strategies
+        if risk_level == "LOW":
+            if bullish_count >= 5:
+                return "trend_following"  # Smooth, steady gains
+            else:
+                return "dca"  # Dollar-cost averaging = safest
+        
+        # High risk = aggressive strategies
+        if risk_level == "HIGH":
+            if bullish_count >= 4 and bearish_count == 0:
+                return "momentum"  # Fast momentum capture
+            elif bullish_count == 3:
+                return "breakout"  # Breakout for high-conviction
+            else:
+                return "grid_trading"  # Grid for volatile markets
+        
+        # Medium risk (default) = balanced strategies
+        # Analyze the signals for medium risk
+        signal_alignment = bullish_count + bearish_count
+        
+        if signal_alignment >= 6:  # Very aligned
+            # Check if mixed signals
+            if bullish_count >= bearish_count:
+                return "grid_trading"  # Work both sides in trending
+            else:
+                return "mean_reversion"  # Reverting from extremes
+        
+        elif signal_alignment >= 4:  # Moderately aligned
+            if bullish_count > bearish_count:
+                return "macd_crossover"  # Trend confirmation
+            else:
+                return "rsi_divergence"  # Catch reversals
+        
+        elif signal_alignment >= 2:  # Weakly aligned
+            return "dca"  # Conservative accumulation
+        
+        else:  # No clear signals
+            return "trend_following"  # Follow whatever trend exists
     
     # ============================================
     # SECURITY VALIDATIONS
