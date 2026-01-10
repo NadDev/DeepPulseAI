@@ -98,6 +98,9 @@ Trades pullbacks expecting price to return to the mean.
     
     def get_signal_direction(self, market_data: Dict[str, Any]) -> str:
         """Detect mean reversion opportunities"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         indicators = market_data.get('indicators', {})
         current_price = market_data.get('close')
         
@@ -114,24 +117,35 @@ Trades pullbacks expecting price to return to the mean.
         upper_threshold = bb_upper - (band_width * 0.1)  # 10% from upper band
         lower_threshold = bb_lower + (band_width * 0.1)  # 10% from lower band
         
+        # Debug logging to understand signal generation
+        logger.debug(f"🔍 MR Analysis: Price={current_price:.2f}, RSI={rsi:.1f}")
+        logger.debug(f"🔍 MR Bands: Upper={bb_upper:.2f}, Mid={bb_middle:.2f}, Lower={bb_lower:.2f}")
+        logger.debug(f"🔍 MR Thresholds: Upper_T={upper_threshold:.2f}, Lower_T={lower_threshold:.2f}")
+        logger.debug(f"🔍 MR Config: RSI_oversold={self.config['rsi_oversold']}, RSI_overbought={self.config['rsi_overbought']}")
+        
         # BUY signal: Price near lower band OR RSI oversold
         # More lenient: price within 10% of band + RSI oversold = good signal
         if current_price <= lower_threshold and rsi < self.config['rsi_oversold']:
+            logger.debug(f"✅ MR BUY Signal: Price at lower band ({current_price:.2f} <= {lower_threshold:.2f}) + RSI oversold ({rsi:.1f} < {self.config['rsi_oversold']})")
             return 'BUY'
         
         # Alternative BUY: Very oversold RSI (below 20) with price below middle band
         if rsi < 20 and current_price < bb_middle:
+            logger.debug(f"✅ MR BUY Signal (Alt): Very oversold RSI ({rsi:.1f} < 20) + Price below middle ({current_price:.2f} < {bb_middle:.2f})")
             return 'BUY'
         
         # SELL signal: Price near upper band OR RSI overbought
         # More lenient: price within 10% of band + RSI overbought = good signal
         if current_price >= upper_threshold and rsi > self.config['rsi_overbought']:
+            logger.debug(f"✅ MR SELL Signal: Price at upper band ({current_price:.2f} >= {upper_threshold:.2f}) + RSI overbought ({rsi:.1f} > {self.config['rsi_overbought']})")
             return 'SELL'
         
         # Alternative SELL: Very overbought RSI (above 80) with price above middle band
         if rsi > 80 and current_price > bb_middle:
+            logger.debug(f"✅ MR SELL Signal (Alt): Very overbought RSI ({rsi:.1f} > 80) + Price above middle ({current_price:.2f} > {bb_middle:.2f})")
             return 'SELL'
         
+        logger.debug(f"❌ MR NONE: No conditions met")
         return 'NONE'
     
     def calculate_position_size(

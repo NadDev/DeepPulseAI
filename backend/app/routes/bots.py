@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from app.db.database import get_db
-from app.models.database_models import Bot, Trade, StrategyPerformance
+from app.models.database_models import Bot, Trade, StrategyPerformance, Portfolio
 from app.services.strategies import StrategyRegistry
 from app.services import bot_engine as bot_engine_module
 from app.auth.supabase_auth import get_current_user, get_optional_user, UserResponse
@@ -186,6 +186,22 @@ async def create_bot(
     if existing_bot:
         raise HTTPException(status_code=400, detail="Bot name already exists")
     
+    # Check for duplicate bot (same strategy + same symbol) to prevent overtrading
+    if bot_data.symbols:
+        first_symbol = bot_data.symbols[0]
+        duplicate_bot = db.query(Bot).filter(
+            Bot.user_id == current_user.id,
+            Bot.strategy == bot_data.strategy,
+            Bot.status != "STOPPED",
+            Bot.symbols.contains(first_symbol)  # Check if symbols JSONB contains symbol
+        ).first()
+        
+        if duplicate_bot:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Bot with strategy '{bot_data.strategy}' already trading {first_symbol}. Use different strategy or symbol."
+            )
+    
     # Create new bot with user_id (REQUIRED)
     new_bot = Bot(
         id=uuid.uuid4(),
@@ -299,7 +315,7 @@ async def delete_bot(
     db: Session = Depends(get_db),
     current_user: Optional[UserResponse] = Depends(get_optional_user)
 ):
-    """Delete a bot"""
+    """Delete a bot and close its open trades"""
     query = db.query(Bot).filter(Bot.id == bot_id)
     
     # Filter by user_id if authenticated
@@ -319,10 +335,51 @@ async def delete_bot(
         )
     
     bot_name = bot.name
+    
+    # === FIX Bug #7: Close open trades before deleting bot ===
+    open_trades = db.query(Trade).filter(
+        Trade.bot_id == bot_id,
+        Trade.status == "OPEN"
+    ).all()
+    
+    closed_count = 0
+    if open_trades:
+        # Get bot's user for portfolio update
+        portfolio = db.query(Portfolio).filter(
+            Portfolio.user_id == bot.user_id
+        ).first()
+        
+        for trade in open_trades:
+            # Close at entry price (neutral exit, zero PnL)
+            trade.status = "CLOSED"
+            trade.exit_price = trade.entry_price
+            trade.exit_time = datetime.utcnow()
+            trade.pnl = 0
+            trade.pnl_percent = 0
+            
+            # Restore cash balance from trade proceeds
+            if portfolio:
+                proceeds = float(trade.entry_price) * float(trade.quantity)
+                portfolio.cash_balance = float(portfolio.cash_balance) + proceeds
+            
+            closed_count += 1
+        
+        # Persist changes
+        db.add_all(open_trades)
+        if portfolio:
+            db.add(portfolio)
+        db.commit()
+        
+        logger.info(f"🔄 Closed {closed_count} orphan trades for bot {bot_name}")
+    
+    # Now delete the bot
     db.delete(bot)
     db.commit()
     
-    return {"message": f"Bot '{bot_name}' deleted successfully"}
+    return {
+        "message": f"Bot '{bot_name}' deleted successfully",
+        "closed_trades": closed_count
+    }
     open_trades = [t for t in trades if t.status == "OPEN"]
     closed_trades = [t for t in trades if t.status == "CLOSED"]
     

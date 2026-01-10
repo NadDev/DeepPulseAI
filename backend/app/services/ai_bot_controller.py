@@ -360,11 +360,21 @@ class AIBotController:
                 logger.error("🚫 BLOCKED: Attempted to create bot with leverage > 1x")
                 return
             
+            # === ENHANCEMENT: Check for duplicate bot (same strategy + symbol) ===
+            strategy = self._select_strategy(recommendation)
+            duplicate_bot = db.query(Bot).filter(
+                Bot.user_id == (self.user_id if self.user_id else self._get_ai_user_id()),
+                Bot.strategy == strategy,
+                Bot.status != "STOPPED",
+                Bot.symbols.contains(symbol)  # Check if symbols JSONB contains symbol
+            ).first()
+            
+            if duplicate_bot:
+                logger.warning(f"⚠️ BLOCKED: AI bot with strategy '{strategy}' already trading {symbol}")
+                return
+            
             # Generate unique bot name
             bot_name = f"AI-{symbol}-{datetime.utcnow().strftime('%Y%m%d%H%M')}"
-            
-            # Determine strategy based on recommendation
-            strategy = self._select_strategy(recommendation)
             
             # Build bot configuration
             config = {
@@ -426,7 +436,7 @@ class AIBotController:
             db.close()
     
     async def _close_ai_bot(self, symbol: str, recommendation: Dict[str, Any]):
-        """Close/stop a bot for a symbol"""
+        """Close/stop a bot for a symbol and close its open trades"""
         # Find AI bot for this symbol
         bot_id = None
         for bid, bot_info in self.ai_bots.items():
@@ -437,6 +447,42 @@ class AIBotController:
         if not bot_id:
             logger.info(f"ℹ️ No active AI bot found for {symbol} to close")
             return
+        
+        # === ENHANCEMENT: Close open trades before deactivating bot ===
+        db = self.db_session_factory()
+        try:
+            bot = db.query(Bot).filter(Bot.id == bot_id).first()
+            if bot:
+                open_trades = db.query(Trade).filter(
+                    Trade.bot_id == bot_id,
+                    Trade.status == "OPEN"
+                ).all()
+                
+                if open_trades:
+                    portfolio = db.query(Portfolio).filter(
+                        Portfolio.user_id == bot.user_id
+                    ).first()
+                    
+                    for trade in open_trades:
+                        # Close at entry price (neutral exit)
+                        trade.status = "CLOSED"
+                        trade.exit_price = trade.entry_price
+                        trade.exit_time = datetime.utcnow()
+                        trade.pnl = 0
+                        trade.pnl_percent = 0
+                        
+                        # Restore portfolio
+                        if portfolio:
+                            proceeds = float(trade.entry_price) * float(trade.quantity)
+                            portfolio.cash_balance = float(portfolio.cash_balance) + proceeds
+                    
+                    db.add_all(open_trades)
+                    if portfolio:
+                        db.add(portfolio)
+                    db.commit()
+                    logger.info(f"🔄 Closed {len(open_trades)} trades for AI bot {bot_id}")
+        finally:
+            db.close()
         
         # Stop the bot
         if self.bot_engine:
