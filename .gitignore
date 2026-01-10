@@ -41,6 +41,9 @@ logs/
 *.log
 npm-debug.log*
 
+# Bug tracking (local use only)
+todoBug.md
+
 # Database files
 *.db
 *.sqlite3

@@ -25,6 +25,9 @@ class LSTMPredictor:
     def __init__(self, use_tensorflow: bool = False):
         self.use_tensorflow = use_tensorflow
         self.model = None
+        self.keras = None  # Initialize as None
+        self.layers = None  # Initialize as None
+        self.tensorflow_available = False  # Initialize as False
         # Use absolute path relative to this file
         self.model_path = Path(__file__).parent / "models" / "lstm_model.keras"
         self.scaler_params = {}
@@ -185,7 +188,8 @@ class LSTMPredictor:
     
     def load_model(self, path: str = None):
         """Charge le modèle"""
-        if not self.use_tensorflow:
+        if not self.use_tensorflow or not self.tensorflow_available or self.keras is None:
+            print("[INFO] Skipping model loading - TensorFlow not available")
             return
         
         path = path or str(self.model_path)
