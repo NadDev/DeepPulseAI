@@ -44,6 +44,9 @@ npm-debug.log*
 # Bug tracking (local use only)
 todoBug.md
 
+# Analysis & Development Notes (local use only)
+ML_INTEGRATION_ANALYSIS.md
+
 # Database files
 *.db
 *.sqlite3

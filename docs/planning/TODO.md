@@ -163,6 +163,21 @@ Un agent IA connecté à DeepSeek qui analyse les marchés et gère les bots de 
 
 ---
 
+## 📅 ARCH 3: ML & AI Agent Integration
+- [ ] **Persistance des prédictions LSTM** (Phase 1) → [ML_INTEGRATION_ANALYSIS.md](../../ML_INTEGRATION_ANALYSIS.md#phase-1-immédiate)
+  - [ ] Créer table `ml_predictions` en DB
+  - [ ] Modifier `MLEngine.predict_price()` pour persister
+  - [ ] Job asyncio pour accuracy tracking
+- [ ] **Fusion AI + LSTM predictions** (Phase 2) → [ML_INTEGRATION_ANALYSIS.md](../../ML_INTEGRATION_ANALYSIS.md#phase-2-court-terme)
+  - [ ] Inclure LSTM predictions dans prompt DeepSeek
+  - [ ] Tester que LLM utilise les données
+- [ ] **Orchestration AIBotController** (Phase 3) → [ML_INTEGRATION_ANALYSIS.md](../../ML_INTEGRATION_ANALYSIS.md#phase-3-moyen-terme)
+  - [ ] Implémenter signal fusion logic
+  - [ ] Logging des divergences AI vs LSTM
+- [ ] **Frontend ML Predictions** (Phase 3)
+  - [ ] Afficher prédictions LSTM + accuracy
+  - [ ] Chart prédictions vs prix réel
+
 ## 📅 ARCH 5: Broker Integration
 - [ ] Exchange APIs (Binance, etc.)
 - [ ] Order execution layer
