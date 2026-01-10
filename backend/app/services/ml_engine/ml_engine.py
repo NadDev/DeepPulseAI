@@ -314,6 +314,13 @@ class MLEngine:
             # Cache le résultat
             self.prediction_cache[cache_key] = (datetime.utcnow(), result)
             
+            # === PHASE 1: Persister les prédictions en base de données ===
+            try:
+                await self._persist_prediction(symbol, result, current_price, patterns, lookback_days)
+            except Exception as e:
+                logger.warning(f"⚠️ Could not persist ML prediction for {symbol}: {str(e)}")
+                # Ne pas bloquer la prédiction si la persistance échoue
+            
             return result
             
         except Exception as e:
@@ -410,6 +417,69 @@ class MLEngine:
         except Exception as e:
             logger.error(f"Error optimizing strategy: {str(e)}")
             return {"status": "error", "message": str(e)}
+    
+    async def _persist_prediction(
+        self,
+        symbol: str,
+        prediction: Dict,
+        current_price: float,
+        patterns: List[str],
+        lookback_days: int
+    ) -> None:
+        """
+        Phase 1: Persist LSTM predictions to database for backtesting and accuracy measurement
+        
+        Args:
+            symbol: Cryptocurrency symbol (e.g., "BTC")
+            prediction: Prediction dict with 1h/24h/7d forecasts
+            current_price: Market price at prediction time
+            patterns: Detected chart patterns
+            lookback_days: Days of historical data used
+        """
+        try:
+            from app.models.database_models import MLPrediction
+            from app.db.database import SessionLocal
+            
+            db = SessionLocal()
+            
+            # Use a default system user ID if not in authenticated context
+            # In production, this would be passed from the API context
+            system_user_id = "00000000-0000-0000-0000-000000000001"  # Placeholder
+            
+            prediction_data = MLPrediction(
+                user_id=system_user_id,
+                symbol=symbol,
+                timestamp=datetime.utcnow(),
+                
+                # Predictions
+                pred_1h=float(prediction["predictions"]["1h"]["price"]),
+                confidence_1h=float(prediction["predictions"]["1h"]["confidence"]),
+                
+                pred_24h=float(prediction["predictions"]["24h"]["price"]),
+                confidence_24h=float(prediction["predictions"]["24h"]["confidence"]),
+                
+                pred_7d=float(prediction["predictions"]["7d"]["price"]),
+                confidence_7d=float(prediction["predictions"]["7d"]["confidence"]),
+                
+                # Context
+                current_price=current_price,
+                patterns=patterns,
+                
+                # Metadata
+                model_version="lstm-1.0.0",
+                lookback_days=lookback_days
+            )
+            
+            db.add(prediction_data)
+            db.commit()
+            db.close()
+            
+            logger.info(f"✅ Persisted LSTM prediction for {symbol}: 1h=${prediction_data.pred_1h:.2f} (±{prediction_data.confidence_1h:.1%})")
+            
+        except Exception as e:
+            logger.error(f"Error persisting prediction for {symbol}: {str(e)}")
+            # Don't raise - we don't want to break predictions if DB is unavailable
+            pass
 
 
 # Instance globale

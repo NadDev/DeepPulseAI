@@ -214,3 +214,57 @@ class WatchlistItem(Base):
     # Timestamps
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class MLPrediction(Base):
+    """
+    Stores LSTM neural network predictions for cryptocurrency prices.
+    Used for backtesting, model accuracy measurement, and signal validation.
+    Enables Phase 1 of ML integration: persistance des prédictions LSTM.
+    """
+    __tablename__ = "ml_predictions"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    user_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    symbol = Column(String(20), index=True, nullable=False)
+    timestamp = Column(DateTime, server_default=func.now(), index=True)
+    
+    # === LSTM Predictions ===
+    pred_1h = Column(Float, nullable=True)  # 1-hour ahead price prediction
+    confidence_1h = Column(Float, nullable=True)  # Confidence 0-1
+    pred_24h = Column(Float, nullable=True)  # 24-hour ahead prediction
+    confidence_24h = Column(Float, nullable=True)  # Confidence 0-1
+    pred_7d = Column(Float, nullable=True)  # 7-day ahead prediction
+    confidence_7d = Column(Float, nullable=True)  # Confidence 0-1
+    
+    # === Context at Prediction Time ===
+    current_price = Column(Float, nullable=False)  # Market price when prediction was made
+    patterns = Column(JSON, nullable=True)  # Detected chart patterns ["bullish_engulfing", ...]
+    
+    # === Actual Prices (Filled Later) ===
+    actual_price_1h = Column(Float, nullable=True)  # Actual price 1h after prediction
+    actual_price_24h = Column(Float, nullable=True)  # Actual price 24h after prediction
+    actual_price_7d = Column(Float, nullable=True)  # Actual price 7d after prediction
+    actual_filled_at_1h = Column(DateTime, nullable=True)  # When 1h actual was filled
+    actual_filled_at_24h = Column(DateTime, nullable=True)  # When 24h actual was filled
+    actual_filled_at_7d = Column(DateTime, nullable=True)  # When 7d actual was filled
+    
+    # === Accuracy Metrics (Calculated After Actual Available) ===
+    error_1h = Column(Float, nullable=True)  # (actual - predicted) / predicted * 100
+    error_24h = Column(Float, nullable=True)  # Same for 24h
+    error_7d = Column(Float, nullable=True)  # Same for 7d
+    
+    correct_direction_1h = Column(Boolean, nullable=True)  # Did price move as predicted?
+    correct_direction_24h = Column(Boolean, nullable=True)
+    correct_direction_7d = Column(Boolean, nullable=True)
+    
+    # === Metadata ===
+    model_version = Column(String(20), default="lstm-1.0.0")  # Model version used
+    lookback_days = Column(Integer, default=90)  # Days of historical data used
+    
+    # === Timestamps ===
+    created_at = Column(DateTime, server_default=func.now(), index=True)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    
+    def __repr__(self):
+        return f"<MLPrediction {self.symbol} pred_1h={self.pred_1h:.2f}±{self.confidence_1h:.2%} @ {self.timestamp}>"

@@ -200,10 +200,30 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"[ERROR] Failed to initialize AI Agent: {e}")
     
+    # === Phase 1: Start ML Accuracy Tracker ===
+    try:
+        from app.services.ml_engine.accuracy_tracker import get_accuracy_tracker
+        import asyncio
+        
+        tracker = get_accuracy_tracker()
+        # Start tracker in background
+        asyncio.create_task(tracker.start())
+        logger.info("✅ ML Accuracy Tracker started")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not start ML Accuracy Tracker: {e}")
+    
     yield
     
     # Shutdown
     logger.info("🛑 CRBot API Shutting down...")
+    
+    # Stop accuracy tracker
+    try:
+        from app.services.ml_engine.accuracy_tracker import stop_accuracy_tracker
+        stop_accuracy_tracker()
+        logger.info("[OK] ML Accuracy Tracker stopped")
+    except Exception as e:
+        logger.debug(f"Error stopping accuracy tracker: {e}")
     
     # Stop all per-user AI Agents and Controllers
     from app.services.ai_agent_manager import ai_agent_manager
