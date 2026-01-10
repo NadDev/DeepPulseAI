@@ -376,11 +376,12 @@ class AIBotController:
             
             # Only block if EXACT SAME bot exists (same strategy + symbol + ACTIVE)
             # Allow multiple strategies on same symbol (e.g., grid_trading + dca on BTCUSDT)
+            from sqlalchemy import cast, String
             duplicate_bot = db.query(Bot).filter(
                 Bot.user_id == (self.user_id if self.user_id else self._get_ai_user_id()),
                 Bot.strategy == strategy,
                 Bot.status == "RUNNING",  # Only block if actively running (not stopped/paused)
-                Bot.symbols.contains(symbol),
+                cast(Bot.symbols, String).contains(symbol),  # Search in JSONB array
                 Bot.name.like("AI-%")  # Only check AI-created bots
             ).first()
             

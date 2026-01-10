@@ -189,11 +189,13 @@ async def create_bot(
     # Check for duplicate bot (same strategy + same symbol) to prevent overtrading
     if bot_data.symbols:
         first_symbol = bot_data.symbols[0]
+        # Use cast to text for JSONB array search (PostgreSQL compatible)
+        from sqlalchemy import cast, String
         duplicate_bot = db.query(Bot).filter(
             Bot.user_id == current_user.id,
             Bot.strategy == bot_data.strategy,
             Bot.status == "RUNNING",  # Only block if actively RUNNING (not IDLE, PAUSED, ERROR)
-            Bot.symbols.contains(first_symbol)  # Check if symbols JSONB contains symbol
+            cast(Bot.symbols, String).contains(first_symbol)  # Search in JSONB array
         ).first()
         
         if duplicate_bot:
