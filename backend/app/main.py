@@ -5,6 +5,10 @@ import logging
 import asyncio
 import os
 
+# Suppress TensorFlow and CUDA verbose logging
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow info/warnings
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimization to reduce warnings
+
 # Import routes
 from app.routes import health, portfolio, crypto, bots, reports, risk, trades, translations, ml, auth, ai_agent, exchange, watchlist
 from app.config import settings
@@ -23,6 +27,7 @@ logger = logging.getLogger(__name__)
 # Reduce verbosity of httpx logs (Binance/DeepSeek API calls)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("tensorflow").setLevel(logging.ERROR)  # Suppress TensorFlow logs
 
 # Note: Tables are already created via supabase_schema.sql in production
 # Don't create tables on startup - they should exist in Supabase
