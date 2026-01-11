@@ -266,24 +266,26 @@ const TradeHistory = ({ userId, refreshTrigger }) => {
       {totalPages > 1 && (
         <div className="pagination-section">
           <div className="pagination-info">
-            Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, totalTrades)} of {totalTrades} trades
+            {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, totalTrades)} of {totalTrades}
           </div>
           
           <div className="pagination-controls">
             <button 
-              className="btn-page"
+              className="btn-page-nav"
               onClick={() => handlePageChange(1)}
               disabled={page === 1}
+              title="First"
             >
-              First
+              ⟨⟨
             </button>
             
             <button 
-              className="btn-page"
+              className="btn-page-nav"
               onClick={() => handlePageChange(page - 1)}
               disabled={page === 1}
+              title="Previous"
             >
-              Previous
+              ⟨
             </button>
             
             <div className="page-numbers">
@@ -312,20 +314,75 @@ const TradeHistory = ({ userId, refreshTrigger }) => {
             </div>
             
             <button 
-              className="btn-page"
+              className="btn-page-nav"
               onClick={() => handlePageChange(page + 1)}
               disabled={page === totalPages}
+              title="Next"
             >
-              Next
+              ⟩
             </button>
             
             <button 
-              className="btn-page"
+              className="btn-page-nav"
               onClick={() => handlePageChange(totalPages)}
               disabled={page === totalPages}
+              title="Last"
             >
-              Last
+              ⟩⟩
             </button>
+            
+            <span className="page-counter">
+              {page}/{totalPages}
+            </span>
+          </div>
+        </div>
+            
+            <div className="page-numbers">
+              {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (page <= 3) {
+                  pageNum = i + 1;
+                } else if (page >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = page - 2 + i;
+                }
+                
+                return (
+                  <button
+                    key={pageNum}
+                    className={`page-btn ${page === pageNum ? 'active' : ''}`}
+                    onClick={() => handlePageChange(pageNum)}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            
+            <button 
+              className="btn-page-nav"
+              onClick={() => handlePageChange(page + 1)}
+              disabled={page === totalPages}
+              title="Next"
+            >
+              ⟩
+            </button>
+            
+            <button 
+              className="btn-page-nav"
+              onClick={() => handlePageChange(totalPages)}
+              disabled={page === totalPages}
+              title="Last"
+            >
+              ⟩⟩
+            </button>
+            
+            <span className="page-counter">
+              {page}/{totalPages}
+            </span>
           </div>
         </div>
       )}

@@ -269,19 +269,23 @@
 
 .page-numbers {
   display: flex;
-  gap: 4px;
+  gap: 2px;
 }
 
 .page-btn {
   background: #1e293b;
   border: 1px solid #334155;
   color: #94a3b8;
-  padding: 6px 10px;
+  padding: 6px 8px;
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.85rem;
-  min-width: 32px;
+  min-width: 28px;
+  height: 32px;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .page-btn:hover {
@@ -294,6 +298,41 @@
   color: white;
   border-color: #0ea5e9;
   font-weight: 600;
+}
+
+/* New pagination navigation buttons */
+.btn-page-nav {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  min-width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-page-nav:hover:not(:disabled) {
+  background: #334155;
+  color: #0ea5e9;
+  border-color: #0ea5e9;
+}
+
+.btn-page-nav:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.page-counter {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  margin-left: 8px;
+  white-space: nowrap;
 }
 
 /* ERROR MESSAGE */
@@ -309,34 +348,143 @@
 
 /* RESPONSIVE */
 @media (max-width: 768px) {
-  .filter-row {
-    grid-template-columns: 1fr 1fr;
+  .filters-compact-group {
+    gap: 6px;
+  }
+  
+  .filter-select-compact,
+  .filter-input-compact {
+    padding: 5px 8px;
+    height: 30px;
+    font-size: 0.8rem;
+    min-width: 70px;
+  }
+  
+  .history-table {
+    font-size: 0.75rem;
+  }
+  
+  .history-table th,
+  .history-table td {
+    padding: 6px 8px;
   }
   
   .pagination-section {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .pagination-info {
+    text-align: center;
+    width: 100%;
+    font-size: 0.8rem;
   }
   
   .pagination-controls {
     width: 100%;
     justify-content: center;
+    gap: 2px;
   }
   
-  .history-table {
+  .page-btn {
+    min-width: 24px;
+    padding: 4px 6px;
+    height: 28px;
     font-size: 0.8rem;
   }
   
-  .history-table th,
-  .history-table td {
-    padding: 8px 12px;
+  .btn-page-nav {
+    min-width: 28px;
+    padding: 4px 6px;
+    height: 28px;
+    font-size: 0.8rem;
+  }
+  
+  .page-counter {
+    font-size: 0.8rem;
+    margin-left: 4px;
   }
 }
 
 @media (max-width: 480px) {
-  .filter-row {
-    grid-template-columns: 1fr;
+  .filters-compact-group {
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: center;
   }
+  
+  .filter-select-compact,
+  .filter-input-compact {
+    padding: 4px 6px;
+    height: 26px;
+    font-size: 0.75rem;
+    min-width: 50px;
+    flex: 0 0 auto;
+  }
+  
+  .btn-reset-compact {
+    width: 26px;
+    height: 26px;
+    font-size: 0.9rem;
+  }
+  
+  .history-table {
+    font-size: 0.7rem;
+  }
+  
+  .history-table th,
+  .history-table td {
+    padding: 4px 6px;
+  }
+  
+  .pagination-section {
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+  }
+  
+  .pagination-info {
+    text-align: center;
+    font-size: 0.75rem;
+  }
+  
+  .pagination-controls {
+    width: 100%;
+    justify-content: center;
+    gap: 1px;
+    flex-wrap: wrap;
+  }
+  
+  .page-numbers {
+    order: -1;
+    width: 100%;
+    justify-content: center;
+    margin-bottom: 4px;
+  }
+  
+  .page-btn {
+    min-width: 20px;
+    padding: 2px 4px;
+    height: 24px;
+    font-size: 0.7rem;
+  }
+  
+  .btn-page-nav {
+    min-width: 24px;
+    padding: 2px 4px;
+    height: 24px;
+    font-size: 0.75rem;
+  }
+  
+  .page-counter {
+    font-size: 0.75rem;
+    margin-left: 2px;
+    width: 100%;
+    text-align: center;
+    margin-top: 4px;
+  }
+}
   
   .history-table {
     font-size: 0.75rem;
