@@ -347,6 +347,83 @@ class AITradingAgent:
             logger.debug(f"Error fetching ML prediction for {symbol}: {str(e)}")
             return None
     
+    def _calculate_ml_weighted_confidence(
+        self,
+        technical_confidence: float,
+        ml_prediction: Optional[Dict[str, Any]],
+        current_price: float,
+        action: str
+    ) -> Dict[str, Any]:
+        """
+        PHASE 2: Calculate ML-weighted confidence using proper ratios
+        
+        Formula: final_confidence = (technical × 0.60) + (ml_avg × 0.30) + (alignment_bonus × 0.10)
+        
+        Args:
+            technical_confidence: Technical analysis confidence (0-100)
+            ml_prediction: ML prediction data with 1h/24h/7d forecasts
+            current_price: Current market price
+            action: Trading action (BUY, SELL, HOLD)
+        
+        Returns:
+            Dict with weighted confidence, ML component, alignment status
+        """
+        if not ml_prediction:
+            return {
+                "final_confidence": technical_confidence,
+                "technical_component": technical_confidence,
+                "ml_component": 0,
+                "alignment_bonus": 0,
+                "ml_available": False,
+                "reasoning": "No ML prediction available - using pure technical analysis"
+            }
+        
+        # Extract ML confidence scores (average of 3 timeframes)
+        conf_1h = ml_prediction.get("confidence_1h", 0)
+        conf_24h = ml_prediction.get("confidence_24h", 0)
+        conf_7d = ml_prediction.get("confidence_7d", 0)
+        ml_avg = (conf_1h + conf_24h + conf_7d) / 3
+        
+        # Determine ML direction
+        pred_7d = ml_prediction.get("pred_7d", current_price)
+        ml_direction = "BULLISH" if pred_7d > current_price * 1.01 else "BEARISH" if pred_7d < current_price * 0.99 else "NEUTRAL"
+        
+        # Determine technical direction from action
+        tech_direction = "BULLISH" if action == "BUY" else "BEARISH" if action == "SELL" else "NEUTRAL"
+        
+        # Calculate alignment bonus (0-10%)
+        alignment_bonus = 0
+        alignment_status = "divergent"
+        if ml_direction == tech_direction and tech_direction != "NEUTRAL":
+            alignment_bonus = 10  # Full 10% bonus when aligned
+            alignment_status = "aligned"
+        elif ml_direction == tech_direction:
+            alignment_bonus = 5  # 5% bonus for neutral consensus
+            alignment_status = "neutral_consensus"
+        else:
+            alignment_bonus = -5  # -5% penalty when divergent
+            alignment_status = "divergent"
+        
+        # Cap ML component at technical + 20% (ML shouldn't dominate)
+        ml_component = min(ml_avg, technical_confidence + 20)
+        
+        # Final weighted calculation: 60% technical + 30% ML + 10% alignment
+        final_confidence = (technical_confidence * 0.60) + (ml_component * 0.30) + alignment_bonus
+        final_confidence = max(0, min(100, final_confidence))  # Clamp 0-100
+        
+        return {
+            "final_confidence": round(final_confidence, 1),
+            "technical_component": round(technical_confidence * 0.60, 1),
+            "ml_component": round(ml_component * 0.30, 1),
+            "alignment_bonus": alignment_bonus,
+            "ml_available": True,
+            "ml_direction": ml_direction,
+            "technical_direction": tech_direction,
+            "alignment_status": alignment_status,
+            "ml_avg_confidence": round(ml_avg, 1),
+            "reasoning": f"Technical ({technical_confidence}% × 0.60) + ML ({ml_component}% × 0.30) + Alignment ({alignment_bonus}%) = {final_confidence}%"
+        }
+    
     async def _store_decision(self, analysis: Dict[str, Any]):
         """Store AI decision in database for tracking and learning"""
         # === CRITICAL: Only store if we have a valid user_id (per-user AI) ===
@@ -472,10 +549,25 @@ class AITradingAgent:
             analysis["symbol"] = symbol
             analysis["timestamp"] = datetime.utcnow().isoformat()
             
-            # Store in history (removed duplicate call - already stored in monitoring loop)
-            # await self._store_decision(analysis)  # This was causing the error
+            # === PHASE 2: Apply ML-weighted confidence calculation ===
+            current_price = market_data.get("close", 0) if market_data else 0
+            technical_confidence = analysis.get("confidence", 50)
             
-            logger.info(f"📊 {symbol} Analysis: {analysis['action']} (confidence: {analysis.get('confidence', 0)}%)")
+            ml_weighting = self._calculate_ml_weighted_confidence(
+                technical_confidence=technical_confidence,
+                ml_prediction=ml_prediction,
+                current_price=current_price,
+                action=analysis.get("action", "HOLD")
+            )
+            
+            # Update analysis with weighted confidence
+            if ml_weighting["ml_available"]:
+                analysis["confidence"] = ml_weighting["final_confidence"]
+                analysis["ml_weighting"] = ml_weighting
+                logger.info(f"📊 {symbol} Analysis (ML-weighted): {analysis['action']} (technical: {technical_confidence}% → final: {ml_weighting['final_confidence']}%)")
+                logger.info(f"   Components: Technical×0.60={ml_weighting['technical_component']}% + ML×0.30={ml_weighting['ml_component']}% + Alignment={ml_weighting['alignment_bonus']}%")
+            else:
+                logger.info(f"📊 {symbol} Analysis: {analysis['action']} (confidence: {analysis.get('confidence', 0)}%)")
             
             return analysis
             
@@ -798,26 +890,41 @@ IMPORTANT GUIDELINES:
 
 Your job is to analyze market data and provide ACTIONABLE trading recommendations with appropriate strategy selection.
 
-*** PHASE 2: ML INTEGRATION ***
+*** PHASE 2: ML INTEGRATION WITH PRECISE WEIGHTING ***
 You now have access to LSTM machine learning predictions alongside technical indicators.
 
-HOW TO USE ML PREDICTIONS:
-1. ML forecasts 1h, 24h, and 7d price targets with confidence scores
-2. If ML confidence > 60% AND aligns with technical signals → VERY HIGH confidence trade (85-95%)
-3. If ML forecast contradicts technical signals → More cautious (40-60% confidence)
-4. If ML is available but confidence < 60% → Use technical signals as primary decision
-5. Always mention ML forecast in your reasoning when available
+CONFIDENCE WEIGHTING SYSTEM (Numeric):
+The AI Agent uses this precise weighting formula:
+  final_confidence = (technical × 0.60) + (ml × 0.30) + (alignment_bonus × 0.10)
 
-ML SIGNAL CALCULATION:
-- If 7d ML prediction > current price + 1% and conf_7d > 60%: ML is BULLISH
-- If 7d ML prediction < current price - 1% and conf_7d > 60%: ML is BEARISH
-- Otherwise: ML is NEUTRAL
+WHERE:
+- technical: Your technical analysis confidence (0-100%)
+- ml: Average of 3 timeframe ML predictions (1h, 24h, 7d)
+- alignment_bonus: +10% if ML and technicals agree, -5% if divergent
 
-STRATEGY SELECTION RULES (Updated for ML):
-- When ML and technicals ALIGN (both bullish/bearish): Pick aggressive strategy (momentum, breakout)
-- When ML CONFIRMS technical setup: Pick trend-following or mean-reversion
-- When signals DIVERGE: Pick conservative strategy (DCA, grid_trading)
-- ML high confidence can justify position size increase
+YOUR ROLE IN THIS SYSTEM:
+1. Provide a clear TECHNICAL CONFIDENCE (0-100%) based purely on technical indicators
+   - Don't adjust for ML yet - that's the backend's job
+   - If 4+ technicals align: suggest 75-85% confidence
+   - If 3 technicals align: suggest 60-75% confidence
+   - If <2 technicals align: suggest HOLD or <50% confidence
+
+2. When providing reasoning, CITE BOTH sources:
+   - "Technical: RSI at 32 (oversold) + MACD bullish crossover (2 signals = 65%)"
+   - "ML: 7d forecast $45,200 with 72% confidence"
+   - "Combined: These signals align (both bullish) = likely 75-80% final confidence"
+
+3. Trust the backend weighting - it will:
+   - Never let ML dominate (capped at tech + 20%)
+   - Always require technical foundation (60% weight)
+   - Boost confidence when aligned, reduce when divergent
+
+IMPORTANT GUIDELINES FOR THIS SYSTEM:
+- ALWAYS provide a clear technical confidence score
+- NEVER ignore technical signals just because ML says otherwise
+- If ML confidence < 60%: Treat as informational only, prioritize technicals
+- If technicals and ML diverge: Your final confidence should be in 40-65% range (cautious)
+- If technicals and ML align: Your confidence can go to 80-95% (strong)
 
 AVAILABLE TRADING STRATEGIES:
 1. **grid_trading**: Best for volatile/sideways markets, creates buy/sell grid
