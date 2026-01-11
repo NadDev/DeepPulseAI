@@ -166,7 +166,9 @@ class AITradingAgent:
                                     decision_id = await self._store_decision(analysis)
                                     
                                     # === AUTONOMOUS MODE: Execute trade if enabled ===
+                                    logger.info(f"🤖 [DEBUG] autonomous_enabled={self.autonomous_enabled}, risk_manager={self.risk_manager is not None}, user_id={self.user_id}")
                                     if self.autonomous_enabled and self.risk_manager:
+                                        logger.info(f"🤖 [AUTONOMOUS] Executing {action} for {symbol} (conf: {confidence}%)")
                                         await self._execute_autonomous_trade(
                                             symbol=symbol,
                                             action=action,
@@ -175,6 +177,8 @@ class AITradingAgent:
                                             market_data=data,
                                             decision_id=decision_id
                                         )
+                                    else:
+                                        logger.info(f"ℹ️ [INFO] Autonomous trading not enabled for {symbol} (autonomous_enabled={self.autonomous_enabled}, has_rm={self.risk_manager is not None})")
                                 
                                 # Small delay between analyses to avoid rate limits
                                 await asyncio.sleep(2)
