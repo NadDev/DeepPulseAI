@@ -6,7 +6,7 @@
 -- Create the exchange_configs table
 CREATE TABLE IF NOT EXISTS exchange_configs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL,
     
     -- Exchange Info
     exchange VARCHAR(50) NOT NULL,

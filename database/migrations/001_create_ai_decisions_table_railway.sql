@@ -5,8 +5,8 @@
 
 CREATE TABLE IF NOT EXISTS ai_decisions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    bot_id UUID REFERENCES bots(id) ON DELETE SET NULL,
+    user_id UUID NOT NULL,
+    bot_id UUID,
     
     -- Decision Info
     symbol VARCHAR(20) NOT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS ai_decisions (
     ai_agrees BOOLEAN,
     
     -- Trade Result
-    trade_id UUID REFERENCES trades(id) ON DELETE SET NULL,
+    trade_id UUID,
     result_pnl DECIMAL(20, 8),
     result_pnl_percent DECIMAL(10, 4),
     result_status VARCHAR(20),  -- OPEN, CLOSED, CANCELLED
