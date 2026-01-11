@@ -273,3 +273,21 @@ export const cryptoAPI = {
     return response.data;
   }
 };
+
+// Generic API request function
+export const apiRequest = async (url, options = {}) => {
+  try {
+    const response = await apiClient({
+      url,
+      method: options.method || 'GET',
+      data: options.data,
+      params: options.params,
+      ...options
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`API Error on ${url}:`, error);
+    throw error;
+  }
+};
+
