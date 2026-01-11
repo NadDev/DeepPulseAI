@@ -968,7 +968,6 @@ CRITICAL RULES:
     - Technical signals strong + ML supports: 80-90%
     - Technical mixed + ML clear: 60-75%
     - Any major divergence: 40-60%
-"""
 
 Always respond with valid JSON only, no markdown code blocks."""
                             },
