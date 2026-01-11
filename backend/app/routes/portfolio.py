@@ -3,11 +3,15 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.database_models import Portfolio, Trade
 from app.services.risk_calculator import RiskCalculator
+from app.services.market_data import MarketDataCollector
 from app.auth.supabase_auth import get_current_user, get_optional_user, UserResponse
 from sqlalchemy import desc
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 from typing import Optional, List
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["portfolio"])
 
@@ -53,18 +57,38 @@ async def get_portfolio_summary(
     open_trades = trade_query.filter(Trade.status == "OPEN").all()
     closed_trades = trade_query.filter(Trade.status == "CLOSED").all()
     
-    # Calculate unrealized PnL (simplified, assuming current price is entry price for now)
-    # In a real app, we would fetch current prices here
-    unrealized_pnl = 0 
+    # Fetch current prices for open positions to calculate unrealized PnL
+    market_collector = MarketDataCollector()
+    unrealized_pnl = 0
+    positions_value = 0
     
-    # Calculate realized PnL
+    for trade in open_trades:
+        try:
+            # Get current price from market
+            ticker_data = await market_collector.get_ticker(trade.symbol)
+            current_price = float(ticker_data['close'])
+            
+            # Calculate position value at current price
+            position_value_at_current = trade.quantity * current_price
+            positions_value += position_value_at_current
+            
+            # Calculate unrealized PnL for this position
+            trade_unrealized_pnl = trade.quantity * (current_price - float(trade.entry_price))
+            unrealized_pnl += trade_unrealized_pnl
+        except Exception as e:
+            # Fallback: use entry price if current price not available
+            logger.warning(f"Could not get current price for {trade.symbol}: {str(e)}")
+            positions_value += trade.quantity * float(trade.entry_price)
+    
+    # Calculate realized PnL from closed trades
     realized_pnl = sum(t.pnl for t in closed_trades if t.pnl)
     
     # Update portfolio stats
-    portfolio.total_pnl = realized_pnl
+    # CRITICAL: Total PnL = Realized + Unrealized
+    portfolio.total_pnl = realized_pnl + unrealized_pnl
     
-    # Calculate portfolio value dynamically: cash + positions value
-    positions_value = sum(t.quantity * t.entry_price for t in open_trades)
+    # Calculate portfolio value dynamically: cash + positions at current prices
+    # This gives the TRUE portfolio value
     portfolio.total_value = portfolio.cash_balance + positions_value
     
     # Calculate win rate from closed trades
@@ -141,6 +165,8 @@ async def get_positions(
     open_trades = query.all()
     
     positions = []
+    market_collector = MarketDataCollector()
+    
     for trade in open_trades:
         # Get bot name if this trade is from a bot
         bot_name = None
@@ -149,21 +175,26 @@ async def get_positions(
             if bot:
                 bot_name = bot.name
         
-        # For now, use entry_price as current_price (would fetch from market API in production)
-        # TODO: Integrate with real market data provider (Binance API, etc.)
-        current_price = trade.entry_price
+        # Fetch actual current price from market
+        try:
+            ticker_data = await market_collector.get_ticker(trade.symbol)
+            current_price = float(ticker_data['close'])
+        except Exception as e:
+            logger.warning(f"Could not get current price for {trade.symbol}: {str(e)}")
+            # Fallback to entry price if market data unavailable
+            current_price = float(trade.entry_price)
         
-        pnl = (current_price - trade.entry_price) * trade.quantity if trade.side == "BUY" else (trade.entry_price - current_price) * trade.quantity
-        pnl_percent = (pnl / (trade.entry_price * trade.quantity)) * 100 if trade.entry_price * trade.quantity != 0 else 0
+        pnl = (current_price - float(trade.entry_price)) * float(trade.quantity) if trade.side == "BUY" else (float(trade.entry_price) - current_price) * float(trade.quantity)
+        pnl_percent = (pnl / (float(trade.entry_price) * float(trade.quantity))) * 100 if float(trade.entry_price) * float(trade.quantity) != 0 else 0
         
         positions.append({
             "id": trade.id,
             "symbol": trade.symbol,
             "side": trade.side,
-            "entry_price": trade.entry_price,
+            "entry_price": float(trade.entry_price),
             "current_price": current_price,
-            "quantity": trade.quantity,
-            "value": current_price * trade.quantity,
+            "quantity": float(trade.quantity),
+            "value": current_price * float(trade.quantity),
             "unrealized_pnl": pnl,
             "unrealized_pnl_percent": pnl_percent,
             "strategy": trade.strategy,
@@ -312,24 +343,65 @@ async def get_equity_curve(
     db: Session = Depends(get_db),
     current_user: Optional[UserResponse] = Depends(get_optional_user)
 ):
-    """Get equity curve data for last N days"""
+    """Get equity curve data for last N days (calculated from actual trades)"""
     user_id = current_user.id if current_user else "user_1"
     portfolio = db.query(Portfolio).filter(Portfolio.user_id == user_id).first()
     
     if not portfolio:
         return {"data": []}
     
-    # Generate demo data
-    import random
-    today = datetime.utcnow()
-    data = []
+    # Get all trades from the last N days
+    cutoff_date = datetime.utcnow() - timedelta(days=days)
+    all_trades = db.query(Trade).filter(
+        Trade.user_id == user_id,
+        Trade.entry_time >= cutoff_date
+    ).order_by(Trade.entry_time.asc()).all()
     
+    # Calculate equity curve by simulating portfolio value over time
+    data = []
+    running_balance = portfolio.cash_balance
+    today = datetime.utcnow()
+    
+    # Group trades by day
+    trades_by_day = {}
+    for trade in all_trades:
+        day = trade.entry_time.date()
+        if day not in trades_by_day:
+            trades_by_day[day] = {'closed': [], 'opened': []}
+        if trade.status == "CLOSED":
+            trades_by_day[day]['closed'].append(trade)
+        else:
+            trades_by_day[day]['opened'].append(trade)
+    
+    # Build equity curve day by day
     for i in range(days):
-        date = (today - timedelta(days=days-i)).strftime("%Y-%m-%d")
-        value = 100000 + random.uniform(-5000, 8000) + i * 200
+        current_date = (today - timedelta(days=days-i)).date()
+        
+        # Start with cash balance
+        daily_value = portfolio.cash_balance
+        daily_pnl = 0
+        
+        # Add realized PnL from trades closed up to this date
+        for trade in all_trades:
+            if trade.entry_time.date() <= current_date and trade.status == "CLOSED" and trade.exit_time.date() <= current_date:
+                daily_pnl += (trade.pnl or 0)
+        
+        # Add unrealized PnL from positions still open at this date
+        open_at_date = [t for t in all_trades if t.entry_time.date() <= current_date and (t.status == "OPEN" or (t.status == "CLOSED" and t.exit_time.date() > current_date))]
+        for trade in open_at_date:
+            if trade.status == "OPEN" or (trade.status == "CLOSED" and trade.exit_time.date() > current_date):
+                # This position is open at this date
+                # We would need current price at this date for exact calculation
+                # For now, use entry price (conservative estimate)
+                position_value = trade.quantity * float(trade.entry_price)
+                daily_value += position_value
+        
+        # Apply all PnL
+        daily_value = daily_value + daily_pnl
+        
         data.append({
-            "date": date,
-            "value": round(value, 2)
+            "date": current_date.strftime("%Y-%m-%d"),
+            "value": round(daily_value, 2)
         })
     
     return {"data": data, "current_value": portfolio.total_value}
