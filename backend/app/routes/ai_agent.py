@@ -913,6 +913,98 @@ async def get_autonomous_stats(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/autonomous/config")
+async def get_autonomous_config(
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Get autonomous trading configuration for user's AI Agent"""
+    user_id = str(current_user.id)
+    
+    try:
+        agent = get_user_ai_agent(user_id)
+        
+        if not agent:
+            # Return default config
+            return {
+                "autonomous_mode": False,
+                "position_size_pct": 5.0,
+                "min_confidence": 65,
+                "use_risk_manager_sl_tp": True,
+                "notifications_enabled": True
+            }
+        
+        return {
+            "autonomous_mode": agent.autonomous_mode,
+            "position_size_pct": agent.autonomous_config.get("position_size_pct", 5.0),
+            "min_confidence": agent.autonomous_config.get("min_confidence", 65),
+            "use_risk_manager_sl_tp": agent.autonomous_config.get("use_risk_manager_sl_tp", True),
+            "notifications_enabled": agent.autonomous_config.get("notifications_enabled", True)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting autonomous config: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class AutonomousConfigUpdateRequest(BaseModel):
+    """Request to update autonomous trading configuration"""
+    position_size_pct: Optional[float] = None
+    min_confidence: Optional[int] = None
+    use_risk_manager_sl_tp: Optional[bool] = None
+    notifications_enabled: Optional[bool] = None
+
+
+@router.put("/autonomous/config")
+async def update_autonomous_config(
+    request: AutonomousConfigUpdateRequest,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Update autonomous trading configuration"""
+    user_id = str(current_user.id)
+    
+    try:
+        # Get or create user's AI Agent
+        agent = get_user_ai_agent(user_id)
+        
+        if not agent:
+            from app.services.ai_agent_manager import ai_agent_manager
+            await ai_agent_manager.get_or_create_user_agent(user_id)
+            agent = get_user_ai_agent(user_id)
+        
+        if not agent:
+            raise HTTPException(
+                status_code=503, 
+                detail="Failed to initialize AI Agent for user"
+            )
+        
+        # Update config values
+        if request.position_size_pct is not None:
+            agent.autonomous_config["position_size_pct"] = request.position_size_pct
+        
+        if request.min_confidence is not None:
+            agent.autonomous_config["min_confidence"] = request.min_confidence
+        
+        if request.use_risk_manager_sl_tp is not None:
+            agent.autonomous_config["use_risk_manager_sl_tp"] = request.use_risk_manager_sl_tp
+        
+        if request.notifications_enabled is not None:
+            agent.autonomous_config["notifications_enabled"] = request.notifications_enabled
+        
+        logger.info(f"🤖 User {user_id}: Updated autonomous config: {agent.autonomous_config}")
+        
+        return {
+            "status": "success",
+            "config": agent.autonomous_config,
+            "message": "Autonomous configuration updated"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating autonomous config: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============================================
 # Database Queries for AI Decisions
 # ============================================

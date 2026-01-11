@@ -296,7 +296,7 @@ export const aiAPI = {
   toggleAutonomousMode: async (enabled) => {
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/ai/autonomous/toggle`, {
+      const response = await fetch(`${API_BASE_URL}/ai-agent/autonomous/toggle`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ enabled })
@@ -313,7 +313,7 @@ export const aiAPI = {
   getAutonomousConfig: async () => {
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/ai/autonomous/config`, { headers });
+      const response = await fetch(`${API_BASE_URL}/ai-agent/autonomous/config`, { headers });
       if (!response.ok) throw new Error('Failed to fetch autonomous config');
       return response.json();
     } catch (error) {
@@ -326,7 +326,7 @@ export const aiAPI = {
   updateAutonomousConfig: async (configUpdates) => {
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/ai/autonomous/config`, {
+      const response = await fetch(`${API_BASE_URL}/ai-agent/autonomous/config`, {
         method: 'PUT',
         headers,
         body: JSON.stringify(configUpdates)
@@ -343,7 +343,7 @@ export const aiAPI = {
   getAutonomousStats: async () => {
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/ai/autonomous/stats`, { headers });
+      const response = await fetch(`${API_BASE_URL}/ai-agent/autonomous/stats`, { headers });
       if (!response.ok) throw new Error('Failed to fetch autonomous stats');
       return response.json();
     } catch (error) {
