@@ -175,26 +175,26 @@ Follows established market trends using moving average crossovers.
         # Check stop loss
         stop_loss = self.get_stop_loss(entry_price, direction, market_data)
         if direction == 'BUY' and current_price <= stop_loss:
-            return True
+            return True, 'STOP_LOSS'
         if direction == 'SELL' and current_price >= stop_loss:
-            return True
+            return True, 'STOP_LOSS'
         
         # Check take profit
         take_profit = self.get_take_profit(entry_price, direction, market_data)
         if take_profit:
             if direction == 'BUY' and current_price >= take_profit:
-                return True
+                return True, 'TAKE_PROFIT'
             if direction == 'SELL' and current_price <= take_profit:
-                return True
+                return True, 'TAKE_PROFIT'
         
         # Check for trend reversal
         signal = self.get_signal_direction(market_data)
         if direction == 'BUY' and signal == 'SELL':
-            return True
+            return True, 'TREND_REVERSAL'
         if direction == 'SELL' and signal == 'BUY':
-            return True
+            return True, 'TREND_REVERSAL'
         
-        return False
+        return False, ''
 
 
 # Register the strategy

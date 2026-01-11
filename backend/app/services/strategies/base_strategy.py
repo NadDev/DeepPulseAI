@@ -123,17 +123,17 @@ class BaseStrategy(ABC):
         open_trade: Dict[str, Any], 
         current_price: float,
         market_data: Dict[str, Any]
-    ) -> bool:
+    ) -> tuple:
         """
         Check if an open position should be closed
-        
+
         Args:
             open_trade: Dictionary with trade info (entry_price, direction, quantity, etc.)
             current_price: Current market price
             market_data: Current market data
-        
+
         Returns:
-            bool: True if position should be closed
+            tuple: (bool, str) - (should_exit, exit_reason)
         """
         pass
     

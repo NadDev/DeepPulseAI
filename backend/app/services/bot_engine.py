@@ -532,7 +532,13 @@ class BotEngine:
                     "quantity": float(trade.quantity)
                 }
                 
-                should_exit, exit_reason = strategy.should_exit(trade_dict, current_price, market_data)
+                exit_result = strategy.should_exit(trade_dict, current_price, market_data)
+                # Handle both (bool, str) tuple and plain bool returns
+                if isinstance(exit_result, tuple):
+                    should_exit, exit_reason = exit_result
+                else:
+                    should_exit, exit_reason = exit_result, ""
+                
                 if should_exit:
                     reason = exit_reason if exit_reason else "Strategy Exit"
                     await self._close_position(db, bot_state, trade, current_price, reason)
