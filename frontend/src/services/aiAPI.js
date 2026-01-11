@@ -286,5 +286,69 @@ export const aiAPI = {
       console.error('Error toggling AI Bot Controller:', error);
       throw error;
     }
+  },
+
+  // =====================================================
+  // AUTONOMOUS TRADING MODE
+  // =====================================================
+
+  // Toggle Autonomous Mode (AI executes trades directly)
+  toggleAutonomousMode: async (enabled) => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/ai/autonomous/toggle`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ enabled })
+      });
+      if (!response.ok) throw new Error('Failed to toggle autonomous mode');
+      return response.json();
+    } catch (error) {
+      console.error('Error toggling autonomous mode:', error);
+      throw error;
+    }
+  },
+
+  // Get Autonomous Mode Configuration
+  getAutonomousConfig: async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/ai/autonomous/config`, { headers });
+      if (!response.ok) throw new Error('Failed to fetch autonomous config');
+      return response.json();
+    } catch (error) {
+      console.error('Error fetching autonomous config:', error);
+      throw error;
+    }
+  },
+
+  // Update Autonomous Mode Configuration
+  updateAutonomousConfig: async (configUpdates) => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/ai/autonomous/config`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(configUpdates)
+      });
+      if (!response.ok) throw new Error('Failed to update autonomous config');
+      return response.json();
+    } catch (error) {
+      console.error('Error updating autonomous config:', error);
+      throw error;
+    }
+  },
+
+  // Get Autonomous Trading Statistics
+  getAutonomousStats: async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/ai/autonomous/stats`, { headers });
+      if (!response.ok) throw new Error('Failed to fetch autonomous stats');
+      return response.json();
+    } catch (error) {
+      console.error('Error fetching autonomous stats:', error);
+      throw error;
+    }
   }
 };

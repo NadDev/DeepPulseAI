@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Brain, Play, Pause, Settings, TrendingUp, MessageCircle, History, Zap } from 'lucide-react';
+import { Brain, Play, Pause, Settings, TrendingUp, MessageCircle, History, Zap, AlertTriangle, Shield } from 'lucide-react';
 import { aiAPI } from '../services/aiAPI';
 import AIStatus from './AIStatus';
 import AIAnalysis from './AIAnalysis';
@@ -17,12 +17,22 @@ function AIAgent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Autonomous mode state
+  const [autonomousMode, setAutonomousMode] = useState(false);
+  const [autonomousConfig, setAutonomousConfig] = useState(null);
+  const [autonomousStats, setAutonomousStats] = useState(null);
+  const [showAutonomousModal, setShowAutonomousModal] = useState(false);
+  const [togglingAutonomous, setTogglingAutonomous] = useState(false);
 
   // Load initial data
   useEffect(() => {
     loadData();
     // Poll status every 30 seconds
-    const interval = setInterval(loadAIStatus, 30000);
+    const interval = setInterval(() => {
+      loadAIStatus();
+      loadAutonomousConfig();
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -32,13 +42,34 @@ function AIAgent() {
       setError(null);
       await Promise.all([
         loadAIStatus(),
-        loadRecommendations()
+        loadRecommendations(),
+        loadAutonomousConfig(),
+        loadAutonomousStats()
       ]);
     } catch (err) {
       setError(err.message || 'Failed to load AI Agent data');
       console.error('Error loading AI data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAutonomousConfig = async () => {
+    try {
+      const config = await aiAPI.getAutonomousConfig();
+      setAutonomousConfig(config);
+      setAutonomousMode(config.autonomous_mode || false);
+    } catch (err) {
+      console.error('Error fetching autonomous config:', err);
+    }
+  };
+
+  const loadAutonomousStats = async () => {
+    try {
+      const stats = await aiAPI.getAutonomousStats();
+      setAutonomousStats(stats);
+    } catch (err) {
+      console.error('Error fetching autonomous stats:', err);
     }
   };
 
@@ -111,6 +142,37 @@ function AIAgent() {
     }
   };
 
+  // Handle Autonomous Mode Toggle
+  const handleAutonomousToggle = async () => {
+    // If enabling, show confirmation modal first
+    if (!autonomousMode) {
+      setShowAutonomousModal(true);
+      return;
+    }
+    
+    // If disabling, do it directly
+    await confirmAutonomousToggle(false);
+  };
+
+  const confirmAutonomousToggle = async (enable) => {
+    try {
+      setTogglingAutonomous(true);
+      setShowAutonomousModal(false);
+      
+      const result = await aiAPI.toggleAutonomousMode(enable);
+      console.log('🤖 Autonomous toggle result:', result);
+      
+      setAutonomousMode(result.autonomous_mode);
+      await loadAutonomousConfig();
+      await loadAutonomousStats();
+    } catch (err) {
+      setError(err.message || 'Failed to toggle autonomous mode');
+      console.error('Error toggling autonomous mode:', err);
+    } finally {
+      setTogglingAutonomous(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="ai-agent-page">
@@ -135,6 +197,24 @@ function AIAgent() {
         </div>
 
         <div className="ai-controls">
+          {/* Autonomous Mode Toggle */}
+          <div className={`autonomous-toggle ${autonomousMode ? 'active' : ''}`}>
+            <div className="autonomous-label">
+              <Shield size={16} />
+              <span>Auto-Trade</span>
+            </div>
+            <button
+              className={`toggle-switch ${autonomousMode ? 'on' : 'off'} ${togglingAutonomous ? 'loading' : ''}`}
+              onClick={handleAutonomousToggle}
+              disabled={togglingAutonomous || !isRunning}
+              title={!isRunning ? 'Start AI Agent first' : autonomousMode ? 'Disable autonomous trading' : 'Enable autonomous trading'}
+            >
+              <span className="toggle-slider"></span>
+            </button>
+          </div>
+
+          <div className="controls-divider"></div>
+
           <button
             className={`ai-btn btn-primary ${refreshing ? 'loading' : ''}`}
             onClick={handleRefresh}
@@ -159,6 +239,24 @@ function AIAgent() {
           </button>
         </div>
       </div>
+
+      {/* Autonomous Mode Warning Banner */}
+      {autonomousMode && (
+        <div className="autonomous-banner">
+          <AlertTriangle size={20} />
+          <span>
+            <strong>Autonomous Trading Active</strong> — AI is executing trades automatically based on analysis.
+            {autonomousStats && ` ${autonomousStats.trades_executed_today || 0} trades today.`}
+          </span>
+          <button 
+            className="btn-disable"
+            onClick={() => confirmAutonomousToggle(false)}
+            disabled={togglingAutonomous}
+          >
+            Disable
+          </button>
+        </div>
+      )}
 
       {/* Status and Stats */}
       <AIStatus status={aiStatus} mode={mode} isRunning={isRunning} />
@@ -211,6 +309,57 @@ function AIAgent() {
         {activeTab === 'decisions' && <AIDecisionHistory />}
         {activeTab === 'bots' && <AIActiveBots />}
       </div>
+
+      {/* Autonomous Mode Confirmation Modal */}
+      {showAutonomousModal && (
+        <div className="modal-overlay" onClick={() => setShowAutonomousModal(false)}>
+          <div className="autonomous-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <AlertTriangle size={32} className="warning-icon" />
+              <h2>Enable Autonomous Trading?</h2>
+            </div>
+            
+            <div className="modal-content">
+              <p className="warning-text">
+                <strong>⚠️ Warning:</strong> Enabling autonomous mode will allow the AI to execute real trades 
+                automatically without manual confirmation.
+              </p>
+              
+              <div className="risk-limits">
+                <h4>Risk Limits (Active):</h4>
+                <ul>
+                  <li>Max position size: <strong>10%</strong> of portfolio</li>
+                  <li>Max open positions: <strong>15</strong></li>
+                  <li>Max daily trades: <strong>30</strong></li>
+                  <li>Min confidence required: <strong>65%</strong></li>
+                  <li>Max drawdown: <strong>20%</strong> (auto-stop)</li>
+                  <li>SL/TP: <strong>ATR-based</strong> (2x/3x ATR)</li>
+                </ul>
+              </div>
+
+              <p className="confirm-text">
+                You can disable autonomous mode at any time from this dashboard.
+              </p>
+            </div>
+            
+            <div className="modal-actions">
+              <button 
+                className="btn-cancel"
+                onClick={() => setShowAutonomousModal(false)}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn-confirm"
+                onClick={() => confirmAutonomousToggle(true)}
+                disabled={togglingAutonomous}
+              >
+                {togglingAutonomous ? 'Enabling...' : 'Enable Autonomous Mode'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

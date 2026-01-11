@@ -227,6 +227,280 @@
   animation: fadeIn 0.3s ease;
 }
 
+/* =====================================================
+   AUTONOMOUS MODE STYLES
+   ===================================================== */
+
+/* Toggle Switch Container */
+.autonomous-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 100, 100, 0.1);
+  border: 1px solid rgba(255, 100, 100, 0.3);
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.autonomous-toggle.active {
+  background: rgba(100, 255, 150, 0.1);
+  border-color: rgba(100, 255, 150, 0.3);
+}
+
+.autonomous-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.autonomous-toggle.active .autonomous-label {
+  color: #64ff96;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  width: 48px;
+  height: 26px;
+  background: rgba(255, 100, 100, 0.3);
+  border: none;
+  border-radius: 13px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.toggle-switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggle-switch.on {
+  background: linear-gradient(135deg, #64ff96 0%, #00d4aa 100%);
+}
+
+.toggle-slider {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.toggle-switch.on .toggle-slider {
+  left: 25px;
+}
+
+.toggle-switch.loading .toggle-slider {
+  animation: pulse 0.5s ease infinite alternate;
+}
+
+@keyframes pulse {
+  from { opacity: 0.5; }
+  to { opacity: 1; }
+}
+
+/* Controls Divider */
+.controls-divider {
+  width: 1px;
+  height: 30px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Autonomous Warning Banner */
+.autonomous-banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, rgba(255, 180, 0, 0.15) 0%, rgba(255, 100, 50, 0.15) 100%);
+  border: 1px solid rgba(255, 180, 0, 0.4);
+  border-radius: 10px;
+  color: #ffb400;
+  animation: bannerPulse 2s ease infinite;
+}
+
+@keyframes bannerPulse {
+  0%, 100% { border-color: rgba(255, 180, 0, 0.4); }
+  50% { border-color: rgba(255, 180, 0, 0.8); }
+}
+
+.autonomous-banner span {
+  flex: 1;
+  font-size: 0.9rem;
+}
+
+.autonomous-banner .btn-disable {
+  padding: 0.5rem 1rem;
+  background: rgba(255, 100, 100, 0.2);
+  border: 1px solid rgba(255, 100, 100, 0.5);
+  border-radius: 6px;
+  color: #ff6b6b;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.autonomous-banner .btn-disable:hover {
+  background: rgba(255, 100, 100, 0.3);
+  border-color: #ff6b6b;
+}
+
+/* Autonomous Confirmation Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.autonomous-modal {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 1px solid rgba(255, 180, 0, 0.3);
+  border-radius: 16px;
+  max-width: 480px;
+  width: 90%;
+  padding: 2rem;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.modal-header .warning-icon {
+  color: #ffb400;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: white;
+}
+
+.modal-content {
+  margin-bottom: 1.5rem;
+}
+
+.warning-text {
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+
+.warning-text strong {
+  color: #ffb400;
+}
+
+.risk-limits {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.risk-limits h4 {
+  margin: 0 0 0.75rem 0;
+  color: #64c8ff;
+  font-size: 0.95rem;
+}
+
+.risk-limits ul {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+  line-height: 1.8;
+}
+
+.risk-limits li strong {
+  color: #64ff96;
+}
+
+.confirm-text {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+  text-align: center;
+  margin: 0;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.modal-actions .btn-cancel {
+  padding: 0.75rem 1.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-actions .btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+
+.modal-actions .btn-confirm {
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ff8e53 100%);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-actions .btn-confirm:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+}
+
+.modal-actions .btn-confirm:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .ai-agent-page {
@@ -246,6 +520,18 @@
   .ai-controls {
     width: 100%;
     justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .autonomous-toggle {
+    order: -1;
+    width: 100%;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+
+  .controls-divider {
+    display: none;
   }
 
   .ai-title-section h1 {
@@ -263,5 +549,14 @@
 
   .tab-btn span {
     display: none;
+  }
+
+  .autonomous-modal {
+    padding: 1.5rem;
+    margin: 1rem;
+  }
+
+  .modal-actions {
+    flex-direction: column;
   }
 }
