@@ -100,6 +100,11 @@ class AITradingAgent:
                             data = await self._fetch_market_data(symbol)
                             
                             if data:
+                                # === PHASE 2: Fetch ML predictions for context ===
+                                ml_prediction = await self._fetch_ml_prediction(symbol)
+                                if ml_prediction:
+                                    logger.info(f"🧠 {symbol} ML Prediction: 7d price ${ml_prediction.get('pred_7d', 'N/A')} (confidence: {ml_prediction.get('confidence_7d', 0):.0%})")
+                                
                                 # Analyze with AI
                                 analysis = await self.analyze_market(
                                     symbol=symbol,
@@ -110,7 +115,8 @@ class AITradingAgent:
                                         "volume": data["volume"],
                                         "change_24h": data.get("change_24h", 0)
                                     },
-                                    indicators=data["indicators"]
+                                    indicators=data["indicators"],
+                                    ml_prediction=ml_prediction
                                 )
                                 
                                 # Log recommendation
@@ -304,6 +310,43 @@ class AITradingAgent:
             logger.error(traceback.format_exc())
             return None
     
+    
+    async def _fetch_ml_prediction(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """
+        PHASE 2: Fetch LSTM ML predictions for symbol
+        
+        Args:
+            symbol: Trading pair (e.g., BTCUSDT)
+        
+        Returns:
+            ML prediction data with 1h/24h/7d forecasts and confidence scores
+        """
+        try:
+            from app.services.ml_engine import ml_engine
+            
+            # Fetch latest LSTM prediction for symbol
+            result = await ml_engine.predict_price(symbol=symbol.upper(), lookback_days=90)
+            
+            if result.get("status") == "success":
+                predictions = result.get("predictions", {})
+                return {
+                    "pred_1h": predictions.get("1h", {}).get("price"),
+                    "confidence_1h": predictions.get("1h", {}).get("confidence", 0),
+                    "pred_24h": predictions.get("24h", {}).get("price"),
+                    "confidence_24h": predictions.get("24h", {}).get("confidence", 0),
+                    "pred_7d": predictions.get("7d", {}).get("price"),
+                    "confidence_7d": predictions.get("7d", {}).get("confidence", 0),
+                    "patterns": result.get("patterns", []),
+                    "timestamp": result.get("timestamp")
+                }
+            else:
+                logger.debug(f"ML prediction not available for {symbol}: {result.get('message', 'Unknown error')}")
+                return None
+                
+        except Exception as e:
+            logger.debug(f"Error fetching ML prediction for {symbol}: {str(e)}")
+            return None
+    
     async def _store_decision(self, analysis: Dict[str, Any]):
         """Store AI decision in database for tracking and learning"""
         # === CRITICAL: Only store if we have a valid user_id (per-user AI) ===
@@ -346,10 +389,11 @@ class AITradingAgent:
         self,
         symbol: str,
         market_data: Optional[Dict[str, Any]] = None,
-        indicators: Optional[Dict[str, Any]] = None
+        indicators: Optional[Dict[str, Any]] = None,
+        ml_prediction: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Analyze a crypto market using DeepSeek
+        Analyze a crypto market using DeepSeek with ML predictions context
         
         Args:
             symbol: Trading pair (e.g., BTCUSDT)
@@ -403,8 +447,8 @@ class AITradingAgent:
             
             logger.debug(f"🎯 {symbol} has {advanced_count}/5 advanced indicators available")
             
-            # Build analysis prompt
-            prompt = self._build_analysis_prompt(symbol, market_data, indicators)
+            # Build analysis prompt with ML predictions
+            prompt = self._build_analysis_prompt(symbol, market_data, indicators, ml_prediction)
             
             # Log first 500 chars of prompt to see what's being sent
             logger.debug(f"📝 Prompt preview (first 500 chars): {prompt[:500]}...")
@@ -481,9 +525,10 @@ class AITradingAgent:
         self,
         symbol: str,
         market_data: Dict[str, Any],
-        indicators: Dict[str, Any]
+        indicators: Dict[str, Any],
+        ml_prediction: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Build ENRICHED analysis prompt for DeepSeek with advanced technical analysis"""
+        """Build ENRICHED analysis prompt for DeepSeek with advanced technical analysis + ML predictions"""
         
         # Add safety check
         if not isinstance(market_data, dict):
@@ -616,7 +661,7 @@ class AITradingAgent:
 - Long-term (50H): {long.get('direction', 'N/A').upper() if isinstance(long.get('direction'), str) else 'N/A'} ({long.get('change_pct', 0):+.2f}%)
 - Trend Alignment: {alignment} ({'✅ All timeframes agree' if bullish_count in [0, 3] else '⚠️ Conflicting signals'})"""
 
-        # ============ OVERALL TREND ============
+        # ============ TREND ANALYSIS ============
         trend = indicators.get('trend', {})
         if not isinstance(trend, dict):
             trend = {}
@@ -624,6 +669,31 @@ class AITradingAgent:
 - Direction: {trend.get('direction', 'N/A').upper() if isinstance(trend.get('direction'), str) else 'N/A'}
 - Strength: {trend.get('strength', 'N/A')}
 - Momentum: {trend.get('momentum', 'N/A')}"""
+
+        # ============ ML LSTM PREDICTIONS (PHASE 2) ============
+        ml_section = ""
+        if ml_prediction and isinstance(ml_prediction, dict):
+            pred_1h = ml_prediction.get('pred_1h', 'N/A')
+            pred_24h = ml_prediction.get('pred_24h', 'N/A')
+            pred_7d = ml_prediction.get('pred_7d', 'N/A')
+            conf_1h = ml_prediction.get('confidence_1h', 0)
+            conf_24h = ml_prediction.get('confidence_24h', 0)
+            conf_7d = ml_prediction.get('confidence_7d', 0)
+            
+            # Calculate ML signal
+            ml_direction = "BULLISH" if pred_7d and pred_7d > current_price else "BEARISH" if pred_7d else "NEUTRAL"
+            
+            ml_section = f"""## LSTM Model Predictions (Machine Learning)
+- 1h Forecast: ${pred_1h} (confidence: {conf_1h:.0%})
+- 24h Forecast: ${pred_24h} (confidence: {conf_24h:.0%})
+- 7d Forecast: ${pred_7d} (confidence: {conf_7d:.0%})
+- ML Direction: {ml_direction} {'📈 Price target above current' if ml_direction == 'BULLISH' else '📉 Price target below current' if ml_direction == 'BEARISH' else ''}
+- ML Confidence Average: {(conf_1h + conf_24h + conf_7d) / 3:.0%}
+
+**IMPORTANT**: ML predictions provide machine learning insights from historical LSTM training.
+- Include ML forecast in your reasoning if confidence > 60%
+- Weight ML confidence alongside technical indicators
+- High alignment between ML forecast and technical signals = VERY HIGH confidence trade"""
 
         # ============ COMBINED PROMPT ============
         return f"""Analyze this crypto trading opportunity using ADVANCED technical analysis and provide a precise trading recommendation.
@@ -647,6 +717,8 @@ class AITradingAgent:
 {mtf_section}
 
 {trend_section}
+
+{ml_section}
 
 ## Your Analysis Task
 Using ALL the above technical data, provide a comprehensive analysis:
@@ -721,9 +793,31 @@ IMPORTANT GUIDELINES:
 - Advanced Patterns (Ichimoku Cloud, Elliott Waves, Fibonacci)
 - Multi-timeframe Analysis
 - Volume Profile Analysis
+- Machine Learning Integration (LSTM price predictions)
 - Trading Strategy Selection
 
 Your job is to analyze market data and provide ACTIONABLE trading recommendations with appropriate strategy selection.
+
+*** PHASE 2: ML INTEGRATION ***
+You now have access to LSTM machine learning predictions alongside technical indicators.
+
+HOW TO USE ML PREDICTIONS:
+1. ML forecasts 1h, 24h, and 7d price targets with confidence scores
+2. If ML confidence > 60% AND aligns with technical signals → VERY HIGH confidence trade (85-95%)
+3. If ML forecast contradicts technical signals → More cautious (40-60% confidence)
+4. If ML is available but confidence < 60% → Use technical signals as primary decision
+5. Always mention ML forecast in your reasoning when available
+
+ML SIGNAL CALCULATION:
+- If 7d ML prediction > current price + 1% and conf_7d > 60%: ML is BULLISH
+- If 7d ML prediction < current price - 1% and conf_7d > 60%: ML is BEARISH
+- Otherwise: ML is NEUTRAL
+
+STRATEGY SELECTION RULES (Updated for ML):
+- When ML and technicals ALIGN (both bullish/bearish): Pick aggressive strategy (momentum, breakout)
+- When ML CONFIRMS technical setup: Pick trend-following or mean-reversion
+- When signals DIVERGE: Pick conservative strategy (DCA, grid_trading)
+- ML high confidence can justify position size increase
 
 AVAILABLE TRADING STRATEGIES:
 1. **grid_trading**: Best for volatile/sideways markets, creates buy/sell grid
@@ -754,6 +848,20 @@ CRITICAL RULES:
 5. Volume confirms moves - high volume = +10% confidence
 6. Multi-timeframe alignment = +10% confidence
 7. ALWAYS suggest an appropriate strategy - never omit suggested_strategy field
+
+*** NEW: ML INTEGRATION CRITICAL RULES ***
+8. If ML prediction is available:
+   - ML confidence > 70% + aligns with technicals: +20% confidence boost
+   - ML confidence > 70% + contradicts technicals: Review carefully, cite conflict
+   - ML confidence 50-70%: Use for confirmation, not primary decision
+   - ML confidence < 50%: Largely ignore, focus on technicals
+9. Always include ML forecast in your reasoning when available
+10. When calculating final confidence, factor in ML alignment:
+    - All signals (technical + ML) aligned bullish/bearish: 85-100%
+    - Technical signals strong + ML supports: 80-90%
+    - Technical mixed + ML clear: 60-75%
+    - Any major divergence: 40-60%
+"""
 
 Always respond with valid JSON only, no markdown code blocks."""
                             },
