@@ -442,39 +442,46 @@ class MLEngine:
             
             db = SessionLocal()
             
-            # Use a default system user ID if not in authenticated context
-            # In production, this would be passed from the API context
-            system_user_id = "00000000-0000-0000-0000-000000000001"  # Placeholder
-            
-            prediction_data = MLPrediction(
-                user_id=system_user_id,
-                symbol=symbol,
-                timestamp=datetime.utcnow(),
+            try:
+                # Use a default system user ID if not in authenticated context
+                # In production, this would be passed from the API context
+                system_user_id = "00000000-0000-0000-0000-000000000001"  # Placeholder
                 
-                # Predictions
-                pred_1h=float(prediction["predictions"]["1h"]["price"]),
-                confidence_1h=float(prediction["predictions"]["1h"]["confidence"]),
+                prediction_data = MLPrediction(
+                    user_id=system_user_id,
+                    symbol=symbol,
+                    timestamp=datetime.utcnow(),
+                    
+                    # Predictions
+                    pred_1h=float(prediction["predictions"]["1h"]["price"]),
+                    confidence_1h=float(prediction["predictions"]["1h"]["confidence"]),
+                    
+                    pred_24h=float(prediction["predictions"]["24h"]["price"]),
+                    confidence_24h=float(prediction["predictions"]["24h"]["confidence"]),
+                    
+                    pred_7d=float(prediction["predictions"]["7d"]["price"]),
+                    confidence_7d=float(prediction["predictions"]["7d"]["confidence"]),
+                    
+                    # Context
+                    current_price=current_price,
+                    patterns=patterns,
+                    
+                    # Metadata
+                    model_version="lstm-1.0.0",
+                    lookback_days=lookback_days
+                )
                 
-                pred_24h=float(prediction["predictions"]["24h"]["price"]),
-                confidence_24h=float(prediction["predictions"]["24h"]["confidence"]),
+                db.add(prediction_data)
+                db.commit()
                 
-                pred_7d=float(prediction["predictions"]["7d"]["price"]),
-                confidence_7d=float(prediction["predictions"]["7d"]["confidence"]),
+                # Store values BEFORE closing session to avoid "not bound to Session" error
+                pred_1h_val = prediction_data.pred_1h
+                conf_1h_val = prediction_data.confidence_1h
                 
-                # Context
-                current_price=current_price,
-                patterns=patterns,
+                logger.info(f"✅ Persisted LSTM prediction for {symbol}: 1h=${pred_1h_val:.2f} (±{conf_1h_val:.1%})")
                 
-                # Metadata
-                model_version="lstm-1.0.0",
-                lookback_days=lookback_days
-            )
-            
-            db.add(prediction_data)
-            db.commit()
-            db.close()
-            
-            logger.info(f"✅ Persisted LSTM prediction for {symbol}: 1h=${prediction_data.pred_1h:.2f} (±{prediction_data.confidence_1h:.1%})")
+            finally:
+                db.close()
             
         except Exception as e:
             logger.error(f"Error persisting prediction for {symbol}: {str(e)}")
