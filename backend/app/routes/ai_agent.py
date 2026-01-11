@@ -934,7 +934,7 @@ async def get_autonomous_config(
             }
         
         return {
-            "autonomous_mode": agent.autonomous_mode,
+            "autonomous_mode": agent.autonomous_enabled,
             "position_size_pct": agent.autonomous_config.get("position_size_pct", 5.0),
             "min_confidence": agent.autonomous_config.get("min_confidence", 65),
             "use_risk_manager_sl_tp": agent.autonomous_config.get("use_risk_manager_sl_tp", True),

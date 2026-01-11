@@ -46,6 +46,12 @@ class AITradingAgent:
         
         # Autonomous trading configuration
         self.autonomous_enabled = False  # Toggle for autonomous trading
+        self.autonomous_config = {
+            "position_size_pct": 5.0,
+            "min_confidence": 65,
+            "use_risk_manager_sl_tp": True,
+            "notifications_enabled": True
+        }
         self.risk_manager = None  # Will be initialized if autonomous mode
         
         # Store decision history for learning
