@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.database import get_db
-from app.models.database_models import Portfolio, Trade
+from app.models.database_models import Portfolio, Trade, Bot
 from app.services.risk_calculator import RiskCalculator
 from app.services.market_data import MarketDataCollector
 from app.auth.supabase_auth import get_current_user, get_optional_user, UserResponse
@@ -57,10 +57,31 @@ async def get_portfolio_summary(
     open_trades = trade_query.filter(Trade.status == "OPEN").all()
     closed_trades = trade_query.filter(Trade.status == "CLOSED").all()
     
+    # === CRITICAL FIX ===
+    # Cash balance calculation:
+    # 1. Start with initial capital (100,000)
+    # 2. Subtract cost of ALL open positions (entry_price × quantity)
+    # 3. Add ALL realized PnL from closed trades
+    
+    # Get initial capital (should be stored, using 100k as default for now)
+    initial_capital = 100000.0
+    
+    # Calculate cost of open positions
+    cost_of_open_positions = sum(float(t.entry_price) * float(t.quantity) for t in open_trades)
+    
+    # Calculate realized PnL from closed trades
+    realized_pnl = sum(t.pnl for t in closed_trades if t.pnl)
+    
+    # RECALCULATE cash_balance correctly:
+    # cash_balance = initial_capital - cost_of_open_positions + realized_pnl
+    recalculated_cash_balance = initial_capital - cost_of_open_positions + realized_pnl
+    
+    logger.debug(f"Portfolio recalculation: initial={initial_capital}, cost_open={cost_of_open_positions:.2f}, realized_pnl={realized_pnl:.2f}, cash={recalculated_cash_balance:.2f}")
+    
     # Fetch current prices for open positions to calculate unrealized PnL
     market_collector = MarketDataCollector()
     unrealized_pnl = 0
-    positions_value = 0
+    positions_current_value = 0
     
     for trade in open_trades:
         try:
@@ -69,27 +90,25 @@ async def get_portfolio_summary(
             current_price = float(ticker_data['close'])
             
             # Calculate position value at current price
-            position_value_at_current = trade.quantity * current_price
-            positions_value += position_value_at_current
+            position_value_at_current = float(trade.quantity) * current_price
+            positions_current_value += position_value_at_current
             
             # Calculate unrealized PnL for this position
-            trade_unrealized_pnl = trade.quantity * (current_price - float(trade.entry_price))
+            trade_unrealized_pnl = float(trade.quantity) * (current_price - float(trade.entry_price))
             unrealized_pnl += trade_unrealized_pnl
         except Exception as e:
             # Fallback: use entry price if current price not available
             logger.warning(f"Could not get current price for {trade.symbol}: {str(e)}")
-            positions_value += trade.quantity * float(trade.entry_price)
-    
-    # Calculate realized PnL from closed trades
-    realized_pnl = sum(t.pnl for t in closed_trades if t.pnl)
+            positions_current_value += float(trade.quantity) * float(trade.entry_price)
     
     # Update portfolio stats
     # CRITICAL: Total PnL = Realized + Unrealized
     portfolio.total_pnl = realized_pnl + unrealized_pnl
+    portfolio.cash_balance = recalculated_cash_balance
     
-    # Calculate portfolio value dynamically: cash + positions at current prices
-    # This gives the TRUE portfolio value
-    portfolio.total_value = portfolio.cash_balance + positions_value
+    # Calculate portfolio value dynamically:
+    # total_value = cash_balance + sum(current market value of open positions)
+    portfolio.total_value = recalculated_cash_balance + positions_current_value
     
     # Calculate win rate from closed trades
     if len(closed_trades) > 0:
@@ -334,6 +353,129 @@ async def get_trades(
         "total": total,
         "offset": offset,
         "limit": limit,
+        "trades": trades_response
+    }
+
+@router.get("/portfolio/trade-history")
+async def get_trade_history(
+    db: Session = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user),
+    page: int = 1,
+    page_size: int = 10,
+    sort_by: str = "entry_time",  # entry_time, symbol, pnl, status
+    sort_order: str = "desc",  # asc, desc
+    symbol_filter: str = None,
+    status_filter: str = "CLOSED",  # CLOSED, OPEN, ALL
+    min_pnl: float = None,
+    max_pnl: float = None
+):
+    """
+    Get trade history with pagination, sorting, and filtering
+    
+    Query Parameters:
+    - page: Page number (default 1)
+    - page_size: Trades per page (default 10, max 100)
+    - sort_by: Sort field (entry_time, symbol, pnl, status)
+    - sort_order: asc or desc
+    - symbol_filter: Filter by symbol (e.g., BTCUSDT)
+    - status_filter: CLOSED, OPEN, or ALL
+    - min_pnl: Minimum PnL filter
+    - max_pnl: Maximum PnL filter
+    """
+    user_id = current_user.id
+    
+    # Validate parameters
+    page = max(1, page)
+    page_size = min(max(1, page_size), 100)  # Max 100 per page
+    sort_order = "desc" if sort_order.lower() == "desc" else "asc"
+    
+    # Build query
+    query = db.query(Trade).filter(Trade.user_id == user_id)
+    
+    # Apply status filter
+    if status_filter and status_filter.upper() != "ALL":
+        query = query.filter(Trade.status == status_filter.upper())
+    
+    # Apply symbol filter
+    if symbol_filter:
+        query = query.filter(Trade.symbol == symbol_filter.upper())
+    
+    # Apply PnL filters
+    if min_pnl is not None:
+        query = query.filter(Trade.pnl >= min_pnl)
+    if max_pnl is not None:
+        query = query.filter(Trade.pnl <= max_pnl)
+    
+    # Apply sorting
+    if sort_by == "symbol":
+        sort_column = Trade.symbol
+    elif sort_by == "pnl":
+        sort_column = Trade.pnl
+    elif sort_by == "status":
+        sort_column = Trade.status
+    else:  # Default to entry_time
+        sort_column = Trade.entry_time
+    
+    if sort_order == "desc":
+        query = query.order_by(sort_column.desc())
+    else:
+        query = query.order_by(sort_column.asc())
+    
+    # Calculate pagination
+    total_trades = query.count()
+    total_pages = (total_trades + page_size - 1) // page_size
+    
+    # Apply pagination
+    offset = (page - 1) * page_size
+    trades = query.offset(offset).limit(page_size).all()
+    
+    # Format response
+    trades_response = []
+    for trade in trades:
+        bot_name = None
+        if trade.bot_id:
+            bot = db.query(Bot).filter(Bot.id == trade.bot_id).first()
+            if bot:
+                bot_name = bot.name
+        
+        pnl_percent = (trade.pnl_percent or 0) if trade.pnl_percent is not None else 0
+        
+        trades_response.append({
+            "id": str(trade.id),
+            "symbol": trade.symbol,
+            "side": trade.side,
+            "entry_price": float(trade.entry_price),
+            "exit_price": float(trade.exit_price) if trade.exit_price else None,
+            "quantity": float(trade.quantity),
+            "pnl": float(trade.pnl) if trade.pnl else 0,
+            "pnl_percent": float(pnl_percent),
+            "status": trade.status,
+            "strategy": trade.strategy,
+            "bot_name": bot_name,
+            "entry_time": trade.entry_time.isoformat(),
+            "exit_time": trade.exit_time.isoformat() if trade.exit_time else None,
+            "duration_minutes": (trade.exit_time - trade.entry_time).total_seconds() / 60 if trade.exit_time else None
+        })
+    
+    return {
+        "pagination": {
+            "page": page,
+            "page_size": page_size,
+            "total_trades": total_trades,
+            "total_pages": total_pages,
+            "has_next": page < total_pages,
+            "has_prev": page > 1
+        },
+        "filters": {
+            "status": status_filter,
+            "symbol": symbol_filter,
+            "min_pnl": min_pnl,
+            "max_pnl": max_pnl
+        },
+        "sorting": {
+            "sort_by": sort_by,
+            "sort_order": sort_order
+        },
         "trades": trades_response
     }
 
