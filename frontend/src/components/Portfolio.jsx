@@ -9,7 +9,7 @@ import './Portfolio.css';
 function Portfolio() {
   const [summary, setSummary] = useState(null);
   const [positions, setPositions] = useState([]);
-  const [trades, setTrades] = useState([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,15 +20,15 @@ function Portfolio() {
 
   const loadData = async () => {
     try {
-      const [summaryData, positionsData, tradesData] = await Promise.all([
+      const [summaryData, positionsData] = await Promise.all([
         api.getPortfolioSummary(),
-        api.getPositions(),
-        api.getTrades(10)
+        api.getPositions()
       ]);
 
       setSummary(summaryData);
       setPositions(positionsData);
-      setTrades(tradesData.trades);
+      // Trigger TradeHistory refresh
+      setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Error loading portfolio data:', error);
     } finally {
@@ -75,7 +75,7 @@ function Portfolio() {
             positions={positions} 
             onClosePosition={handleClosePosition} 
           />
-          <TradeHistory trades={trades} />
+          <TradeHistory refreshTrigger={refreshTrigger} />
         </div>
         
         <div className="side-column">
