@@ -244,6 +244,22 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"⚠️ Could not start ML Accuracy Tracker: {e}")
     
+    # === Phase 2: Start Portfolio Sync Service (Production Mode) ===
+    try:
+        from app.services.portfolio_sync_service import get_portfolio_sync_service
+        
+        # Check if we should enable portfolio sync
+        enable_sync = os.getenv("ENABLE_PORTFOLIO_SYNC", "false").lower() == "true"
+        
+        if enable_sync:
+            sync_service = get_portfolio_sync_service()
+            asyncio.create_task(sync_service.start())
+            logger.info("✅ Portfolio Sync Service started (production mode)")
+        else:
+            logger.info("[SKIP] Portfolio Sync Service disabled (set ENABLE_PORTFOLIO_SYNC=true to enable)")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not start Portfolio Sync Service: {e}")
+    
     yield
     
     # Shutdown
@@ -256,6 +272,14 @@ async def lifespan(app: FastAPI):
         logger.info("[OK] ML Accuracy Tracker stopped")
     except Exception as e:
         logger.debug(f"Error stopping accuracy tracker: {e}")
+    
+    # Stop portfolio sync service
+    try:
+        from app.services.portfolio_sync_service import stop_portfolio_sync_service
+        stop_portfolio_sync_service()
+        logger.info("[OK] Portfolio Sync Service stopped")
+    except Exception as e:
+        logger.debug(f"Error stopping portfolio sync service: {e}")
     
     # Stop all per-user AI Agents and Controllers
     from app.services.ai_agent_manager import ai_agent_manager
