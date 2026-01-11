@@ -113,7 +113,7 @@ class RiskManager:
         Returns:
             RiskValidation with allowed status and details
         """
-        db = next(self.db_session_factory())
+        db = self.db_session_factory()
         warnings = []
         
         try:
