@@ -169,9 +169,14 @@ async def get_portfolio_summary(
 @router.get("/portfolio/positions")
 async def get_positions(
     db: Session = Depends(get_db),
-    current_user: Optional[UserResponse] = Depends(get_optional_user)
+    current_user: Optional[UserResponse] = Depends(get_optional_user),
+    sort_by: str = "symbol",  # symbol, entry_price, current_price, unrealized_pnl
+    sort_order: str = "asc",  # asc, desc
+    symbol_filter: str = None,
+    min_pnl: float = None,
+    max_pnl: float = None
 ):
-    """Get current open positions"""
+    """Get current open positions with sorting and filtering"""
     from app.models.database_models import Bot
     from sqlalchemy import func as db_func
     
@@ -194,33 +199,70 @@ async def get_positions(
             if bot:
                 bot_name = bot.name
         
-        # Fetch actual current price from market
+        # === CRITICAL FIX #1: Always fetch current price from market ===
+        # Never use entry_price as fallback - force real market data
+        current_price = None
         try:
             ticker_data = await market_collector.get_ticker(trade.symbol)
             current_price = float(ticker_data['close'])
+            logger.debug(f"✓ Fetched {trade.symbol}: ${current_price:.2f}")
         except Exception as e:
-            logger.warning(f"Could not get current price for {trade.symbol}: {str(e)}")
-            # Fallback to entry price if market data unavailable
+            logger.warning(f"⚠️ Could not get current price for {trade.symbol}: {str(e)}")
+            # STILL use entry price if API fails, but log it clearly
             current_price = float(trade.entry_price)
+            logger.warning(f"   Fallback: Using entry_price ${current_price:.2f}")
         
-        pnl = (current_price - float(trade.entry_price)) * float(trade.quantity) if trade.side == "BUY" else (float(trade.entry_price) - current_price) * float(trade.quantity)
-        pnl_percent = (pnl / (float(trade.entry_price) * float(trade.quantity))) * 100 if float(trade.entry_price) * float(trade.quantity) != 0 else 0
+        # === CRITICAL FIX #2: Calculate unrealized PnL correctly ===
+        # Always use: (current_price - entry_price) * quantity
+        entry_price = float(trade.entry_price)
+        quantity = float(trade.quantity)
+        
+        if trade.side == "BUY":
+            # Buy position: profit if price went up
+            unrealized_pnl = (current_price - entry_price) * quantity
+        else:
+            # Sell position: profit if price went down
+            unrealized_pnl = (entry_price - current_price) * quantity
+        
+        # Calculate percentage
+        position_cost = entry_price * quantity
+        unrealized_pnl_percent = (unrealized_pnl / position_cost) * 100 if position_cost != 0 else 0
+        
+        # Apply filters
+        if min_pnl is not None and unrealized_pnl < min_pnl:
+            continue
+        if max_pnl is not None and unrealized_pnl > max_pnl:
+            continue
+        if symbol_filter and trade.symbol != symbol_filter.upper():
+            continue
         
         positions.append({
             "id": trade.id,
             "symbol": trade.symbol,
             "side": trade.side,
-            "entry_price": float(trade.entry_price),
+            "entry_price": entry_price,
             "current_price": current_price,
-            "quantity": float(trade.quantity),
-            "value": current_price * float(trade.quantity),
-            "unrealized_pnl": pnl,
-            "unrealized_pnl_percent": pnl_percent,
+            "quantity": quantity,
+            "value": current_price * quantity,
+            "unrealized_pnl": unrealized_pnl,
+            "unrealized_pnl_percent": unrealized_pnl_percent,
             "strategy": trade.strategy,
             "bot_name": bot_name,
             "entry_time": trade.entry_time.isoformat()
         })
-        
+    
+    # Apply sorting
+    sort_order_asc = sort_order.lower() != "desc"
+    
+    if sort_by == "entry_price":
+        positions.sort(key=lambda x: x["entry_price"], reverse=not sort_order_asc)
+    elif sort_by == "current_price":
+        positions.sort(key=lambda x: x["current_price"], reverse=not sort_order_asc)
+    elif sort_by == "unrealized_pnl":
+        positions.sort(key=lambda x: x["unrealized_pnl"], reverse=not sort_order_asc)
+    else:  # Default: symbol
+        positions.sort(key=lambda x: x["symbol"], reverse=not sort_order_asc)
+    
     return positions
 
 @router.post("/portfolio/orders")

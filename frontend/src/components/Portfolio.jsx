@@ -3,7 +3,6 @@ import { cryptoAPI as api } from '../services/api';
 import PortfolioSummary from './PortfolioSummary';
 import ActivePositions from './ActivePositions';
 import TradeHistory from './TradeHistory';
-import OrderForm from './OrderForm';
 import './Portfolio.css';
 
 function Portfolio() {
@@ -76,10 +75,6 @@ function Portfolio() {
             onClosePosition={handleClosePosition} 
           />
           <TradeHistory refreshTrigger={refreshTrigger} />
-        </div>
-        
-        <div className="side-column">
-          <OrderForm onOrderComplete={loadData} />
         </div>
       </div>
     </div>
