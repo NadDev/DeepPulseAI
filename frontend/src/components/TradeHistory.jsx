@@ -78,13 +78,18 @@ const TradeHistory = ({ userId, refreshTrigger }) => {
   };
   
   const formatDuration = (minutes) => {
-    if (!minutes) return '-';
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
+    if (!minutes || minutes === null) return '-';
+    const totalSeconds = Math.round(minutes * 60);
+    const hours = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    
     if (hours > 0) {
-      return `${hours}h ${mins}m`;
+      return `${hours}h ${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`;
+    } else if (mins > 0) {
+      return `${mins}m ${String(secs).padStart(2, '0')}s`;
     }
-    return `${mins}m`;
+    return `${secs}s`;
   };
   
   const handleReset = () => {
@@ -116,84 +121,67 @@ const TradeHistory = ({ userId, refreshTrigger }) => {
         </div>
       </div>
       
-      {/* FILTERS SECTION */}
-      <div className="filters-section">
-        <div className="filter-row">
-          <div className="filter-group">
-            <label>Status</label>
+      {/* FILTERS SECTION - Compact Design */}
+      <div className="filters-section-compact">
+        <div className="filters-toolbar">
+          <div className="filters-compact-group">
             <select 
+              className="filter-select-compact"
               value={statusFilter} 
               onChange={(e) => {setStatusFilter(e.target.value); setPage(1);}}
+              title="Filter by status"
             >
               <option value="CLOSED">Closed</option>
               <option value="OPEN">Open</option>
               <option value="ALL">All</option>
             </select>
-          </div>
-          
-          <div className="filter-group">
-            <label>Symbol</label>
+            
             <input 
               type="text" 
-              placeholder="e.g., BTCUSDT"
+              className="filter-input-compact"
+              placeholder="Symbol"
               value={symbolFilter}
               onChange={(e) => {setSymbolFilter(e.target.value.toUpperCase()); setPage(1);}}
+              maxLength="10"
             />
-          </div>
-          
-          <div className="filter-group">
-            <label>Min PnL ($)</label>
+            
             <input 
               type="number" 
-              placeholder="Min"
+              className="filter-input-compact"
+              placeholder="Min $"
               value={minPnL}
               onChange={(e) => {setMinPnL(e.target.value); setPage(1);}}
             />
-          </div>
-          
-          <div className="filter-group">
-            <label>Max PnL ($)</label>
+            
             <input 
               type="number" 
-              placeholder="Max"
+              className="filter-input-compact"
+              placeholder="Max $"
               value={maxPnL}
               onChange={(e) => {setMaxPnL(e.target.value); setPage(1);}}
             />
-          </div>
-          
-          <button className="btn-reset" onClick={handleReset}>
-            Reset Filters
-          </button>
-        </div>
-        
-        <div className="filter-row">
-          <div className="filter-group">
-            <label>Sort By</label>
+            
             <select 
+              className="filter-select-compact"
               value={sortBy} 
-              onChange={(e) => setSortBy(e.target.value)}
+              onChange={(e) => {setSortBy(e.target.value); setPage(1);}}
             >
-              <option value="entry_time">Entry Time</option>
+              <option value="entry_time">Date</option>
               <option value="symbol">Symbol</option>
               <option value="pnl">PnL</option>
-              <option value="status">Status</option>
             </select>
-          </div>
-          
-          <div className="filter-group">
-            <label>Order</label>
+            
             <select 
+              className="filter-select-compact"
               value={sortOrder} 
               onChange={(e) => setSortOrder(e.target.value)}
             >
-              <option value="desc">Descending</option>
-              <option value="asc">Ascending</option>
+              <option value="desc">↓</option>
+              <option value="asc">↑</option>
             </select>
-          </div>
-          
-          <div className="filter-group">
-            <label>Per Page</label>
+            
             <select 
+              className="filter-select-compact"
               value={pageSize} 
               onChange={(e) => {setPageSize(parseInt(e.target.value)); setPage(1);}}
             >
@@ -202,6 +190,10 @@ const TradeHistory = ({ userId, refreshTrigger }) => {
               <option value="20">20</option>
               <option value="50">50</option>
             </select>
+            
+            <button className="btn-reset-compact" onClick={handleReset} title="Reset">
+              ✕
+            </button>
           </div>
         </div>
       </div>
@@ -223,6 +215,7 @@ const TradeHistory = ({ userId, refreshTrigger }) => {
                 <th>Exit Price</th>
                 <th>Qty</th>
                 <th>Duration</th>
+                <th>Status</th>
                 <th>PnL</th>
                 <th>PnL %</th>
                 <th>Strategy</th>
@@ -245,6 +238,11 @@ const TradeHistory = ({ userId, refreshTrigger }) => {
                   <td>{trade.exit_price ? formatCurrency(trade.exit_price) : '-'}</td>
                   <td className="qty-cell">{parseFloat(trade.quantity).toFixed(4)}</td>
                   <td className="duration-cell">{formatDuration(trade.duration_minutes)}</td>
+                  <td>
+                    <span className={`status-badge ${trade.status.toLowerCase()}`}>
+                      {trade.status}
+                    </span>
+                  </td>
                   <td>
                     <span className={trade.pnl >= 0 ? 'pnl-positive' : 'pnl-negative'}>
                       {formatCurrency(trade.pnl)}
