@@ -97,6 +97,42 @@ class MarketDataCollector:
         
         return None
     
+    async def get_ticker(self, symbol: str) -> Dict[str, Any]:
+        """
+        Get ticker data (latest candle) for a trading pair from Binance
+        
+        Args:
+            symbol: Trading pair (e.g., 'BTCUSDT')
+            
+        Returns:
+            Dictionary with {close, open, high, low, volume} or empty dict on error
+        """
+        cache_key = f"ticker_{symbol}"
+        
+        if cache_key in self.cache and self._is_cache_valid(cache_key):
+            return self.cache[cache_key]
+        
+        try:
+            # Fetch the latest 1-minute candle (most recent price)
+            candles = await self._fetch_binance_candles(symbol, "1m", 1)
+            
+            if candles:
+                candle = candles[0]
+                ticker_data = {
+                    "close": candle["close"],
+                    "open": candle["open"],
+                    "high": candle["high"],
+                    "low": candle["low"],
+                    "volume": candle["volume"],
+                }
+                self.cache[cache_key] = ticker_data
+                self.update_times[cache_key] = datetime.now()
+                return ticker_data
+        except Exception as e:
+            logger.error(f"Error fetching ticker for {symbol}: {str(e)}")
+        
+        return {}
+    
     async def get_market_data(self, symbol: str) -> Dict[str, Any]:
         """
         Get comprehensive market data for a symbol
