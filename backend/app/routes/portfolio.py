@@ -143,6 +143,16 @@ async def get_portfolio_summary(
     
     # Update max_drawdown in portfolio
     portfolio.max_drawdown = risk_metrics.get('max_drawdown_pct', 0.0)
+    
+    # === CRITICAL FIX #24: Calculate daily_pnl from trades closed TODAY ===
+    today = datetime.now().date()
+    daily_pnl = 0.0
+    for trade in closed_trades:
+        # Check if trade was closed today
+        if trade.exit_time and trade.exit_time.date() == today:
+            daily_pnl += (trade.pnl or 0)
+    portfolio.daily_pnl = daily_pnl
+    
     db.commit()
     
     return {
