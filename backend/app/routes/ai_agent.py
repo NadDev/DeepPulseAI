@@ -178,6 +178,19 @@ class ModeToggleRequest(BaseModel):
     target: Optional[str] = "controller"  # controller or engine
 
 
+class AutonomousModeRequest(BaseModel):
+    """Request to enable/disable autonomous trading mode"""
+    enabled: bool
+    
+    
+class AutonomousConfigResponse(BaseModel):
+    """Response with autonomous trading configuration"""
+    autonomous_enabled: bool
+    mode: str
+    risk_limits: Dict[str, Any]
+    ai_trade_config: Dict[str, Any]
+
+
 class StartAgentRequest(BaseModel):
     """Request to start AI Agent"""
     mode: Optional[str] = "trading"  # trading mode by default
@@ -670,6 +683,233 @@ async def configure_engine_ai(
         
     except Exception as e:
         logger.error(f"Error configuring engine: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================
+# Autonomous Trading Mode Endpoints
+# ============================================
+
+@router.get("/autonomous/status")
+async def get_autonomous_status(
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Get current autonomous trading mode status for user"""
+    user_id = str(current_user.id)
+    
+    try:
+        # Get user's AI Agent
+        agent = get_user_ai_agent(user_id)
+        
+        if not agent:
+            return {
+                "autonomous_enabled": False,
+                "mode": "not_initialized",
+                "message": "AI Agent not initialized for this user"
+            }
+        
+        # Get risk manager config if available
+        risk_config = {}
+        ai_trade_config = {}
+        
+        if agent.risk_manager:
+            risk_config = {
+                "max_position_size_pct": agent.risk_manager.limits.max_position_size_pct,
+                "max_open_positions": agent.risk_manager.limits.max_open_positions,
+                "max_daily_trades": agent.risk_manager.limits.max_daily_trades,
+                "max_drawdown_pct": agent.risk_manager.limits.max_drawdown_pct,
+                "min_cash_buffer": agent.risk_manager.limits.min_cash_buffer,
+                "min_confidence": agent.risk_manager.limits.min_confidence,
+            }
+            ai_trade_config = {
+                "position_size_pct": agent.risk_manager.ai_config.position_size_pct,
+                "sl_method": agent.risk_manager.ai_config.sl_method,
+                "sl_atr_multiplier": agent.risk_manager.ai_config.sl_atr_multiplier,
+                "sl_fixed_pct": agent.risk_manager.ai_config.sl_fixed_pct,
+                "tp_method": agent.risk_manager.ai_config.tp_method,
+                "tp_atr_multiplier": agent.risk_manager.ai_config.tp_atr_multiplier,
+                "tp_fixed_pct": agent.risk_manager.ai_config.tp_fixed_pct,
+                "min_risk_reward": agent.risk_manager.ai_config.min_risk_reward,
+            }
+        
+        return {
+            "autonomous_enabled": agent.autonomous_enabled,
+            "mode": agent.mode,
+            "risk_limits": risk_config,
+            "ai_trade_config": ai_trade_config
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting autonomous status: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/autonomous/toggle")
+async def toggle_autonomous_mode(
+    request: AutonomousModeRequest,
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Enable or disable autonomous trading mode for user's AI Agent"""
+    user_id = str(current_user.id)
+    
+    try:
+        # Get or create user's AI Agent
+        agent = get_user_ai_agent(user_id)
+        
+        if not agent:
+            # Try to initialize agent if not exists
+            from app.services.ai_agent_manager import ai_agent_manager
+            await ai_agent_manager.get_or_create_user_agent(user_id)
+            agent = get_user_ai_agent(user_id)
+        
+        if not agent:
+            raise HTTPException(
+                status_code=503, 
+                detail="Failed to initialize AI Agent for user"
+            )
+        
+        # Toggle autonomous mode
+        agent.enable_autonomous_mode(request.enabled)
+        
+        logger.info(f"🤖 User {user_id}: Autonomous mode {'ENABLED' if request.enabled else 'DISABLED'}")
+        
+        return {
+            "status": "success",
+            "autonomous_enabled": agent.autonomous_enabled,
+            "mode": agent.mode,
+            "message": f"Autonomous trading {'enabled' if request.enabled else 'disabled'}"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error toggling autonomous mode: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/autonomous/trades")
+async def get_autonomous_trades(
+    limit: int = Query(50, ge=1, le=200),
+    status: Optional[str] = Query(None, description="Filter by status: OPEN, CLOSED"),
+    db: Session = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Get trades executed by AI Agent in autonomous mode"""
+    from app.models.database_models import Trade
+    
+    try:
+        query = db.query(Trade).filter(
+            Trade.user_id == current_user.id,
+            Trade.strategy == "AI_AGENT"  # AI autonomous trades have this strategy
+        )
+        
+        if status:
+            query = query.filter(Trade.status == status.upper())
+        
+        trades = query.order_by(Trade.entry_time.desc()).limit(limit).all()
+        
+        # Calculate stats
+        total_pnl = sum(float(t.pnl or 0) for t in trades if t.status == "CLOSED")
+        winning = sum(1 for t in trades if t.status == "CLOSED" and (t.pnl or 0) > 0)
+        losing = sum(1 for t in trades if t.status == "CLOSED" and (t.pnl or 0) < 0)
+        open_count = sum(1 for t in trades if t.status == "OPEN")
+        
+        return {
+            "trades": [
+                {
+                    "id": str(t.id),
+                    "symbol": t.symbol,
+                    "side": t.side,
+                    "entry_price": float(t.entry_price) if t.entry_price else None,
+                    "exit_price": float(t.exit_price) if t.exit_price else None,
+                    "quantity": float(t.quantity) if t.quantity else None,
+                    "pnl": float(t.pnl) if t.pnl else None,
+                    "pnl_percent": float(t.pnl_percent) if t.pnl_percent else None,
+                    "status": t.status,
+                    "entry_time": t.entry_time.isoformat() if t.entry_time else None,
+                    "exit_time": t.exit_time.isoformat() if t.exit_time else None,
+                    "stop_loss": float(t.stop_loss_price) if t.stop_loss_price else None,
+                    "take_profit": float(t.take_profit_price) if t.take_profit_price else None,
+                }
+                for t in trades
+            ],
+            "stats": {
+                "total_trades": len(trades),
+                "open_positions": open_count,
+                "closed_trades": len(trades) - open_count,
+                "total_pnl": round(total_pnl, 2),
+                "winning_trades": winning,
+                "losing_trades": losing,
+                "win_rate": round(winning / (winning + losing) * 100, 1) if (winning + losing) > 0 else 0
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting autonomous trades: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/autonomous/stats")
+async def get_autonomous_stats(
+    days: int = Query(30, ge=1, le=365),
+    db: Session = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Get statistics for AI autonomous trading"""
+    from app.models.database_models import Trade, AIDecision
+    from datetime import timedelta
+    
+    try:
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        
+        # Get AI trades
+        trades = db.query(Trade).filter(
+            Trade.user_id == current_user.id,
+            Trade.strategy == "AI_AGENT",
+            Trade.entry_time >= cutoff
+        ).all()
+        
+        # Get AI decisions
+        decisions = db.query(AIDecision).filter(
+            AIDecision.user_id == current_user.id,
+            AIDecision.created_at >= cutoff
+        ).all()
+        
+        # Calculate trade stats
+        closed_trades = [t for t in trades if t.status == "CLOSED"]
+        total_pnl = sum(float(t.pnl or 0) for t in closed_trades)
+        winning = [t for t in closed_trades if (t.pnl or 0) > 0]
+        losing = [t for t in closed_trades if (t.pnl or 0) < 0]
+        
+        # Calculate decision stats
+        executed_decisions = sum(1 for d in decisions if d.executed)
+        buy_decisions = sum(1 for d in decisions if d.action == "BUY")
+        sell_decisions = sum(1 for d in decisions if d.action == "SELL")
+        
+        return {
+            "period_days": days,
+            "trades": {
+                "total": len(trades),
+                "open": sum(1 for t in trades if t.status == "OPEN"),
+                "closed": len(closed_trades),
+                "winning": len(winning),
+                "losing": len(losing),
+                "win_rate": round(len(winning) / len(closed_trades) * 100, 1) if closed_trades else 0,
+                "total_pnl": round(total_pnl, 2),
+                "avg_win": round(sum(float(t.pnl) for t in winning) / len(winning), 2) if winning else 0,
+                "avg_loss": round(sum(float(t.pnl) for t in losing) / len(losing), 2) if losing else 0,
+            },
+            "decisions": {
+                "total": len(decisions),
+                "executed": executed_decisions,
+                "execution_rate": round(executed_decisions / len(decisions) * 100, 1) if decisions else 0,
+                "buy_signals": buy_decisions,
+                "sell_signals": sell_decisions,
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting autonomous stats: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

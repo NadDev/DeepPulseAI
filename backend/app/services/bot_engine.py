@@ -12,6 +12,7 @@ from app.models.database_models import Bot, Trade, Portfolio
 from app.services.strategies import StrategyRegistry
 from app.services.market_data import MarketDataCollector
 from app.services.technical_analysis import TechnicalAnalysis
+from app.services.risk_manager import RiskManager
 import uuid
 import logging
 
@@ -38,6 +39,9 @@ class BotEngine:
         self.technical_analysis = TechnicalAnalysis()
         self._running = False
         self._task: Optional[asyncio.Task] = None
+        
+        # Risk Manager (centralized validation)
+        self.risk_manager = RiskManager(db_session_factory)
         
         # AI Agent integration
         self.ai_agent = None  # Will be set via set_ai_agent()
@@ -360,64 +364,63 @@ class BotEngine:
         market_data: Dict[str, Any],
         ai_validation: Optional[Dict[str, Any]] = None
     ):
-        """Execute a BUY trade (paper trading)"""
+        """Execute a BUY trade (paper trading) with centralized risk validation"""
+        bot_id = bot_state["bot_id"]
+        user_id = bot_state["user_id"]
+        current_price = market_data['close']
+        
+        # ================================================================
+        # 1. Validate trade with RiskManager
+        # ================================================================
+        validation = await self.risk_manager.validate_trade(
+            user_id=user_id,
+            symbol=symbol,
+            side="BUY",
+            entry_price=current_price,
+            source="BOT",
+            bot_id=bot_id,
+            market_data=market_data
+        )
+        
+        if not validation.allowed:
+            logger.info(f"⚠️ [BLOCKED] {symbol} BUY: {validation.reason}")
+            return
+        
+        # Log warnings if any
+        for warning in validation.warnings:
+            logger.warning(f"⚠️ {symbol}: {warning}")
+        
+        # ================================================================
+        # 2. Execute the trade
+        # ================================================================
         db = self.db_session_factory()
         try:
-            bot_id = bot_state["bot_id"]
-            user_id = bot_state["user_id"]
-            
-            # Check if already have open position
-            open_position = db.query(Trade).filter(
-                Trade.bot_id == bot_id,
-                Trade.symbol == symbol,
-                Trade.status == "OPEN",
-                Trade.side == "BUY"
-            ).first()
-            
-            if open_position:
-                logger.info(f"⚠️ [SKIP] Already have open BUY position for {symbol} (ID: {open_position.id})")
-                return
-            
             # Get portfolio
             portfolio = db.query(Portfolio).filter(Portfolio.user_id == user_id).first()
             if not portfolio:
                 logger.warning(f"❌ Portfolio not found for user {user_id}")
                 return
             
-            # === CRITICAL: Protect portfolio from negative balance ===
-            min_cash_buffer = 10.0  # Keep minimum $10 in portfolio
-            if float(portfolio.cash_balance) < min_cash_buffer:
-                logger.warning(f"❌ [BLOCKED] {symbol} BUY: Portfolio balance too low (${float(portfolio.cash_balance):.2f}, need min ${min_cash_buffer:.2f})")
-                return
-            
-            # Calculate position size
-            current_price = market_data['close']
+            # Calculate position size (use RiskManager's adjusted amount if available)
             stop_loss = strategy.get_stop_loss(current_price, "BUY", market_data)
-            risk_amount = float(portfolio.cash_balance) * (bot_state["risk_percent"] / 100)
-            quantity = strategy.calculate_position_size(risk_amount, current_price, stop_loss)
             
-            cost = quantity * current_price
+            if validation.adjusted_amount:
+                # Use RiskManager's calculated amount
+                cost = validation.adjusted_amount
+                quantity = cost / current_price
+            else:
+                # Fallback to strategy calculation
+                risk_amount = float(portfolio.cash_balance) * (bot_state["risk_percent"] / 100)
+                quantity = strategy.calculate_position_size(risk_amount, current_price, stop_loss)
+                cost = quantity * current_price
             
-            # Check if enough balance (paper trading)
+            # Use RiskManager's SL/TP if provided, otherwise use strategy's
+            final_stop_loss = validation.stop_loss if validation.stop_loss else stop_loss
+            take_profit = validation.take_profit if validation.take_profit else strategy.get_take_profit(current_price, "BUY", market_data)
+            
+            # Deduct from balance (paper trading)
             if bot_state["paper_trading"]:
-                # === NEW: Add 5% safety margin for slippage ===
-                safety_margin = cost * 0.05
-                total_required = cost + safety_margin
-                
-                if total_required > float(portfolio.cash_balance):
-                    logger.info(f"⚠️ [BLOCKED] {symbol} BUY: Need ${total_required:.2f} (w/ 5% margin), Have ${float(portfolio.cash_balance):.2f}")
-                    return
-                
-                # === CRITICAL: Verify cash won't go below minimum ===
-                if float(portfolio.cash_balance) - cost < min_cash_buffer:
-                    logger.warning(f"⚠️ [BLOCKED] {symbol} BUY: Would leave balance below minimum (${float(portfolio.cash_balance) - cost:.2f} < ${min_cash_buffer:.2f})")
-                    return
-                
-                # Deduct from balance
                 portfolio.cash_balance = float(portfolio.cash_balance) - cost
-            
-            # Calculate targets
-            take_profit = strategy.get_take_profit(current_price, "BUY", market_data)
             
             # Create trade
             trade = Trade(
@@ -435,12 +438,12 @@ class BotEngine:
                 entry_time=datetime.utcnow(),
                 exit_time=None,
                 strategy=bot_state["strategy"].__class__.__name__,
-                stop_loss_price=stop_loss,
+                stop_loss_price=final_stop_loss,
                 take_profit_price=take_profit
             )
             
             db.add(trade)
-            db.add(portfolio)  # Ensure portfolio changes are persisted
+            db.add(portfolio)
             
             # Update bot stats
             bot = db.query(Bot).filter(Bot.id == bot_id).first()
@@ -457,7 +460,7 @@ class BotEngine:
                 ai_info = f" | 🤖 AI: {'✓' if ai_agrees else '✗'} ({ai_confidence}%)"
             
             tp_str = f"{take_profit:.2f}" if take_profit else "N/A"
-            logger.info(f"✅ BUY {symbol} @ {current_price:.2f} | Qty: {quantity:.6f} | SL: {stop_loss:.2f} | TP: {tp_str}{ai_info}")
+            logger.info(f"✅ BUY {symbol} @ {current_price:.2f} | Qty: {quantity:.6f} | SL: {final_stop_loss:.2f} | TP: {tp_str}{ai_info}")
         finally:
             db.close()
     

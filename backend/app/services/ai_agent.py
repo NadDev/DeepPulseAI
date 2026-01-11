@@ -1,10 +1,12 @@
 """
 AI Trading Agent Service
 Integrates with DeepSeek LLM to analyze markets and make trading decisions
+Supports autonomous trading mode with centralized risk management
 """
 import asyncio
 import json
 import logging
+import uuid as uuid_module
 from typing import Dict, Any, Optional, List, Callable
 from datetime import datetime
 import httpx
@@ -32,7 +34,7 @@ class AITradingAgent:
         self.model = model
         self.base_url = "https://api.deepseek.com/chat/completions"
         self.enabled = True
-        self.mode = "observation"  # observation or trading
+        self.mode = "observation"  # observation, advisory, or autonomous
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self.db_session_factory = db_session_factory
@@ -42,9 +44,30 @@ class AITradingAgent:
         self.check_interval = 300  # 5 minutes between analyses
         self.min_confidence_to_log = 60  # Minimum confidence to store in DB
         
+        # Autonomous trading configuration
+        self.autonomous_enabled = False  # Toggle for autonomous trading
+        self.risk_manager = None  # Will be initialized if autonomous mode
+        
         # Store decision history for learning
         self.decision_history: List[Dict[str, Any]] = []
         self.max_history = 100
+    
+    def enable_autonomous_mode(self, enabled: bool = True):
+        """
+        Enable or disable autonomous trading mode
+        When enabled, AI will execute trades directly using RiskManager
+        """
+        self.autonomous_enabled = enabled
+        if enabled:
+            self.mode = "autonomous"
+            # Initialize RiskManager if not already done
+            if self.risk_manager is None and self.db_session_factory:
+                from app.services.risk_manager import RiskManager
+                self.risk_manager = RiskManager(self.db_session_factory)
+            logger.info("🤖 AI Agent: AUTONOMOUS MODE ENABLED - Will execute trades automatically")
+        else:
+            self.mode = "observation"
+            logger.info("🤖 AI Agent: Autonomous mode disabled - Observation only")
     
     async def start(self):
         """Start the AI agent monitoring loop"""
@@ -134,7 +157,18 @@ class AITradingAgent:
                                     logger.info(f"💡 {symbol}: {action} signal (confidence: {confidence}%)")
                                     
                                     # Store decision in DB
-                                    await self._store_decision(analysis)
+                                    decision_id = await self._store_decision(analysis)
+                                    
+                                    # === AUTONOMOUS MODE: Execute trade if enabled ===
+                                    if self.autonomous_enabled and self.risk_manager:
+                                        await self._execute_autonomous_trade(
+                                            symbol=symbol,
+                                            action=action,
+                                            confidence=confidence,
+                                            analysis=analysis,
+                                            market_data=data,
+                                            decision_id=decision_id
+                                        )
                                 
                                 # Small delay between analyses to avoid rate limits
                                 await asyncio.sleep(2)
@@ -424,17 +458,21 @@ class AITradingAgent:
             "reasoning": f"Technical ({technical_confidence}% × 0.60) + ML ({ml_component}% × 0.30) + Alignment ({alignment_bonus}%) = {final_confidence}%"
         }
     
-    async def _store_decision(self, analysis: Dict[str, Any]):
-        """Store AI decision in database for tracking and learning"""
+    async def _store_decision(self, analysis: Dict[str, Any]) -> Optional[str]:
+        """Store AI decision in database for tracking and learning
+        
+        Returns:
+            Decision ID if stored successfully, None otherwise
+        """
         # === CRITICAL: Only store if we have a valid user_id (per-user AI) ===
         # Check for None, string "None", empty string, etc.
         if not self.user_id or self.user_id == "None" or str(self.user_id).strip() == "":
             logger.warning(f"⚠️ Skipping decision storage - user_id missing or invalid (got: {repr(self.user_id)})")
-            return
+            return None
             
         if not self.db_session_factory:
             logger.debug(f"Skipping decision storage - no DB connection")
-            return
+            return None
             
         try:
             from app.models.database_models import AIDecision
@@ -451,16 +489,272 @@ class AITradingAgent:
                     target_price=analysis.get("target_price"),
                     stop_loss=analysis.get("stop_loss"),
                     mode=self.mode,
-                    executed=False  # Observation mode doesn't execute
+                    executed=False  # Will be updated if autonomous trade executes
                 )
                 db.add(decision)
                 db.commit()
-                logger.debug(f"📝 Stored AI decision for {analysis.get('symbol')} (user_id={self.user_id})")
+                decision_id = str(decision.id)
+                logger.debug(f"📝 Stored AI decision {decision_id} for {analysis.get('symbol')} (user_id={self.user_id})")
+                return decision_id
             finally:
                 db.close()
                 
         except Exception as e:
             logger.error(f"Error storing AI decision: {str(e)}")
+            return None
+
+    async def _execute_autonomous_trade(
+        self,
+        symbol: str,
+        action: str,
+        confidence: int,
+        analysis: Dict[str, Any],
+        market_data: Dict[str, Any],
+        decision_id: Optional[str] = None
+    ):
+        """
+        Execute an autonomous trade based on AI decision
+        Uses RiskManager for validation and creates trade directly
+        """
+        from uuid import UUID
+        
+        if not self.risk_manager:
+            logger.warning("❌ Cannot execute autonomous trade - RiskManager not initialized")
+            return
+        
+        if not self.user_id:
+            logger.warning("❌ Cannot execute autonomous trade - user_id missing")
+            return
+        
+        current_price = market_data.get("close", 0)
+        if not current_price:
+            logger.warning(f"❌ Cannot execute {action} for {symbol} - no price data")
+            return
+        
+        logger.info(f"🤖 [AUTONOMOUS] Attempting {action} on {symbol} (confidence: {confidence}%)")
+        
+        try:
+            # Validate trade with RiskManager
+            validation = await self.risk_manager.validate_trade(
+                user_id=UUID(self.user_id),
+                symbol=symbol,
+                side=action,
+                entry_price=current_price,
+                source="AI_AGENT",
+                confidence=confidence,
+                market_data=market_data
+            )
+            
+            if not validation.allowed:
+                logger.info(f"⚠️ [AUTONOMOUS] {symbol} {action} BLOCKED: {validation.reason}")
+                # Update decision status in DB
+                await self._update_decision_status(decision_id, "BLOCKED", validation.reason)
+                return
+            
+            # Log warnings
+            for warning in validation.warnings:
+                logger.warning(f"⚠️ [AUTONOMOUS] {symbol}: {warning}")
+            
+            # Execute the trade
+            if action == "BUY":
+                trade_id = await self._create_ai_trade(
+                    symbol=symbol,
+                    side="BUY",
+                    entry_price=current_price,
+                    stop_loss=validation.stop_loss,
+                    take_profit=validation.take_profit,
+                    position_amount=validation.adjusted_amount,
+                    confidence=confidence,
+                    reasoning=analysis.get("reasoning", "AI Autonomous Trade")
+                )
+                
+                if trade_id:
+                    logger.info(f"✅ [AUTONOMOUS] BUY {symbol} @ ${current_price:.2f} | Trade ID: {trade_id}")
+                    await self._update_decision_status(decision_id, "EXECUTED", trade_id=trade_id)
+                else:
+                    await self._update_decision_status(decision_id, "FAILED", "Trade creation failed")
+                    
+            elif action == "SELL":
+                # For SELL, we need to close an existing AI position
+                closed = await self._close_ai_position(symbol, current_price, confidence)
+                if closed:
+                    logger.info(f"✅ [AUTONOMOUS] SELL {symbol} @ ${current_price:.2f}")
+                    await self._update_decision_status(decision_id, "EXECUTED")
+                else:
+                    logger.info(f"⚠️ [AUTONOMOUS] No open AI position to SELL for {symbol}")
+                    await self._update_decision_status(decision_id, "SKIPPED", "No open position")
+                    
+        except Exception as e:
+            logger.error(f"❌ [AUTONOMOUS] Error executing {action} on {symbol}: {str(e)}")
+            await self._update_decision_status(decision_id, "FAILED", str(e))
+
+    async def _create_ai_trade(
+        self,
+        symbol: str,
+        side: str,
+        entry_price: float,
+        stop_loss: Optional[float],
+        take_profit: Optional[float],
+        position_amount: Optional[float],
+        confidence: int,
+        reasoning: str
+    ) -> Optional[str]:
+        """Create a trade initiated by AI Agent"""
+        if not self.db_session_factory or not self.user_id:
+            return None
+        
+        from app.models.database_models import Trade, Portfolio
+        from uuid import UUID
+        
+        db = self.db_session_factory()
+        try:
+            # Get portfolio
+            portfolio = db.query(Portfolio).filter(
+                Portfolio.user_id == UUID(self.user_id)
+            ).first()
+            
+            if not portfolio:
+                logger.warning(f"❌ Portfolio not found for user {self.user_id}")
+                return None
+            
+            # Calculate quantity
+            cost = position_amount if position_amount else float(portfolio.cash_balance) * 0.05
+            quantity = cost / entry_price
+            
+            # Deduct from cash balance
+            portfolio.cash_balance = float(portfolio.cash_balance) - cost
+            
+            # Create trade
+            trade = Trade(
+                id=uuid_module.uuid4(),
+                user_id=UUID(self.user_id),
+                bot_id=None,  # AI Agent trades have no bot_id
+                symbol=symbol,
+                side=side,
+                entry_price=entry_price,
+                exit_price=None,
+                quantity=quantity,
+                pnl=None,
+                pnl_percent=None,
+                status="OPEN",
+                entry_time=datetime.utcnow(),
+                exit_time=None,
+                strategy="AI_AGENT",  # Mark as AI trade
+                stop_loss_price=stop_loss,
+                take_profit_price=take_profit
+            )
+            
+            db.add(trade)
+            db.add(portfolio)
+            db.commit()
+            
+            trade_id = str(trade.id)
+            logger.info(f"🤖 Created AI trade: {symbol} {side} @ ${entry_price:.2f} | Qty: {quantity:.6f} | Cost: ${cost:.2f}")
+            return trade_id
+            
+        except Exception as e:
+            logger.error(f"Error creating AI trade: {str(e)}")
+            db.rollback()
+            return None
+        finally:
+            db.close()
+
+    async def _close_ai_position(self, symbol: str, exit_price: float, confidence: int) -> bool:
+        """Close an open AI Agent position"""
+        if not self.db_session_factory or not self.user_id:
+            return False
+        
+        from app.models.database_models import Trade, Portfolio
+        from uuid import UUID
+        
+        db = self.db_session_factory()
+        try:
+            # Find open AI position (bot_id is None and strategy is AI_AGENT)
+            open_trade = db.query(Trade).filter(
+                Trade.user_id == UUID(self.user_id),
+                Trade.symbol == symbol,
+                Trade.status == "OPEN",
+                Trade.strategy == "AI_AGENT"
+            ).first()
+            
+            if not open_trade:
+                return False
+            
+            # Calculate PnL
+            entry_price = float(open_trade.entry_price)
+            quantity = float(open_trade.quantity)
+            
+            if open_trade.side == "BUY":
+                pnl = (exit_price - entry_price) * quantity
+            else:
+                pnl = (entry_price - exit_price) * quantity
+            
+            pnl_percent = (pnl / (entry_price * quantity)) * 100
+            
+            # Update trade
+            open_trade.exit_price = exit_price
+            open_trade.exit_time = datetime.utcnow()
+            open_trade.status = "CLOSED"
+            open_trade.pnl = pnl
+            open_trade.pnl_percent = pnl_percent
+            
+            # Return funds to portfolio
+            portfolio = db.query(Portfolio).filter(
+                Portfolio.user_id == UUID(self.user_id)
+            ).first()
+            
+            if portfolio:
+                # Return original cost + PnL
+                original_cost = entry_price * quantity
+                portfolio.cash_balance = float(portfolio.cash_balance) + original_cost + pnl
+            
+            db.commit()
+            
+            pnl_emoji = "🟢" if pnl >= 0 else "🔴"
+            logger.info(f"🤖 Closed AI position: {symbol} @ ${exit_price:.2f} | PnL: {pnl_emoji} ${pnl:.2f} ({pnl_percent:.2f}%)")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error closing AI position: {str(e)}")
+            db.rollback()
+            return False
+        finally:
+            db.close()
+
+    async def _update_decision_status(
+        self,
+        decision_id: Optional[str],
+        status: str,
+        reason: str = None,
+        trade_id: str = None
+    ):
+        """Update AI decision status in database"""
+        if not decision_id or not self.db_session_factory:
+            return
+        
+        try:
+            from app.models.database_models import AIDecision
+            from uuid import UUID
+            
+            db = self.db_session_factory()
+            try:
+                decision = db.query(AIDecision).filter(
+                    AIDecision.id == UUID(decision_id)
+                ).first()
+                
+                if decision:
+                    decision.executed = (status == "EXECUTED")
+                    # Store status info in reasoning if needed
+                    if reason:
+                        decision.reasoning = f"{decision.reasoning} | Status: {status} - {reason}"
+                    
+                    db.commit()
+                    logger.debug(f"📝 Updated decision {decision_id}: {status}")
+            finally:
+                db.close()
+                
+        except Exception as e:
+            logger.error(f"Error updating decision status: {str(e)}")
 
     async def analyze_market(
         self,
