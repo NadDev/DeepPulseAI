@@ -365,6 +365,8 @@ class BotEngine:
         ai_validation: Optional[Dict[str, Any]] = None
     ):
         """Execute a BUY trade (paper trading) with centralized risk validation"""
+        ABSOLUTE_MAX_POSITION_PCT = 0.25  # 25% max
+        
         bot_id = bot_state["bot_id"]
         user_id = bot_state["user_id"]
         current_price = market_data['close']
@@ -414,6 +416,19 @@ class BotEngine:
                 quantity = strategy.calculate_position_size(risk_amount, current_price, stop_loss)
                 cost = quantity * current_price
             
+            # ================================================================
+            # CRITICAL: Position Size Enforcement (FIX #3 & #4)
+            # ================================================================
+            portfolio_value = float(portfolio.total_value) if portfolio.total_value else float(portfolio.cash_balance)
+            max_position_cost = portfolio_value * ABSOLUTE_MAX_POSITION_PCT
+            
+            if cost > max_position_cost:
+                logger.warning(f"⚠️ [POS-LIMIT] Cost ${cost:.2f} exceeds max ${max_position_cost:.2f}, clamping")
+                cost = max_position_cost
+                quantity = cost / current_price
+            
+            old_balance = float(portfolio.cash_balance)
+            
             # Use RiskManager's SL/TP if provided, otherwise use strategy's
             final_stop_loss = validation.stop_loss if validation.stop_loss else stop_loss
             take_profit = validation.take_profit if validation.take_profit else strategy.get_take_profit(current_price, "BUY", market_data)
@@ -421,6 +436,8 @@ class BotEngine:
             # Deduct from balance (paper trading)
             if bot_state["paper_trading"]:
                 portfolio.cash_balance = float(portfolio.cash_balance) - cost
+            
+            new_balance = float(portfolio.cash_balance)
             
             # Create trade
             trade = Trade(
@@ -451,16 +468,29 @@ class BotEngine:
                 bot.total_trades = (bot.total_trades or 0) + 1
             
             db.commit()
+            trade_id = str(trade.id)
             
-            # Log with AI info if available
-            ai_info = ""
+            # ================================================================
+            # Comprehensive Logging (FIX #5)
+            # ================================================================
+            sl_pct = ((float(final_stop_loss) - current_price) / current_price) * 100 if final_stop_loss else 0
+            tp_pct = ((take_profit - current_price) / current_price) * 100 if take_profit else 0
+            
+            ai_result = "N/A"
             if ai_validation:
                 ai_confidence = ai_validation.get("confidence", 0)
                 ai_agrees = ai_validation.get("ai_agrees", False)
-                ai_info = f" | 🤖 AI: {'✓' if ai_agrees else '✗'} ({ai_confidence}%)"
+                ai_result = f"{'✓' if ai_agrees else '✗'} ({ai_confidence}%)"
             
-            tp_str = f"{take_profit:.2f}" if take_profit else "N/A"
-            logger.info(f"✅ BUY {symbol} @ {current_price:.2f} | Qty: {quantity:.6f} | SL: {final_stop_loss:.2f} | TP: {tp_str}{ai_info}")
+            logger.info(f"✅ [BUY-EXEC] {bot_state['name']} | {symbol}")
+            logger.info(f"├─ Trade ID: {trade_id}")
+            logger.info(f"├─ Price: ${current_price:.2f}")
+            logger.info(f"├─ Quantity: {quantity:.6f}")
+            logger.info(f"├─ Cost: ${cost:.2f}")
+            logger.info(f"├─ Portfolio: ${old_balance:.2f} → ${new_balance:.2f}")
+            logger.info(f"├─ SL: ${final_stop_loss:.2f} ({sl_pct:.2f}%)")
+            logger.info(f"├─ TP: ${take_profit:.2f} ({tp_pct:.2f}%)" if take_profit else f"├─ TP: N/A")
+            logger.info(f"└─ 🤖 AI: {ai_result}")
         finally:
             db.close()
     
@@ -476,6 +506,7 @@ class BotEngine:
         db = self.db_session_factory()
         try:
             bot_id = bot_state["bot_id"]
+            exit_price = market_data['close']
             
             # Find open BUY position
             open_position = db.query(Trade).filter(
@@ -489,15 +520,15 @@ class BotEngine:
                 logger.info(f"⚠️ [SKIP] No open BUY position to SELL for {symbol}")
                 return
             
-            # Log AI info
-            ai_info = ""
+            # Prepare AI info
+            ai_result = "N/A"
             if ai_validation:
                 ai_confidence = ai_validation.get("confidence", 0)
                 ai_agrees = ai_validation.get("ai_agrees", False)
-                ai_info = f" | 🤖 AI: {'✓' if ai_agrees else '✗'} ({ai_confidence}%)"
+                ai_result = f"{'✓' if ai_agrees else '✗'} ({ai_confidence}%)"
             
-            # Close position
-            await self._close_position(db, bot_state, open_position, market_data['close'], f"Signal{ai_info}")
+            # Close position and capture the reason
+            await self._close_position(db, bot_state, open_position, exit_price, "Signal", ai_result=ai_result)
         finally:
             db.close()
     
@@ -548,16 +579,19 @@ class BotEngine:
         finally:
             db.close()
     
-    async def _close_position(self, db: Session, bot_state: Dict[str, Any], trade: Trade, exit_price: float, reason: str):
+    async def _close_position(self, db: Session, bot_state: Dict[str, Any], trade: Trade, exit_price: float, reason: str, ai_result: str = "N/A"):
         """Close an open position"""
+        entry_price = float(trade.entry_price)
+        trade_id = str(trade.id)
+        
         trade.exit_price = exit_price
         trade.exit_time = datetime.utcnow()
         trade.status = "CLOSED"
         
         # Calculate PnL
         if trade.side == "BUY":
-            trade.pnl = (exit_price - float(trade.entry_price)) * float(trade.quantity)
-            trade.pnl_percent = ((exit_price - float(trade.entry_price)) / float(trade.entry_price)) * 100
+            trade.pnl = (exit_price - entry_price) * float(trade.quantity)
+            trade.pnl_percent = ((exit_price - entry_price) / entry_price) * 100
         
         # Update portfolio (paper trading)
         if bot_state["paper_trading"]:
@@ -575,7 +609,7 @@ class BotEngine:
                 if new_balance < 0:
                     logger.error(f"🚨 CRITICAL: Portfolio balance would go negative! ({new_balance:.2f})")
                     logger.error(f"   Current: ${float(portfolio.cash_balance):.2f}, PnL: ${pnl:.2f}")
-                    logger.error(f"   Trade: {trade.symbol} {trade.side} {float(trade.quantity):.6f} @ Entry: ${float(trade.entry_price):.2f}, Exit: ${exit_price:.2f}")
+                    logger.error(f"   Trade: {trade.symbol} {trade.side} {float(trade.quantity):.6f} @ Entry: ${entry_price:.2f}, Exit: ${exit_price:.2f}")
                     # Still allow the transaction but alert the user
                     # This shouldn't happen if protections work, but catches bugs
                 
@@ -600,8 +634,17 @@ class BotEngine:
         
         db.commit()
         
-        pnl_str = f"+{trade.pnl:.2f}" if trade.pnl and trade.pnl > 0 else f"{trade.pnl:.2f}"
-        logger.info(f"✅ CLOSED {trade.symbol} @ {exit_price:.2f} | PnL: ${pnl_str} ({trade.pnl_percent:.2f}%) | Reason: {reason}")
+        # ================================================================
+        # Comprehensive Close Logging (FIX #5)
+        # ================================================================
+        pnl_str = f"+${trade.pnl:.2f}" if trade.pnl and trade.pnl > 0 else f"${trade.pnl:.2f}" if trade.pnl else "$0.00"
+        pnl_pct_str = f"+{trade.pnl_percent:.2f}%" if trade.pnl_percent and trade.pnl_percent > 0 else f"{trade.pnl_percent:.2f}%" if trade.pnl_percent else "0.00%"
+        
+        logger.info(f"✅ [CLOSE-EXEC] {trade.symbol}")
+        logger.info(f"├─ Trade ID: {trade_id}")
+        logger.info(f"├─ Entry: ${entry_price:.2f} → Exit: ${exit_price:.2f}")
+        logger.info(f"├─ PnL: {pnl_str} ({pnl_pct_str})")
+        logger.info(f"└─ Reason: {reason}")
     
     async def _handle_bot_error(self, bot_id: str, error: str):
         """Handle bot execution error"""

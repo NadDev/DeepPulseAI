@@ -2,8 +2,11 @@
 Grid Trading Strategy
 Places buy and sell orders at regular price intervals
 """
+import logging
 from typing import Dict, Any, Optional
 from .base_strategy import BaseStrategy, StrategyRegistry
+
+logger = logging.getLogger(__name__)
 
 
 class GridTrading(BaseStrategy):
@@ -78,6 +81,7 @@ Profits from natural market oscillations in ranging markets.
         """Determine grid trading signal based on price position"""
         indicators = market_data.get('indicators', {})
         current_price = market_data.get('close')
+        open_position = market_data.get('open_position')
         
         support = indicators.get('support')
         resistance = indicators.get('resistance')
@@ -98,11 +102,17 @@ Profits from natural market oscillations in ranging markets.
             
             # BUY in lower third of range
             if position_in_range < 0.33:
+                logger.info(f"📊 [GRID-SIGNAL] BUY | position_in_range={position_in_range:.2f}")
                 return 'BUY'
             
-            # SELL in upper third of range
+            # SELL in upper third of range - but only if we have an open BUY position
             if position_in_range > 0.67:
-                return 'SELL'
+                if open_position and open_position.get('side') == 'BUY':
+                    logger.info(f"📊 [GRID-SIGNAL] SELL | position_in_range={position_in_range:.2f}")
+                    return 'SELL'
+                else:
+                    logger.info(f"📊 [GRID-SKIP] No SELL | position_in_range={position_in_range:.2f}, no open BUY")
+                    return 'NONE'
         
         # Fallback: use support/resistance
         elif all([support, resistance]):
@@ -111,9 +121,15 @@ Profits from natural market oscillations in ranging markets.
                 position_in_range = (current_price - support) / range_size
                 
                 if position_in_range < 0.3:
+                    logger.info(f"📊 [GRID-SIGNAL] BUY | position_in_range={position_in_range:.2f}")
                     return 'BUY'
                 if position_in_range > 0.7:
-                    return 'SELL'
+                    if open_position and open_position.get('side') == 'BUY':
+                        logger.info(f"📊 [GRID-SIGNAL] SELL | position_in_range={position_in_range:.2f}")
+                        return 'SELL'
+                    else:
+                        logger.info(f"📊 [GRID-SKIP] No SELL | position_in_range={position_in_range:.2f}, no open BUY")
+                        return 'NONE'
         
         return 'NONE'
     

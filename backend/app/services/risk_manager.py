@@ -333,24 +333,30 @@ class RiskManager:
             existing = db.query(Trade).filter(
                 Trade.bot_id == bot_id,
                 Trade.symbol == symbol,
-                Trade.status == "OPEN",
+                Trade.status.in_(["OPEN", "CLOSING"]),
                 Trade.side == "BUY"
             ).first()
+            if existing:
+                logger.info(f"🚫 [DUP-CHECK-BOT] Found existing trade {existing.id} for {symbol}")
         elif source == "AI_AGENT":
             # AI Agent checks all AI positions for user
             existing = db.query(Trade).filter(
                 Trade.user_id == user_id,
                 Trade.symbol == symbol,
-                Trade.status == "OPEN",
+                Trade.status.in_(["OPEN", "CLOSING"]),
                 Trade.strategy == "AI_AGENT"
             ).first()
+            if existing:
+                logger.info(f"🚫 [DUP-CHECK-AI] Found existing trade {existing.id} for {symbol}")
         else:
             # Manual checks all positions for user
             existing = db.query(Trade).filter(
                 Trade.user_id == user_id,
                 Trade.symbol == symbol,
-                Trade.status == "OPEN"
+                Trade.status.in_(["OPEN", "CLOSING"])
             ).first()
+            if existing:
+                logger.info(f"🚫 [DUP-CHECK-MANUAL] Found existing trade {existing.id} for {symbol}")
         
         return existing is not None
     
