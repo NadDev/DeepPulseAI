@@ -426,6 +426,15 @@ class AITradingAgent:
         conf_1h = ml_prediction.get("confidence_1h", 0)
         conf_24h = ml_prediction.get("confidence_24h", 0)
         conf_7d = ml_prediction.get("confidence_7d", 0)
+        
+        # FIX: Convert to percentage if in 0-1 range (LSTM returns decimals)
+        if 0 < conf_1h <= 1:
+            conf_1h = conf_1h * 100
+        if 0 < conf_24h <= 1:
+            conf_24h = conf_24h * 100
+        if 0 < conf_7d <= 1:
+            conf_7d = conf_7d * 100
+        
         ml_avg = (conf_1h + conf_24h + conf_7d) / 3
         
         # Determine ML direction
@@ -448,8 +457,8 @@ class AITradingAgent:
             alignment_bonus = -5  # -5% penalty when divergent
             alignment_status = "divergent"
         
-        # Cap ML component at technical + 20% (ML shouldn't dominate)
-        ml_component = min(ml_avg, technical_confidence + 20)
+        # Use ML confidence directly (already weighted appropriately in final calculation)
+        ml_component = ml_avg
         
         # Final weighted calculation: 60% technical + 30% ML + 10% alignment
         final_confidence = (technical_confidence * 0.60) + (ml_component * 0.30) + alignment_bonus
