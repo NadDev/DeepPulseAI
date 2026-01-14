@@ -48,7 +48,7 @@ class AITradingAgent:
         self.autonomous_enabled = False  # Toggle for autonomous trading
         self.autonomous_config = {
             "position_size_pct": 5.0,
-            "min_confidence": 65,
+            "min_confidence": 40,  # Lowered from 65 to 40% for more trading opportunities
             "use_risk_manager_sl_tp": True,
             "notifications_enabled": True
         }
@@ -1257,30 +1257,32 @@ STRATEGY SELECTION RULES:
 - Match strategy to market conditions (trending vs ranging, volatile vs stable)
 
 CRITICAL RULES:
-1. Be DECISIVE - If multiple indicators align (3+), recommend BUY or SELL with high confidence
+1. Be VERY DECISIVE - If multiple indicators align (2+), prefer BUY or SELL over HOLD
 2. Cite SPECIFIC indicator values in your reasoning (e.g., "RSI at 28 is oversold")
-3. HOLD only when signals genuinely conflict or market is ranging
+3. HOLD only when signals genuinely CONFLICT or market shows NO CLEAR direction
 4. Adjust confidence based on indicator alignment:
    - 4+ aligned signals = 75-90% confidence
    - 3 aligned signals = 60-75% confidence  
-   - 2 aligned signals = 45-60% confidence
-   - <2 aligned signals = HOLD recommendation
+   - 2 aligned signals = 50-65% confidence (RECOMMEND ACTION, not HOLD)
+   - <2 aligned signals = only then consider HOLD
 5. Volume confirms moves - high volume = +10% confidence
 6. Multi-timeframe alignment = +10% confidence
 7. ALWAYS suggest an appropriate strategy - never omit suggested_strategy field
+8. **PREFER ACTION OVER INDECISION**: If RSI + 1 other signal align → recommend BUY or SELL with 55%+ confidence
 
 *** NEW: ML INTEGRATION CRITICAL RULES ***
 8. If ML prediction is available:
-   - ML confidence > 70% + aligns with technicals: +20% confidence boost
-   - ML confidence > 70% + contradicts technicals: Review carefully, cite conflict
-   - ML confidence 50-70%: Use for confirmation, not primary decision
-   - ML confidence < 50%: Largely ignore, focus on technicals
+   - ML confidence > 60% + aligns with technicals: Consider +10% confidence boost
+   - ML confidence > 60% + contradicts technicals: Review carefully, cite conflict
+   - ML confidence 40-60%: Use for confirmation of technical signals
+   - ML confidence < 40%: Ignore ML, focus purely on technicals
 9. Always include ML forecast in your reasoning when available
 10. When calculating final confidence, factor in ML alignment:
-    - All signals (technical + ML) aligned bullish/bearish: 85-100%
-    - Technical signals strong + ML supports: 80-90%
-    - Technical mixed + ML clear: 60-75%
-    - Any major divergence: 40-60%
+    - All signals (technical + ML) aligned bullish/bearish: 80-95%
+    - Technical signals strong + ML supports: 70-85%
+    - Technical shows 2+ signals + ML weak: 55-70% (STILL TAKE ACTION)
+    - Any major divergence: 40-55% (Can still trade if only 1 conflict)
+11. **MINIMUM CONFIDENCE FOR ACTION**: 40% minimum to recommend BUY/SELL (backend will filter to 40%+)
 
 Always respond with valid JSON only, no markdown code blocks."""
                             },
