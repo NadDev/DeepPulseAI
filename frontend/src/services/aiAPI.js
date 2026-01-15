@@ -352,3 +352,5 @@ export const aiAPI = {
     }
   }
 };
+
+export default aiAPI;
