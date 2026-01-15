@@ -1306,8 +1306,8 @@ Always respond with valid JSON only, no markdown code blocks."""
                     content = data["choices"][0]["message"]["content"]
                     
                     # === DEBUG: Log full response to understand bot creation ===
-                    logger.debug(f"🤖 [DEEPSEEK-FULL] Response (first 800 chars):\n{content[:800]}")
-                    logger.debug(f"🤖 [DEEPSEEK-FIELDS] Contains suggested_strategy: {'suggested_strategy' in content}")
+                    logger.info(f"🤖 [DEEPSEEK-FULL] Response (first 800 chars):\n{content[:800]}")
+                    logger.info(f"🤖 [DEEPSEEK-FIELDS] Contains suggested_strategy: {'suggested_strategy' in content}")
                     logger.debug(f"🤖 [DEEPSEEK-FIELDS] Contains risk_level: {'risk_level' in content}")
                     logger.debug(f"🤖 [DEEPSEEK-FIELDS] Contains signals_summary: {'signals_summary' in content}")
                     
@@ -1363,10 +1363,10 @@ Always respond with valid JSON only, no markdown code blocks."""
             analysis = json.loads(json_str)
             
             # === DEBUG: Log what we parsed ===
-            logger.debug(f"🤖 [PARSED-ANALYSIS] Keys in JSON: {list(analysis.keys())}")
-            logger.debug(f"🤖 [PARSED-FIELDS] suggested_strategy: {analysis.get('suggested_strategy', 'MISSING')}")
-            logger.debug(f"🤖 [PARSED-FIELDS] risk_level: {analysis.get('risk_level', 'MISSING')}")
-            logger.debug(f"🤖 [PARSED-FIELDS] timeframe: {analysis.get('timeframe', 'MISSING')}")
+            logger.info(f"🤖 [PARSED-ANALYSIS] Keys in JSON: {list(analysis.keys())}")
+            logger.info(f"🤖 [PARSED-FIELDS] suggested_strategy: {analysis.get('suggested_strategy', 'MISSING')}")
+            logger.info(f"🤖 [PARSED-FIELDS] risk_level: {analysis.get('risk_level', 'MISSING')}")
+            logger.info(f"🤖 [PARSED-FIELDS] timeframe: {analysis.get('timeframe', 'MISSING')}")
             logger.debug(f"🤖 [PARSED-FIELDS] action: {analysis.get('action')}, confidence: {analysis.get('confidence')}")
             
             # Validate required fields
