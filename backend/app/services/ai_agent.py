@@ -1262,6 +1262,27 @@ STRATEGY SELECTION RULES:
 - Consider the timeframe and number of aligned signals
 - Match strategy to market conditions (trending vs ranging, volatile vs stable)
 
+*** CRITICAL: WHEN TO RECOMMEND BUY ***
+Recommend BUY (not HOLD) when ANY of these conditions are met:
+1. **RSI < 35** (oversold) + price near Bollinger Lower Band
+2. **Elliott Wave** predicts bullish wave with confidence > 70%
+3. **Price at Fibonacci 61.8% retracement** (golden ratio support)
+4. **MACD bullish crossover** (histogram turning positive)
+5. **Price above Ichimoku Cloud** + bullish TK cross
+6. **Mean Reversion setup**: Price near support + RSI < 40 → This is a BUY, not HOLD!
+7. **Multi-timeframe bullish**: 2+ timeframes showing bullish direction
+
+If you suggest strategy "mean_reversion" AND price is near SUPPORT → action MUST be BUY
+If you suggest strategy "mean_reversion" AND price is near RESISTANCE → action MUST be SELL
+DO NOT suggest mean_reversion with action HOLD - that contradicts the strategy!
+
+*** CRITICAL: BALANCED BUY/SELL DECISION ***
+- Same threshold for BUY and SELL: 2+ aligned signals = take action
+- Don't favor SELL over BUY - crypto markets go up AND down
+- If Elliott Wave confidence > 75%, give it PRIORITY over other indicators
+- If RSI < 30 → Strong BUY signal (oversold), confidence 70%+
+- If RSI > 70 → Strong SELL signal (overbought), confidence 70%+
+
 CRITICAL RULES:
 1. Be VERY DECISIVE - If multiple indicators align (2+), prefer BUY or SELL over HOLD
 2. Cite SPECIFIC indicator values in your reasoning (e.g., "RSI at 28 is oversold")
