@@ -1247,126 +1247,163 @@ IMPORTANT GUIDELINES FOR THIS SYSTEM:
 
 *** STRATEGY SELECTION: CHOOSE FROM PRE-CONFIGURED BOTS ***
 Your role is to SELECT the most appropriate strategy for current market conditions.
-CRITICAL RULE: Strategy selection MUST align with your BUY/SELL/HOLD action!
+CRITICAL RULES:
+1. Strategy selection MUST align with your BUY/SELL/HOLD action!
+2. Each strategy has STRICT criteria - match ALL requirements, not just one
+3. Strategies are MUTUALLY EXCLUSIVE - check exclusion rules below
+4. If multiple match = pick the one with HIGHEST priority
 
-AVAILABLE PRE-CONFIGURED STRATEGIES (choose ONE based on ACTION):
+*** PRIORITY ORDER (when multiple strategies match) ***
+BUY Priority: mean_reversion (1) > trend_following (2) > momentum (3) > rsi_divergence (4) > breakout (5) > dca (6)
+SELL Priority: mean_reversion (1) > trend_following (2) > momentum (3) > rsi_divergence (4) > breakout (5)
 
 *** FOR BUY SIGNALS ***
-1. **mean_reversion** - For buying at oversold extremes
-   - WHEN: RSI < 30 (oversold) = STRONG BUY opportunity
-   - WHEN: Price touching lower Bollinger Band = BUY at support
-   - WHEN: Price at support level with bullish reversal signals
-   - ACTION: BUY | Risk: MEDIUM | Best for: Counter-trend entries
+1. **mean_reversion** - For buying at oversold extremes [HIGHEST PRIORITY]
+   - WHEN: RSI < 30 (oversold) = CRITICAL requirement
+   - AND: Price near/touching lower Bollinger Band
+   - AND: Price at support level with reversal signals
+   - EXCLUDE IF: MACD bullish crossover (use trend_following instead)
+   - EXCLUDE IF: Multi-timeframe trend already bullish (use trend_following instead)
+   - ACTION: BUY | Risk: MEDIUM | Best for: Counter-trend entries from oversold
 
-2. **trend_following** - For buying in bullish trends
-   - WHEN: Price above SMA 50 (bullish alignment)
-   - WHEN: Multi-timeframe bullish (2+ timeframes up)
-   - WHEN: MACD bullish crossover with positive momentum
-   - ACTION: BUY | Risk: LOW | Best for: Following strong trends
+2. **trend_following** - For buying in bullish trends [2ND PRIORITY]
+   - WHEN: Price clearly above SMA 50
+   - AND: Multi-timeframe bullish alignment (2+ timeframes up)
+   - AND: MACD bullish crossover with positive momentum
+   - EXCLUDE IF: RSI < 30 (use mean_reversion instead)
+   - ACTION: BUY | Risk: LOW | Best for: Following established bullish trends
 
-3. **momentum** - For buying with acceleration signals
-   - WHEN: MACD histogram strongly POSITIVE and increasing
-   - WHEN: High volume (ratio > 1.5x) confirming bullish move
-   - WHEN: 3+ bullish signals aligned (RSI rising, MACD up, cloud bullish)
-   - ACTION: BUY | Risk: HIGH | Best for: Fast-moving rallies
+3. **momentum** - For buying with acceleration signals [3RD PRIORITY]
+   - WHEN: MACD histogram strongly POSITIVE and INCREASING
+   - AND: High volume (ratio > 1.5x) confirming bullish move
+   - AND: 3+ bullish signals aligned (RSI rising, MACD up, cloud bullish)
+   - EXCLUDE IF: RSI < 30 or trend_following conditions (those have priority)
+   - ACTION: BUY | Risk: HIGH | Best for: Fast-moving rallies with strong volume
 
-4. **breakout** - For buying above resistance
+4. **rsi_divergence** - For buying at reversal setups [4TH PRIORITY]
+   - WHEN: RSI shows bullish divergence (price lower, RSI higher)
+   - AND: RSI crossing above 30 from oversold zone
+   - EXCLUDE IF: RSI < 30 already (use mean_reversion instead)
+   - ACTION: BUY | Risk: MEDIUM | Best for: Reversal trades at inflection points
+
+5. **breakout** - For buying above resistance [5TH PRIORITY]
    - WHEN: Price breaks above resistance with volume spike
-   - WHEN: Volume ratio > 1.8x confirming breakout authenticity
-   - WHEN: Clear consolidation pattern before upward break
+   - AND: Volume ratio > 1.8x confirming breakout
+   - AND: Clear consolidation pattern before break
    - ACTION: BUY | Risk: HIGH | Best for: Breakout entries above resistance
 
-5. **rsi_divergence** - For buying at reversal setups
-   - WHEN: RSI shows bullish divergence (price lower, RSI higher)
-   - WHEN: Price exhausted after downtrend (RSI oversold)
-   - WHEN: RSI crossing above 30 from oversold zone
-   - ACTION: BUY | Risk: MEDIUM | Best for: Reversal trades
-
-6. **dca** - For conservative accumulation
-   - WHEN: Long-term bullish but uncertain exact entry
-   - WHEN: Want to average into position over multiple candles
-   - WHEN: Conservative risk management approach
-   - ACTION: BUY | Risk: LOW | Best for: Long-term holds
+6. **dca** - For conservative accumulation [LOWEST PRIORITY]
+   - WHEN: Long-term bullish outlook uncertain
+   - WHEN: Want to average into position gradually
+   - ACTION: BUY | Risk: LOW | Best for: Long-term positions with timing uncertainty
 
 *** FOR SELL SIGNALS ***
-1. **mean_reversion** - For selling at overbought extremes
-   - WHEN: RSI > 70 (overbought) = STRONG SELL opportunity
-   - WHEN: Price touching upper Bollinger Band = SELL at resistance
-   - WHEN: Price at resistance level with bearish reversal signals
-   - ACTION: SELL | Risk: MEDIUM | Best for: Counter-trend exits
+1. **mean_reversion** - For selling at overbought extremes [HIGHEST PRIORITY]
+   - WHEN: RSI > 70 (overbought) = CRITICAL requirement
+   - AND: Price near/touching upper Bollinger Band
+   - AND: Price at resistance level with reversal signals
+   - EXCLUDE IF: MACD bearish crossover (use trend_following instead)
+   - EXCLUDE IF: Multi-timeframe trend already bearish (use trend_following instead)
+   - ACTION: SELL | Risk: MEDIUM | Best for: Counter-trend exits from overbought
 
-2. **trend_following** - For selling in bearish trends
-   - WHEN: Price below SMA 50 (bearish alignment)
-   - WHEN: Multi-timeframe bearish (2+ timeframes down)
-   - WHEN: MACD bearish crossover with negative momentum
-   - ACTION: SELL | Risk: LOW | Best for: Following strong downtrends
+2. **trend_following** - For selling in bearish trends [2ND PRIORITY]
+   - WHEN: Price clearly below SMA 50
+   - AND: Multi-timeframe bearish alignment (2+ timeframes down)
+   - AND: MACD bearish crossover with negative momentum
+   - EXCLUDE IF: RSI > 70 (use mean_reversion instead)
+   - ACTION: SELL | Risk: LOW | Best for: Following established bearish trends
 
-3. **momentum** - For selling with downward acceleration
-   - WHEN: MACD histogram strongly NEGATIVE and decreasing
-   - WHEN: High volume (ratio > 1.5x) confirming bearish move
-   - WHEN: 3+ bearish signals aligned (RSI falling, MACD down, cloud bearish)
-   - ACTION: SELL | Risk: HIGH | Best for: Fast-moving declines
+3. **momentum** - For selling with downward acceleration [3RD PRIORITY]
+   - WHEN: MACD histogram strongly NEGATIVE and DECREASING
+   - AND: High volume (ratio > 1.5x) confirming bearish move
+   - AND: 3+ bearish signals aligned (RSI falling, MACD down, cloud bearish)
+   - EXCLUDE IF: RSI > 70 or trend_following conditions (those have priority)
+   - ACTION: SELL | Risk: HIGH | Best for: Fast-moving declines with strong volume
 
-4. **breakout** - For selling below support
-   - WHEN: Price breaks below support with volume spike
-   - WHEN: Volume ratio > 1.8x confirming breakdown authenticity
-   - WHEN: Clear consolidation pattern before downward break
-   - ACTION: SELL | Risk: HIGH | Best for: Breakdown entries below support
-
-5. **rsi_divergence** - For selling at reversal setups
+4. **rsi_divergence** - For selling at reversal setups [4TH PRIORITY]
    - WHEN: RSI shows bearish divergence (price higher, RSI lower)
-   - WHEN: Price exhausted after uptrend (RSI overbought)
-   - WHEN: RSI crossing below 70 from overbought zone
-   - ACTION: SELL | Risk: MEDIUM | Best for: Reversal trades
+   - AND: RSI crossing below 70 from overbought zone
+   - EXCLUDE IF: RSI > 70 already (use mean_reversion instead)
+   - ACTION: SELL | Risk: MEDIUM | Best for: Reversal trades at inflection points
+
+5. **breakout** - For selling below support [5TH PRIORITY]
+   - WHEN: Price breaks below support with volume spike
+   - AND: Volume ratio > 1.8x confirming breakdown
+   - AND: Clear consolidation pattern before break
+   - ACTION: SELL | Risk: HIGH | Best for: Breakdown entries below support
 
 *** FOR HOLD SIGNALS ***
 6. **grid_trading** - For holding in sideways choppy markets
    - WHEN: No clear trend (conflicting multi-timeframe signals)
-   - WHEN: Price oscillating between support/resistance without breakout
-   - WHEN: High volatility but no directional conviction
-   - ACTION: HOLD | Risk: MEDIUM | Best for: Range-bound periods
+   - WHEN: Price oscillating between support/resistance without directional breakout
+   - WHEN: High volatility but no clear direction
+   - ACTION: HOLD | Risk: MEDIUM | Best for: Range-bound consolidation
 
 7. **macd_crossover** - For waiting on MACD confirmation
-   - WHEN: Conflicting signals, need MACD confirmation before action
-   - WHEN: Price at support/resistance but MACD not confirmed yet
-   - WHEN: Waiting for clear trend change signal
-   - ACTION: HOLD | Risk: MEDIUM | Best for: Waiting for clarity
+   - WHEN: Signals conflict or unclear
+   - WHEN: Price at critical level but MACD not confirmed
+   - ACTION: HOLD | Risk: MEDIUM | Best for: Waiting for confirmation
 
 8. **scalping** - For quick tactical trades only
-   - WHEN: Clear 1H entry/exit setup with tight stops
+   - WHEN: Clear 1H/5M entry/exit with tight stops
    - WHEN: High liquidity available for quick fills
-   - WHEN: Small profits with low risk micro-trades
-   - ACTION: BUY/SELL | Risk: MEDIUM | Best for: Active traders
+   - ACTION: BUY/SELL | Risk: MEDIUM | Best for: Active day trading
 
 *** HOW TO SELECT STRATEGY (STEP-BY-STEP) ***
-STEP 1: Determine action based on signal alignment
-   - Is action BUY or SELL? (Check aligned signals first)
-   - If conflicting = HOLD
 
-STEP 2: Select matching strategy for that action
-   - If BUY: Choose from mean_reversion/trend_following/momentum/breakout/rsi_divergence/dca
-   - If SELL: Choose from mean_reversion/trend_following/momentum/breakout/rsi_divergence
-   - If HOLD: Choose from grid_trading/macd_crossover
+STEP 1: Determine ACTION (BUY/SELL/HOLD)
+   - Count bullish signals: RSI < 30, MACD bullish, Price above SMA50, Cloud bullish, Elliott up
+   - Count bearish signals: RSI > 70, MACD bearish, Price below SMA50, Cloud bearish, Elliott down
+   - BUY: If 2+ bullish signals AND no 3+ bearish signals
+   - SELL: If 2+ bearish signals AND no 3+ bullish signals  
+   - HOLD: If signals conflict (e.g., 2 bullish + 2 bearish)
 
-STEP 3: Verify action-strategy coherence
-   - mean_reversion + BUY with RSI 28? ✅ CORRECT (oversold)
-   - mean_reversion + SELL with RSI 75? ✅ CORRECT (overbought)
-   - mean_reversion + SELL with RSI 28? ❌ WRONG (oversold = BUY signal)
-   - momentum + BUY with MACD negative? ❌ WRONG (needs positive MACD)
+STEP 2: SELECT STRATEGY (check EXCLUSIONS first!)
+   - Read each strategy's WHEN and EXCLUDE criteria
+   - EXCLUDE filters prevent wrong strategy selection (e.g., trend_following won't match RSI < 30)
+   - Match ALL "WHEN" requirements, not just one
+   - If multiple strategies match = use PRIORITY ORDER (1=highest)
 
-STEP 4: Suggest appropriate stop_loss and target_price based on technical levels
+STRATEGY DECISION FLOWCHART FOR SELL:
+   └─ RSI > 70? YES → mean_reversion (highest priority, stop here)
+   └─ RSI > 70? NO → Check trend_following
+      └─ Price below SMA50 + Multi-timeframe bearish? YES → trend_following
+      └─ NO → Check momentum
+         └─ MACD histogram negative + High volume? YES → momentum
+         └─ NO → Check rsi_divergence or breakout or HOLD
+
+STRATEGY DECISION FLOWCHART FOR BUY:
+   └─ RSI < 30? YES → mean_reversion (highest priority, stop here)
+   └─ RSI < 30? NO → Check trend_following
+      └─ Price above SMA50 + Multi-timeframe bullish? YES → trend_following
+      └─ NO → Check momentum
+         └─ MACD histogram positive + High volume? YES → momentum
+         └─ NO → Check rsi_divergence or breakout or HOLD
+
+STEP 3: VERIFY EXCLUSION RULES (CRITICAL!)
+   Examples of WRONG selections to AVOID:
+   ❌ mean_reversion SELL when RSI = 41 (not overbought) → use trend_following instead
+   ❌ mean_reversion BUY when RSI = 65 (not oversold) → use trend_following instead
+   ❌ momentum when MACD histogram negative (bearish, not bullish)
+   ❌ trend_following when RSI < 30 with no trend yet → use mean_reversion instead
+
+STEP 4: Suggest target_price and stop_loss based on technical levels
 
 CONFIDENCE CALCULATION:
 - 4+ aligned signals = 75-90% confidence
 - 3 aligned signals = 60-75% confidence
-- 2 aligned signals = 50-65% confidence (STILL TAKE ACTION if signals align)
+- 2 aligned signals = 50-65% confidence (TAKE ACTION if aligned)
 - <2 aligned signals = HOLD or <50% confidence
+- Add +10% if volume confirms
+- Add +10% if multi-timeframe alignment
 
-IMPORTANT RULES:
-- Be DECISIVE: If indicators align, take action (BUY/SELL) rather than HOLD
-- CRITICAL: Action and strategy MUST align (no SELL with mean_reversion oversold setup)
-- Volume confirms: High volume = +10% confidence
-- Multi-timeframe alignment = +10% confidence
+FINAL VALIDATION (before JSON response):
+   1. Does strategy match action? (SELL + mean_reversion requires RSI > 70, not RSI 41!)
+   2. Does reasoning cite the strategy's WHEN criteria?
+   3. Are target/SL consistent with action? (SELL should have target below entry, SL above)
+   4. Is confidence score justified by signal count?
+   
+   If ANY fails = RECONSIDER strategy selection
 - Use SPECIFIC numbers in reasoning ("RSI at 28", "MACD 0.023 crossed above signal")
 - Never create custom rules - just SELECT from predefined strategies
 
