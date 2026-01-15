@@ -333,7 +333,7 @@ class RiskManager:
             existing = db.query(Trade).filter(
                 Trade.bot_id == bot_id,
                 Trade.symbol == symbol,
-                Trade.status.in_(["OPEN", "CLOSING"]),
+                Trade.status == "OPEN",
                 Trade.side == "BUY"
             ).first()
             if existing:
@@ -343,7 +343,7 @@ class RiskManager:
             existing = db.query(Trade).filter(
                 Trade.user_id == user_id,
                 Trade.symbol == symbol,
-                Trade.status.in_(["OPEN", "CLOSING"]),
+                Trade.status == "OPEN",
                 Trade.strategy == "AI_AGENT"
             ).first()
             if existing:
@@ -353,7 +353,7 @@ class RiskManager:
             existing = db.query(Trade).filter(
                 Trade.user_id == user_id,
                 Trade.symbol == symbol,
-                Trade.status.in_(["OPEN", "CLOSING"])
+                Trade.status == "OPEN"
             ).first()
             if existing:
                 logger.info(f"🚫 [DUP-CHECK-MANUAL] Found existing trade {existing.id} for {symbol}")
