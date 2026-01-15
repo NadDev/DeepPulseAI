@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Globe, User, Settings, Activity, LogOut, ChevronDown, Zap, Play } from 'lucide-react';
+import { Globe, User, Settings, Activity, LogOut, ChevronDown, Zap, Play, Square } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import aiAPI from '../services/aiAPI';
 import './Header.css';
 
 function Header() {
@@ -16,32 +17,27 @@ function Header() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const response = await fetch('/api/ai-agent/status');
-        if (response.ok) {
-          const data = await response.json();
-          setAiRunning(data.running || false);
-        }
+        const status = await aiAPI.getStatus();
+        setAiRunning(status.running || status.ai_agent?.running || false);
+        
+        const config = await aiAPI.getAutonomousConfig();
+        setAutoTradeEnabled(config.autonomous_mode || false);
       } catch (error) {
         console.error('Failed to fetch AI status:', error);
       }
     };
-    fetchStatus();
-  }, []);
+    if (user) {
+      fetchStatus();
+    }
+  }, [user]);
 
-  // Toggle AI Agent
+  // Toggle AI Agent (same as AIAgent.jsx)
   const handleToggleAI = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/ai-agent/toggle', { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setAiRunning(data.running !== undefined ? data.running : !aiRunning);
-      } else {
-        console.error('Toggle AI failed:', response.statusText);
-      }
+      const result = await aiAPI.toggleAgent();
+      console.log('🔄 Toggle AI result:', result);
+      setAiRunning(result.running);
     } catch (error) {
       console.error('Failed to toggle AI:', error);
     } finally {
@@ -49,20 +45,13 @@ function Header() {
     }
   };
 
-  // Toggle Auto Trade
+  // Toggle Auto Trade (same as AIAgent.jsx)
   const handleToggleAutoTrade = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/ai-agent/autonomous/toggle', { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setAutoTradeEnabled(data.autonomous_enabled !== undefined ? data.autonomous_enabled : !autoTradeEnabled);
-      } else {
-        console.error('Toggle AutoTrade failed:', response.statusText);
-      }
+      const result = await aiAPI.toggleAutonomousMode(!autoTradeEnabled);
+      console.log('🤖 Toggle AutoTrade result:', result);
+      setAutoTradeEnabled(result.autonomous_mode);
     } catch (error) {
       console.error('Failed to toggle auto trade:', error);
     } finally {
@@ -91,19 +80,19 @@ function Header() {
               className={`ai-btn ${aiRunning ? 'active' : ''}`}
               onClick={handleToggleAI}
               disabled={isLoading}
-              title="Run AI Analysis"
+              title={aiRunning ? 'Stop AI Agent' : 'Start AI Agent'}
             >
-              <Play size={14} />
-              <span>Run AI</span>
+              {aiRunning ? <Square size={14} /> : <Play size={14} />}
+              <span>{aiRunning ? 'Stop AI' : 'Run AI'}</span>
             </button>
             <button 
               className={`auto-trade-btn ${autoTradeEnabled ? 'active' : ''}`}
               onClick={handleToggleAutoTrade}
               disabled={isLoading}
-              title="Enable Auto Trading"
+              title={autoTradeEnabled ? 'Disable Auto Trading' : 'Enable Auto Trading'}
             >
               <Zap size={14} />
-              <span>Auto Trade</span>
+              <span>{autoTradeEnabled ? 'Auto: ON' : 'Auto Trade'}</span>
             </button>
           </div>
           
