@@ -625,6 +625,13 @@ class AIBotController:
         Select appropriate strategy based on AI recommendation
         Uses all 9 available strategies based on market conditions
         """
+        # === DEBUG: Log what we received ===
+        logger.debug(f"🤖 [STRATEGY-SELECT] Processing {recommendation.get('symbol')}")
+        logger.debug(f"   Keys in recommendation: {list(recommendation.keys())}")
+        logger.debug(f"   Has 'suggested_strategy': {'suggested_strategy' in recommendation}")
+        if "suggested_strategy" in recommendation:
+            logger.debug(f"   suggested_strategy value: {recommendation['suggested_strategy']}")
+        
         # Check if AI already recommended a strategy
         if "suggested_strategy" in recommendation and recommendation["suggested_strategy"]:
             strategy = recommendation["suggested_strategy"]
@@ -632,9 +639,11 @@ class AIBotController:
             return strategy
         
         # Fallback: Automatic selection based on market conditions
+        logger.warning(f"⚠️ [STRATEGY-SELECT] No suggested_strategy for {recommendation.get('symbol')}! Using fallback heuristic")
         risk_level = recommendation.get("risk_level", "MEDIUM")
         timeframe = recommendation.get("timeframe", "1h")
         signals_summary = recommendation.get("signals_summary", {})
+        logger.debug(f"   Fallback inputs: risk_level={risk_level}, timeframe={timeframe}, signals_count={len(signals_summary)}")
         
         # Count bullish and bearish signals
         bullish_count = len(signals_summary.get("bullish", []))

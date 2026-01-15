@@ -422,7 +422,7 @@ class AITradingAgent:
                 "reasoning": "No ML prediction available - using pure technical analysis"
             }
         
-        # Extract ML confidence scores (average of 3 timeframes)
+       # Extract ML confidence scores (average of 3 timeframes)
         conf_1h = ml_prediction.get("confidence_1h", 0)
         conf_24h = ml_prediction.get("confidence_24h", 0)
         conf_7d = ml_prediction.get("confidence_7d", 0)
@@ -1303,7 +1303,15 @@ Always respond with valid JSON only, no markdown code blocks."""
                 
                 if response.status_code == 200:
                     data = response.json()
-                    return data["choices"][0]["message"]["content"]
+                    content = data["choices"][0]["message"]["content"]
+                    
+                    # === DEBUG: Log full response to understand bot creation ===
+                    logger.debug(f"🤖 [DEEPSEEK-FULL] Response (first 800 chars):\n{content[:800]}")
+                    logger.debug(f"🤖 [DEEPSEEK-FIELDS] Contains suggested_strategy: {'suggested_strategy' in content}")
+                    logger.debug(f"🤖 [DEEPSEEK-FIELDS] Contains risk_level: {'risk_level' in content}")
+                    logger.debug(f"🤖 [DEEPSEEK-FIELDS] Contains signals_summary: {'signals_summary' in content}")
+                    
+                    return content
                 else:
                     logger.error(f"DeepSeek API error: {response.status_code} - {response.text}")
                     return None
@@ -1353,6 +1361,13 @@ Always respond with valid JSON only, no markdown code blocks."""
                 json_str = json_str[:end_idx]
             
             analysis = json.loads(json_str)
+            
+            # === DEBUG: Log what we parsed ===
+            logger.debug(f"🤖 [PARSED-ANALYSIS] Keys in JSON: {list(analysis.keys())}")
+            logger.debug(f"🤖 [PARSED-FIELDS] suggested_strategy: {analysis.get('suggested_strategy', 'MISSING')}")
+            logger.debug(f"🤖 [PARSED-FIELDS] risk_level: {analysis.get('risk_level', 'MISSING')}")
+            logger.debug(f"🤖 [PARSED-FIELDS] timeframe: {analysis.get('timeframe', 'MISSING')}")
+            logger.debug(f"🤖 [PARSED-FIELDS] action: {analysis.get('action')}, confidence: {analysis.get('confidence')}")
             
             # Validate required fields
             if "action" not in analysis:
