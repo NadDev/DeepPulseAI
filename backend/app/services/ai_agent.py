@@ -1344,11 +1344,6 @@ SELL Priority: mean_reversion (1) > trend_following (2) > momentum (3) > rsi_div
    - WHEN: Price at critical level but MACD not confirmed
    - ACTION: HOLD | Risk: MEDIUM | Best for: Waiting for confirmation
 
-8. **scalping** - For quick tactical trades only
-   - WHEN: Clear 1H/5M entry/exit with tight stops
-   - WHEN: High liquidity available for quick fills
-   - ACTION: BUY/SELL | Risk: MEDIUM | Best for: Active day trading
-
 *** HOW TO SELECT STRATEGY (STEP-BY-STEP) ***
 
 STEP 1: Determine ACTION (BUY/SELL/HOLD)
