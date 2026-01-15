@@ -1236,37 +1236,6 @@ async def stop_ai_agent(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/toggle")
-async def toggle_ai_agent(
-    current_user: UserResponse = Depends(get_current_user)
-):
-    """Toggle AI Agent on/off"""
-    agent = get_ai_agent()
-    if not agent:
-        raise HTTPException(status_code=503, detail="AI Agent not initialized")
-    
-    try:
-        if agent._running:
-            await agent.stop()
-            action = "stopped"
-            running = False
-        else:
-            await agent.start()
-            action = "started"
-            running = True
-        
-        logger.info(f"🔄 AI Agent {action} by user {current_user.id}")
-        
-        return {
-            "message": f"AI Agent {action} successfully",
-            "running": running,
-            "mode": agent.mode
-        }
-    except Exception as e:
-        logger.error(f"Error toggling AI Agent: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 # ============================================
 # AI Bot Controller Control Endpoints
 # ============================================

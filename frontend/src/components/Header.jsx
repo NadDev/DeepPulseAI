@@ -76,10 +76,11 @@ function Header({ onToggleSidebar }) {
         {/* Mobile Menu Button */}
         <button 
           className="mobile-menu-btn"
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          onClick={onToggleSidebar}
           title="Toggle menu"
         >
-          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          {/* Note: We don't track state here, let parent manage it */}
+          <Menu size={24} />
         </button>
 
         <div className="header-spacer"></div> {/* Spacer to push actions to right */}
