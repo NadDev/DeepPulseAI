@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import { useState } from 'react';
 // CRBot Frontend - Trading AI Agent
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
@@ -24,6 +25,16 @@ const Placeholder = ({ title }) => (
 );
 
 function App() {
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  const closeMobileSidebar = () => {
+    setIsMobileSidebarOpen(false);
+  };
+
+  const toggleMobileSidebar = () => {
+    setIsMobileSidebarOpen(!isMobileSidebarOpen);
+  };
+
   return (
     <AuthProvider>
       <Router>
@@ -38,10 +49,13 @@ function App() {
             path="/*"
             element={
               <ProtectedRoute>
-                <div className="app">
-                  <Sidebar />
-                  <div className="main-wrapper">
-                    <Header />
+                <div className={`app ${isMobileSidebarOpen ? 'sidebar-open' : ''}`}>
+                  <Sidebar 
+                    isMobileOpen={isMobileSidebarOpen} 
+                    onMobileClose={closeMobileSidebar}
+                  />
+                  <div className="main-wrapper" onClick={isMobileSidebarOpen ? closeMobileSidebar : undefined}>
+                    <Header onToggleSidebar={toggleMobileSidebar} />
                     <main className="content">
                       <Routes>
                         <Route path="/" element={<Dashboard />} />

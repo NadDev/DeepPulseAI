@@ -262,6 +262,47 @@
   background: rgba(239, 68, 68, 0.1);
 }
 
+/* ============ MOBILE MENU BUTTON ============ */
+.mobile-menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: color 0.2s;
+  margin-right: 12px;
+}
+
+.mobile-menu-btn:hover {
+  color: var(--primary);
+}
+
+@media (max-width: 1024px) {
+  .mobile-menu-btn {
+    display: flex;
+  }
+
+  .header-spacer {
+    display: none;
+  }
+
+  .header-ai-controls span {
+    display: none;
+  }
+
+  .ai-btn, .auto-trade-btn {
+    padding: 6px 10px;
+  }
+
+  .language-selector {
+    display: none;
+  }
+}
+
 @media (max-width: 768px) {
   .brand-subtitle {
     display: none;

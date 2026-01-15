@@ -11,11 +11,12 @@ import {
   Settings,
   Wallet,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  X
 } from 'lucide-react';
 import './Sidebar.css';
 
-function Sidebar() {
+function Sidebar({ isMobileOpen = false, onMobileClose = () => {} }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const menuItems = [
     { path: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
@@ -30,13 +31,22 @@ function Sidebar() {
   ];
 
   return (
-    <aside className={`app-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+    <aside className={`app-sidebar ${isCollapsed ? 'collapsed' : ''} ${isMobileOpen ? 'mobile-open' : ''}`}>
       <button 
         className="sidebar-toggle-btn"
         onClick={() => setIsCollapsed(!isCollapsed)}
         title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
         {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+      </button>
+
+      {/* Mobile Close Button */}
+      <button 
+        className="mobile-close-btn"
+        onClick={onMobileClose}
+        title="Close menu"
+      >
+        <X size={24} />
       </button>
 
       <div className="sidebar-logo">
@@ -52,6 +62,7 @@ function Sidebar() {
             key={item.path} 
             to={item.path}
             className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+            onClick={onMobileClose}
           >
             {item.icon}
             <span>{item.label}</span>

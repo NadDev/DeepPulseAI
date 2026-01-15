@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Globe, User, Settings, Activity, LogOut, ChevronDown, Zap, Play, Square } from 'lucide-react';
+import { Globe, User, Settings, Activity, LogOut, ChevronDown, Zap, Play, Square, Menu, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import aiAPI from '../services/aiAPI';
 import './Header.css';
 
-function Header() {
+function Header({ onToggleSidebar }) {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [showDropdown, setShowDropdown] = useState(false);
   const [aiRunning, setAiRunning] = useState(false);
   const [autoTradeEnabled, setAutoTradeEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Fetch AI status on mount
   useEffect(() => {
@@ -72,6 +73,15 @@ function Header() {
   return (
     <header className="app-header">
       <div className="header-content">
+        {/* Mobile Menu Button */}
+        <button 
+          className="mobile-menu-btn"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          title="Toggle menu"
+        >
+          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+
         <div className="header-spacer"></div> {/* Spacer to push actions to right */}
         
         <div className="header-actions">

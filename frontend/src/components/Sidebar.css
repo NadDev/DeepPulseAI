@@ -54,6 +54,22 @@
   border-color: var(--primary);
 }
 
+.mobile-close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
 .sidebar-logo {
   padding: 1.5rem;
   display: flex;
@@ -125,8 +141,46 @@
   font-weight: 600;
 }
 
+/* ============ RESPONSIVE MOBILE FIXES ============ */
 @media (max-width: 1024px) {
+  /* Hide sidebar by default on tablet/mobile */
   .app-sidebar {
-    display: none; /* Hidden on mobile/tablet for now, would need a drawer */
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    width: 260px;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    z-index: 999;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Show when opened */
+  .app-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  /* Show close button on mobile */
+  .mobile-close-btn {
+    display: flex;
+  }
+
+  /* Hide toggle button on mobile */
+  .sidebar-toggle-btn {
+    display: none;
+  }
+
+  /* Adjust mobile padding */
+  .sidebar-logo {
+    padding-top: 3rem;
+  }
+}
+
+/* Extra small devices */
+@media (max-width: 640px) {
+  .app-sidebar {
+    width: 100vw;
+    max-width: 300px;
   }
 }
