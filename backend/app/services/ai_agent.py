@@ -877,10 +877,16 @@ class AITradingAgent:
             if ml_weighting["ml_available"]:
                 analysis["confidence"] = ml_weighting["final_confidence"]
                 analysis["ml_weighting"] = ml_weighting
+                strategy = analysis.get("suggested_strategy", "none")
+                risk_level = analysis.get("risk_level", "MEDIUM")
                 logger.info(f"📊 {symbol} Analysis (ML-weighted): {analysis['action']} (technical: {technical_confidence}% → final: {ml_weighting['final_confidence']}%)")
                 logger.info(f"   Components: Technical×0.60={ml_weighting['technical_component']}% + ML×0.30={ml_weighting['ml_component']}% + Alignment={ml_weighting['alignment_bonus']}%")
+                logger.info(f"   Strategy: {strategy.upper()} | Risk: {risk_level}")
             else:
+                strategy = analysis.get("suggested_strategy", "none")
+                risk_level = analysis.get("risk_level", "MEDIUM")
                 logger.info(f"📊 {symbol} Analysis: {analysis['action']} (confidence: {analysis.get('confidence', 0)}%)")
+                logger.info(f"   Strategy: {strategy.upper()} | Risk: {risk_level}")
             
             return analysis
             
