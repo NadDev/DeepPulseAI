@@ -231,7 +231,7 @@ const TradeHistory = ({ userId, refreshTrigger }) => {
             <tbody>
               {trades.map((trade) => (
                 <tr key={trade.id} className={`status-${trade.status.toLowerCase()}`}>
-                  <td className="date-cell">{formatDate(trade.entry_time)}</td>
+                  <td className="date-cell">{formatDate(trade.status === 'CLOSED' ? trade.exit_time : trade.entry_time)}</td>
                   <td className="symbol-cell">
                     <strong>{trade.symbol}</strong>
                   </td>
