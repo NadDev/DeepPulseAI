@@ -186,6 +186,10 @@ class AITradingAgent:
                         except Exception as e:
                             logger.error(f"❌ Error analyzing {symbol}: {str(e)}")
                 
+                # === CHECK OPEN AI_AGENT POSITIONS FOR TP/SL ===
+                if self.autonomous_enabled:
+                    await self._monitor_autonomous_positions()
+                
                 logger.info(f"✅ Analysis cycle complete. Next in {self.check_interval}s")
                 
                 # Wait for next cycle
@@ -737,6 +741,69 @@ class AITradingAgent:
             logger.error(f"Error closing AI position: {str(e)}")
             db.rollback()
             return False
+        finally:
+            db.close()
+
+    async def _monitor_autonomous_positions(self):
+        """
+        Monitor all open AI_AGENT positions and close them if TP/SL is hit.
+        This should be called periodically in the monitoring loop.
+        """
+        if not self.db_session_factory or not self.user_id:
+            return
+        
+        from app.models.database_models import Trade
+        from uuid import UUID
+        from app.services.market_data import market_data_collector
+        
+        db = self.db_session_factory()
+        try:
+            # Get all open AI_AGENT positions for this user
+            open_trades = db.query(Trade).filter(
+                Trade.user_id == UUID(self.user_id),
+                Trade.status == "OPEN",
+                Trade.strategy == "AI_AGENT"
+            ).all()
+            
+            if not open_trades:
+                return
+            
+            logger.info(f"🔍 Monitoring {len(open_trades)} open AI_AGENT positions...")
+            
+            for trade in open_trades:
+                try:
+                    symbol = trade.symbol
+                    
+                    # Fetch current price
+                    ticker = await market_data_collector.get_ticker(symbol)
+                    if not ticker or 'last' not in ticker:
+                        logger.warning(f"⚠️ Could not fetch price for {symbol}")
+                        continue
+                    
+                    current_price = ticker['last']
+                    entry_price = float(trade.entry_price)
+                    sl = float(trade.stop_loss_price) if trade.stop_loss_price else None
+                    tp = float(trade.take_profit_price) if trade.take_profit_price else None
+                    
+                    logger.debug(f"📊 {symbol}: Entry=${entry_price:.4f} | Current=${current_price:.4f} | SL={sl} | TP={tp}")
+                    
+                    # Check Stop Loss
+                    if sl and trade.side == "BUY" and current_price <= sl:
+                        logger.warning(f"🛑 Stop Loss HIT for {symbol} @ ${current_price:.4f} (SL: ${sl:.4f})")
+                        await self._close_ai_position(symbol, current_price, confidence=100)
+                        continue
+                    
+                    # Check Take Profit
+                    if tp and trade.side == "BUY" and current_price >= tp:
+                        logger.info(f"🎯 Take Profit HIT for {symbol} @ ${current_price:.4f} (TP: ${tp:.4f})")
+                        await self._close_ai_position(symbol, current_price, confidence=100)
+                        continue
+                    
+                except Exception as e:
+                    logger.error(f"❌ Error monitoring {trade.symbol}: {str(e)}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error in _monitor_autonomous_positions: {str(e)}")
         finally:
             db.close()
 
