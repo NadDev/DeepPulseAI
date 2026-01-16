@@ -25,6 +25,12 @@ const ActivePositions = ({ positions, onClosePosition }) => {
     }).format(val);
   };
 
+  // Format prices with 3 decimal places for better precision
+  const formatPrice = (val) => {
+    if (val === null || val === undefined) return '-';
+    return parseFloat(val).toFixed(3);
+  };
+
   // Apply filters
   let filtered = positions.filter(pos => {
     if (symbolFilter && !pos.symbol.includes(symbolFilter.toUpperCase())) {
@@ -194,9 +200,9 @@ const ActivePositions = ({ positions, onClosePosition }) => {
                   </span>
                 </td>
                 <td>{parseFloat(pos.quantity).toFixed(8)}</td>
-                <td>{formatCurrency(pos.entry_price)}</td>
+                <td>${formatPrice(pos.entry_price)}</td>
                 <td className={pos.current_price > pos.entry_price ? 'price-up' : 'price-down'}>
-                  {formatCurrency(pos.current_price)}
+                  ${formatPrice(pos.current_price)}
                 </td>
                 <td>{formatCurrency(pos.value)}</td>
                 <td>

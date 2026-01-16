@@ -71,6 +71,12 @@ const TradeHistory = ({ userId, refreshTrigger }) => {
       minimumFractionDigits: 2
     }).format(val);
   };
+
+  // Format prices with 3 decimal places for better precision
+  const formatPrice = (val) => {
+    if (val === null || val === undefined) return '-';
+    return parseFloat(val).toFixed(3);
+  };
   
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
@@ -234,8 +240,8 @@ const TradeHistory = ({ userId, refreshTrigger }) => {
                       {trade.side}
                     </span>
                   </td>
-                  <td>{formatCurrency(trade.entry_price)}</td>
-                  <td>{trade.exit_price ? formatCurrency(trade.exit_price) : '-'}</td>
+                  <td>${formatPrice(trade.entry_price)}</td>
+                  <td>{trade.exit_price ? '$' + formatPrice(trade.exit_price) : '-'}</td>
                   <td className="qty-cell">{parseFloat(trade.quantity).toFixed(4)}</td>
                   <td className="duration-cell">{formatDuration(trade.duration_minutes)}</td>
                   <td>
