@@ -20,6 +20,26 @@ router = APIRouter(prefix="/api/watchlist", tags=["Watchlist"])
 
 
 # ============================================
+# Helper Functions
+# ============================================
+
+def get_user_uuid(user_id) -> UUID:
+    """
+    Safely convert user_id to UUID
+    Handles both string and UUID inputs
+    """
+    if isinstance(user_id, UUID):
+        return user_id
+    if isinstance(user_id, str):
+        try:
+            return UUID(user_id)
+        except (ValueError, TypeError) as e:
+            logger.error(f"❌ Invalid user_id format: {user_id} - {str(e)}")
+            raise HTTPException(status_code=400, detail="Invalid user ID format")
+    raise HTTPException(status_code=400, detail="Invalid user ID format")
+
+
+# ============================================
 # Popular Crypto Symbols
 # ============================================
 
@@ -130,38 +150,46 @@ async def get_watchlist(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Get user's watchlist - returns as array for frontend compatibility"""
-    query = db.query(WatchlistItem).filter(
-        WatchlistItem.user_id == UUID(current_user.id)
-    )
-    
-    if active_only:
-        query = query.filter(WatchlistItem.is_active == True)
-    
-    items = query.order_by(WatchlistItem.priority.desc(), WatchlistItem.created_at).all()
-    
-    # Format items for response
-    formatted_items = []
-    for item in items:
-        formatted_items.append({
-            "id": str(item.id),
-            "symbol": item.symbol,
-            "base_currency": item.base_currency,
-            "quote_currency": item.quote_currency,
-            "is_active": item.is_active,
-            "priority": item.priority,
-            "notes": item.notes,
-            "created_at": item.created_at.isoformat() if item.created_at else None
-        })
-    
-    # Return as single watchlist in array format (frontend expects array)
-    return [{
-        "id": "default",
-        "name": "Ma Watchlist",
-        "is_default": True,
-        "items": formatted_items,
-        "item_count": len(formatted_items),
-        "active_count": sum(1 for i in formatted_items if i["is_active"])
-    }]
+    try:
+        user_uuid = get_user_uuid(current_user.id)
+        
+        query = db.query(WatchlistItem).filter(
+            WatchlistItem.user_id == user_uuid
+        )
+        
+        if active_only:
+            query = query.filter(WatchlistItem.is_active == True)
+        
+        items = query.order_by(WatchlistItem.priority.desc(), WatchlistItem.created_at).all()
+        
+        # Format items for response
+        formatted_items = []
+        for item in items:
+            formatted_items.append({
+                "id": str(item.id),
+                "symbol": item.symbol,
+                "base_currency": item.base_currency,
+                "quote_currency": item.quote_currency,
+                "is_active": item.is_active,
+                "priority": item.priority,
+                "notes": item.notes,
+                "created_at": item.created_at.isoformat() if item.created_at else None
+            })
+        
+        # Return as single watchlist in array format (frontend expects array)
+        return [{
+            "id": "default",
+            "name": "Ma Watchlist",
+            "is_default": True,
+            "items": formatted_items,
+            "item_count": len(formatted_items),
+            "active_count": sum(1 for i in formatted_items if i["is_active"])
+        }]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error fetching watchlist for user {current_user.id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch watchlist: {str(e)}")
 
 
 @router.post("/")
@@ -172,49 +200,57 @@ async def add_to_watchlist(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Add a symbol to watchlist"""
-    # Check if already exists
-    existing = db.query(WatchlistItem).filter(
-        WatchlistItem.user_id == UUID(current_user.id),
-        WatchlistItem.symbol == request.symbol
-    ).first()
-    
-    if existing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Symbol {request.symbol} is already in your watchlist"
+    try:
+        user_uuid = get_user_uuid(current_user.id)
+        
+        # Check if already exists
+        existing = db.query(WatchlistItem).filter(
+            WatchlistItem.user_id == user_uuid,
+            WatchlistItem.symbol == request.symbol
+        ).first()
+        
+        if existing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Symbol {request.symbol} is already in your watchlist"
+            )
+        
+        # Parse symbol
+        parts = request.symbol.split('/')
+        base_currency = parts[0] if len(parts) > 0 else None
+        quote_currency = parts[1] if len(parts) > 1 else None
+        
+        # Create item
+        item = WatchlistItem(
+            user_id=user_uuid,
+            symbol=request.symbol,
+            base_currency=base_currency,
+            quote_currency=quote_currency,
+            notes=request.notes,
+            priority=request.priority,
+            is_active=True
         )
-    
-    # Parse symbol
-    parts = request.symbol.split('/')
-    base_currency = parts[0] if len(parts) > 0 else None
-    quote_currency = parts[1] if len(parts) > 1 else None
-    
-    # Create item
-    item = WatchlistItem(
-        user_id=UUID(current_user.id),
-        symbol=request.symbol,
-        base_currency=base_currency,
-        quote_currency=quote_currency,
-        notes=request.notes,
-        priority=request.priority,
-        is_active=True
-    )
-    
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    
-    # Sync with AI config
-    await _sync_watchlist_to_ai(db, current_user.id)
-    
-    logger.info(f"✅ Added {request.symbol} to watchlist for user {current_user.id}")
-    
-    return {
-        "status": "success",
-        "message": f"{request.symbol} added to watchlist",
-        "id": str(item.id),
-        "symbol": item.symbol
-    }
+        
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+        
+        # Sync with AI config
+        await _sync_watchlist_to_ai(db, str(current_user.id))
+        
+        logger.info(f"✅ Added {request.symbol} to watchlist for user {current_user.id}")
+        
+        return {
+            "status": "success",
+            "message": f"{request.symbol} added to watchlist",
+            "id": str(item.id),
+            "symbol": item.symbol
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error adding symbol to watchlist: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to add symbol: {str(e)}")
 
 
 @router.post("/bulk")
@@ -224,53 +260,60 @@ async def bulk_add_to_watchlist(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Add multiple symbols to watchlist at once"""
-    logger.info(f"📥 Bulk add request: {request.symbols} for user {current_user.id}")
-    added = []
-    skipped = []
-    
-    for symbol in request.symbols:
-        # Check if already exists for THIS user
-        existing = db.query(WatchlistItem).filter(
-            WatchlistItem.user_id == UUID(current_user.id),
-            WatchlistItem.symbol == symbol
-        ).first()
+    try:
+        user_uuid = get_user_uuid(current_user.id)
+        logger.info(f"📥 Bulk add request: {request.symbols} for user {current_user.id}")
+        added = []
+        skipped = []
         
-        if existing:
-            skipped.append(symbol)
-            logger.debug(f"⏭️ Skipped {symbol} - already exists for user")
-            continue
+        for symbol in request.symbols:
+            # Check if already exists for THIS user
+            existing = db.query(WatchlistItem).filter(
+                WatchlistItem.user_id == user_uuid,
+                WatchlistItem.symbol == symbol
+            ).first()
+            
+            if existing:
+                skipped.append(symbol)
+                logger.debug(f"⏭️ Skipped {symbol} - already exists for user")
+                continue
+            
+            # Parse symbol
+            parts = symbol.split('/')
+            base_currency = parts[0] if len(parts) > 0 else None
+            quote_currency = parts[1] if len(parts) > 1 else None
+            
+            # Create item with correct user_id
+            item = WatchlistItem(
+                user_id=user_uuid,
+                symbol=symbol,
+                base_currency=base_currency,
+                quote_currency=quote_currency,
+                is_active=True
+            )
+            db.add(item)
+            added.append(symbol)
+            logger.info(f"➕ Added {symbol} for user {current_user.id}")
         
-        # Parse symbol
-        parts = symbol.split('/')
-        base_currency = parts[0] if len(parts) > 0 else None
-        quote_currency = parts[1] if len(parts) > 1 else None
+        db.commit()
         
-        # Create item with correct user_id
-        item = WatchlistItem(
-            user_id=UUID(current_user.id),
-            symbol=symbol,
-            base_currency=base_currency,
-            quote_currency=quote_currency,
-            is_active=True
-        )
-        db.add(item)
-        added.append(symbol)
-        logger.info(f"➕ Added {symbol} for user {current_user.id}")
-    
-    db.commit()
-    
-    # Sync with AI config
-    await _sync_watchlist_to_ai(db, current_user.id)
-    
-    logger.info(f"✅ Bulk result: added={len(added)}, skipped={len(skipped)}")
-    
-    return {
-        "status": "success",
-        "added": added,
-        "skipped": skipped,
-        "added_count": len(added),
-        "skipped_count": len(skipped)
-    }
+        # Sync with AI config
+        await _sync_watchlist_to_ai(db, str(current_user.id))
+        
+        logger.info(f"✅ Bulk result: added={len(added)}, skipped={len(skipped)}")
+        
+        return {
+            "status": "success",
+            "added": added,
+            "skipped": skipped,
+            "added_count": len(added),
+            "skipped_count": len(skipped)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error in bulk add: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to bulk add symbols: {str(e)}")
 
 
 @router.put("/{item_id}")
