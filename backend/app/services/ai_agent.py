@@ -84,6 +84,9 @@ class AITradingAgent:
         self._running = True
         logger.info(f"🤖 AI Trading Agent started (mode: {self.mode})")
         self._task = asyncio.create_task(self._monitoring_loop())
+        
+        # ✅ QUICK WIN: Lightweight position monitoring every 60s (separate from 300s analysis)
+        self._position_monitor_task = asyncio.create_task(self._position_monitoring_loop())
     
     async def stop(self):
         """Stop the AI agent"""
@@ -94,6 +97,14 @@ class AITradingAgent:
             self._task.cancel()
             try:
                 await self._task
+            except asyncio.CancelledError:
+                pass
+        
+        # Cancel position monitoring task
+        if hasattr(self, '_position_monitor_task') and self._position_monitor_task:
+            self._position_monitor_task.cancel()
+            try:
+                await self._position_monitor_task
             except asyncio.CancelledError:
                 pass
     
@@ -198,6 +209,34 @@ class AITradingAgent:
             except Exception as e:
                 logger.error(f"❌ Error in AI monitoring loop: {str(e)}")
                 await asyncio.sleep(60)  # Wait 1 min on error before retrying
+    
+    async def _position_monitoring_loop(self):
+        """
+        ⚡ QUICK WIN: Lightweight position monitoring every 60 seconds
+        
+        This loop runs INDEPENDENTLY of the 300s analysis cycle.
+        It ONLY checks TP/SL for open AI_AGENT positions, no market analysis.
+        
+        Benefits:
+        - Faster response to TP/SL triggers (60s vs 300s)
+        - Doesn't affect analysis frequency
+        - Minimal overhead (just price check + DB update)
+        - Can coexist until full TradeExecutionService refactoring
+        """
+        logger.info("⚡ Position monitoring loop started (60s interval)")
+        
+        while self._running:
+            try:
+                # Only check if autonomous trading is enabled
+                if self.autonomous_enabled:
+                    await self._monitor_autonomous_positions()
+                
+                # Wait 60 seconds before next check
+                await asyncio.sleep(60)
+                
+            except Exception as e:
+                logger.error(f"❌ Error in position monitoring loop: {str(e)}")
+                await asyncio.sleep(60)
     
     async def _get_watchlist_symbols(self) -> List[str]:
         """Get symbols from watchlist table for this user"""
