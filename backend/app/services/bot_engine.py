@@ -545,20 +545,38 @@ class BotEngine:
                 Trade.status == "OPEN"
             ).all()
             
+            if not open_trades:
+                logger.debug(f"📊 [POS-CHECK] {symbol} | No open trades")
+                return
+            
             current_price = market_data['close']
+            logger.info(f"📊 [POS-CHECK] {symbol} | {len(open_trades)} open trade(s) @ ${current_price:.2f}")
             
             for trade in open_trades:
+                trade_id = str(trade.id)
+                
                 # Check stop loss
                 if trade.stop_loss_price:
-                    if trade.side == "BUY" and current_price <= float(trade.stop_loss_price):
+                    sl_price = float(trade.stop_loss_price)
+                    if trade.side == "BUY" and current_price <= sl_price:
+                        logger.info(f"🛑 [SL-TRIGGER] {symbol} | Trade {trade_id[:8]} | Price ${current_price:.2f} ≤ SL ${sl_price:.2f}")
                         await self._close_position(db, bot_state, trade, current_price, "Stop Loss")
                         continue
                 
                 # Check take profit
                 if trade.take_profit_price:
-                    if trade.side == "BUY" and current_price >= float(trade.take_profit_price):
+                    tp_price = float(trade.take_profit_price)
+                    if trade.side == "BUY" and current_price >= tp_price:
+                        logger.info(f"💰 [TP-TRIGGER] {symbol} | Trade {trade_id[:8]} | Price ${current_price:.2f} ≥ TP ${tp_price:.2f}")
                         await self._close_position(db, bot_state, trade, current_price, "Take Profit")
                         continue
+                    elif current_price < tp_price:
+                        # Still monitoring TP
+                        tp_distance = tp_price - current_price
+                        tp_pct = (tp_distance / current_price) * 100
+                        logger.debug(f"📊 [TP-WATCH] {symbol} | Trade {trade_id[:8]} | ${current_price:.2f} → TP ${tp_price:.2f} (+{tp_pct:.2f}%)")
+                else:
+                    logger.debug(f"⚠️ [NO-TP] Trade {trade_id[:8]} has no take_profit_price set")
                 
                 # Check strategy exit conditions
                 trade_dict = {

@@ -46,3 +46,25 @@ You've just applied 5 critical fixes:
 logger.info(f"📊 [SIGNAL] {bot_name} | {symbol} | {action}")
 logger.info(f"⚠️ [BLOCKED] {symbol}: {reason}")
 logger.info(f"✅ [BUY-EXEC] {symbol} | Qty: {qty} | Cost: ${cost}")
+
+
+Risk Checks
+PythonABSOLUTE_MAX_POSITION_PCT = 0.25  # 25% maxif cost > portfolio.total_value * 0.25:    cost = portfolio.total_value * 0.25db.query(Trade).filter(    Trade.status.in_(["OPEN", "CLOSING"])  # NOT just OPEN)Afficher plus de lignes
+
+Reference Documents
+📌 docs/planning/todoBug.md
+📌 docs/planning/TODO.md
+📌 docs/PROJECT_SPECIFICATIONS.md
+📌 docs/architecture/
+📌 docs/PHASE2_ML_INTEGRATION_SUMMARY.md
+
+File Locations
+Strategies:     backend/app/services/strategies/*.py
+BotEngine:      backend/app/services/bot_engine.py
+RiskManager:    backend/app/services/risk_manager.py
+AI:             backend/app/services/ai_agent.py
+                backend/app/services/ai_bot_controller.py
+Frontend:       frontend/src/components/*.jsx
+Routes:         backend/app/routes/*.py
+Tests:          tests/
+Docs:           docs/planning/
