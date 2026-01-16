@@ -221,9 +221,14 @@ async def lifespan(app: FastAPI):
                 # Keep legacy reference as None for backwards compatibility
                 ai_agent_module.ai_agent = None
                 
-                # Bot Engine AI integration disabled (will be managed per-user)
+                # ✅ Enable AI in Bot Engine globally (will use per-user agents)
                 if bot_engine_module.bot_engine:
-                    logger.info("[INFO] Bot Engine AI will be configured per-user")
+                    bot_engine_module.bot_engine.configure_ai(
+                        enabled=True,
+                        mode="autonomous",
+                        min_confidence=60
+                    )
+                    logger.info("✅ [STARTUP] Bot Engine AI enabled globally (autonomous mode, min_confidence=60%)")
                 
                 # ⚠️ DO NOT start global Bot Controller - it will be created per-user on demand
                 logger.info("[SKIP] Global Bot Controller disabled - using per-user Bot Controller system")
