@@ -813,13 +813,14 @@ class AITradingAgent:
                 try:
                     symbol = trade.symbol
                     
-                    # Fetch current price
-                    ticker = await market_data_collector.get_ticker(symbol)
-                    if not ticker or 'close' not in ticker:
-                        logger.warning(f"⚠️ Could not fetch price for {symbol}")
+                    # Fetch current price using get_candles (like BotEngine does)
+                    # This is more reliable than get_ticker()
+                    candles = await market_data_collector.get_candles(symbol, timeframe="1m", limit=1)
+                    if not candles or len(candles) == 0:
+                        logger.warning(f"⚠️ Could not fetch price for {symbol} via get_candles")
                         continue
                     
-                    current_price = ticker['close']
+                    current_price = candles[-1]['close']
                     entry_price = float(trade.entry_price)
                     sl = float(trade.stop_loss_price) if trade.stop_loss_price else None
                     tp = float(trade.take_profit_price) if trade.take_profit_price else None
