@@ -1173,6 +1173,13 @@ async def start_ai_agent(
         # Link agent to controller
         controller.set_ai_agent(agent)
         
+        # ✅ Configure BotEngine to enable AI integration
+        engine = get_bot_engine()
+        if engine and agent:
+            engine.set_ai_agent(agent)
+            engine.configure_ai(enabled=True, mode="autonomous", min_confidence=60)
+            logger.info(f"🤖 BotEngine AI configured: enabled=True, mode=autonomous")
+        
         # Start both
         if not agent._running:
             agent.mode = request.mode

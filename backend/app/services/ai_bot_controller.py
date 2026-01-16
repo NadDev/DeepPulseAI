@@ -105,7 +105,8 @@ class AIBotController:
             return
         
         self._running = True
-        logger.info(f"🤖 AI Bot Controller started (mode: {self.mode})")
+        self.enabled = True  # ✅ Enable controller when started
+        logger.info(f"🤖 AI Bot Controller started (mode: {self.mode}, enabled: {self.enabled})")
         
         # Load existing AI-managed bots from database
         await self._load_ai_bots()
