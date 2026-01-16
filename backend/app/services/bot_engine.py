@@ -69,7 +69,8 @@ class BotEngine:
             mode: 'advisory' (suggest only) or 'autonomous' (can block trades)
             min_confidence: Minimum confidence level (0-100)
         """
-        self.ai_enabled = enabled and self.ai_agent is not None
+        # ✅ Allow enabling AI even if agent not set yet (will be set per-user later)
+        self.ai_enabled = enabled
         self.ai_mode = mode if mode in ["advisory", "autonomous"] else "advisory"
         self.ai_min_confidence = max(0, min(100, min_confidence))
         
