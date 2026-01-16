@@ -815,11 +815,11 @@ class AITradingAgent:
                     
                     # Fetch current price
                     ticker = await market_data_collector.get_ticker(symbol)
-                    if not ticker or 'last' not in ticker:
+                    if not ticker or 'close' not in ticker:
                         logger.warning(f"⚠️ Could not fetch price for {symbol}")
                         continue
                     
-                    current_price = ticker['last']
+                    current_price = ticker['close']
                     entry_price = float(trade.entry_price)
                     sl = float(trade.stop_loss_price) if trade.stop_loss_price else None
                     tp = float(trade.take_profit_price) if trade.take_profit_price else None
