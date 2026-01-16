@@ -222,6 +222,26 @@ class BotEngine:
                 if not market_data:
                     continue
                 
+                # Check for open positions (for strategies that need to know this)
+                db = self.db_session_factory()
+                try:
+                    open_buy_position = db.query(Trade).filter(
+                        Trade.bot_id == bot_id,
+                        Trade.symbol == symbol,
+                        Trade.status == "OPEN",
+                        Trade.side == "BUY"
+                    ).first()
+                    
+                    if open_buy_position:
+                        market_data['open_position'] = {
+                            'side': 'BUY',
+                            'entry_price': float(open_buy_position.entry_price),
+                            'quantity': float(open_buy_position.quantity),
+                            'id': str(open_buy_position.id)
+                        }
+                finally:
+                    db.close()
+                
                 # Check for new signals from strategy
                 signal = strategy.get_signal_direction(market_data)
                 
@@ -351,7 +371,8 @@ class BotEngine:
                     "resistance": resistance,
                     "support": support,
                     "avg_volume": avg_volume
-                }
+                },
+                "open_position": None  # Will be populated by strategy if needed
             }
         except Exception as e:
             logger.error(f"Error getting market data for {symbol}: {e}")
