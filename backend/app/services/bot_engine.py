@@ -500,6 +500,16 @@ class BotEngine:
             # ================================================================
             max_position_cost = portfolio_value * ABSOLUTE_MAX_POSITION_PCT
             
+            # ALSO CHECK: We have enough cash to buy
+            available_cash = float(portfolio.cash_balance)
+            if cost > available_cash:
+                logger.warning(f"⚠️ [CASH-LIMIT] Cost ${cost:.2f} exceeds available cash ${available_cash:.2f}, reducing")
+                cost = available_cash * 0.95  # Use 95% to leave buffer
+                quantity = cost / current_price
+                if cost <= 0:
+                    logger.error(f"❌ [INSUFFICIENT-CASH] Cannot trade {symbol}, need ${cost:.2f} but only have ${available_cash:.2f}")
+                    return
+            
             if cost > max_position_cost:
                 logger.warning(f"⚠️ [POS-LIMIT] Cost ${cost:.2f} exceeds max ${max_position_cost:.2f}, clamping")
                 cost = max_position_cost
