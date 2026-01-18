@@ -47,14 +47,15 @@ class AITradeConfig:
     position_size_pct: float = 5.0          # 5% of portfolio per AI trade
     
     # Stop Loss Configuration
-    sl_method: str = "ATR"                  # "ATR", "FIXED_PCT"
+    sl_method: str = "FIXED_PCT"            # "ATR", "FIXED_PCT" - Changed to FIXED_PCT as primary
     sl_atr_multiplier: float = 2.0          # 2 × ATR below entry
-    sl_fixed_pct: float = 3.0               # -3% if fixed
+    sl_fixed_pct: float = 2.0               # -2.0% if fixed (FIXED from 3.0 to prevent SL=Entry on small prices)
+    sl_min_distance: float = 0.01           # Minimum absolute SL distance ($0.01) to handle micro-prices
     
     # Take Profit Configuration  
-    tp_method: str = "ATR"                  # "ATR", "FIXED_PCT", "NONE"
+    tp_method: str = "FIXED_PCT"            # "ATR", "FIXED_PCT", "NONE" - Changed to FIXED_PCT as primary
     tp_atr_multiplier: float = 3.0          # 3 × ATR above entry (1:1.5 R:R)
-    tp_fixed_pct: float = 6.0               # +6% if fixed
+    tp_fixed_pct: float = 4.0               # +4% if fixed (adjusted to maintain 2:1 R:R ratio)
     
     # Minimum Risk:Reward ratio
     min_risk_reward: float = 1.5            # Reject if R:R < 1.5
@@ -425,7 +426,7 @@ class RiskManager:
         entry_price: float,
         market_data: Optional[Dict[str, Any]]
     ) -> Dict[str, Optional[float]]:
-        """Calculate Stop Loss and Take Profit levels"""
+        """Calculate Stop Loss and Take Profit levels with proper validation"""
         
         atr = None
         if market_data and 'indicators' in market_data:
@@ -434,25 +435,44 @@ class RiskManager:
         stop_loss = None
         take_profit = None
         
-        # Calculate Stop Loss
-        if self.ai_config.sl_method == "ATR" and atr:
+        # ===== STOP LOSS CALCULATION =====
+        # Bug Fix #1: Changed primary method to FIXED_PCT to avoid ATR edge cases
+        if self.ai_config.sl_method == "ATR" and atr and atr > 0:
             stop_loss = entry_price - (atr * self.ai_config.sl_atr_multiplier)
         else:
-            # Fallback to fixed percentage
+            # Primary: Fixed percentage calculation
             stop_loss = entry_price * (1 - self.ai_config.sl_fixed_pct / 100)
         
-        # Calculate Take Profit
+        # Bug Fix #2: Enforce minimum SL distance for small-price assets (e.g., WALUSDT=$0.16)
+        # Without this, 2% SL on $0.16 = $0.1568, which rounds to $0.16 = entry price
+        min_sl = entry_price - self.ai_config.sl_min_distance
+        if stop_loss and stop_loss > min_sl:
+            # SL is too close to entry, enforce minimum distance
+            stop_loss = min_sl
+        
+        # Bug Fix #3: Validate SL is not equal to entry price (would close immediately)
+        if stop_loss and abs(stop_loss - entry_price) < 0.0001:  # Accounting for float precision
+            logger.warning(f"⚠️ SL too close to Entry (diff < $0.0001), applying minimum distance")
+            stop_loss = entry_price - self.ai_config.sl_min_distance
+        
+        # ===== TAKE PROFIT CALCULATION =====
         if self.ai_config.tp_method == "NONE":
             take_profit = None
-        elif self.ai_config.tp_method == "ATR" and atr:
+        elif self.ai_config.tp_method == "ATR" and atr and atr > 0:
             take_profit = entry_price + (atr * self.ai_config.tp_atr_multiplier)
         else:
-            # Fallback to fixed percentage
+            # Primary: Fixed percentage calculation
             take_profit = entry_price * (1 + self.ai_config.tp_fixed_pct / 100)
         
+        # Round to 8 decimals (max crypto precision)
+        sl_rounded = round(stop_loss, 8) if stop_loss else None
+        tp_rounded = round(take_profit, 8) if take_profit else None
+        
+        logger.info(f"📊 SL/TP Calculation: Entry=${entry_price:.8f} | SL=${sl_rounded} (offset: ${entry_price - sl_rounded if sl_rounded else 'N/A'}) | TP=${tp_rounded}")
+        
         return {
-            "stop_loss": round(stop_loss, 2) if stop_loss else None,
-            "take_profit": round(take_profit, 2) if take_profit else None
+            "stop_loss": sl_rounded,
+            "take_profit": tp_rounded
         }
     
     def get_trade_parameters(

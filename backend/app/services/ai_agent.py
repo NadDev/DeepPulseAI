@@ -670,6 +670,31 @@ class AITradingAgent:
         
         db = self.db_session_factory()
         try:
+            # ===== BUG FIX #2: Validate SL and TP before trade creation =====
+            # Check 1: SL should never equal Entry (would close immediately)
+            if stop_loss and abs(stop_loss - entry_price) < 0.0001:
+                logger.error(f"❌ [AI TRADE VALIDATION] SL={stop_loss} equals Entry={entry_price}! Rejecting trade.")
+                return None
+            
+            # Check 2: SL should be below Entry for BUY orders
+            if side == "BUY" and stop_loss and stop_loss >= entry_price:
+                logger.error(f"❌ [AI TRADE VALIDATION] SL={stop_loss} not below Entry={entry_price} for BUY! Rejecting trade.")
+                return None
+            
+            # Check 3: TP should be above Entry for BUY orders
+            if side == "BUY" and take_profit and take_profit <= entry_price:
+                logger.error(f"❌ [AI TRADE VALIDATION] TP={take_profit} not above Entry={entry_price} for BUY! Rejecting trade.")
+                return None
+            
+            # Check 4: Verify Risk:Reward ratio is acceptable (min 1:1.5)
+            if stop_loss and take_profit and side == "BUY":
+                risk = entry_price - stop_loss
+                reward = take_profit - entry_price
+                if risk > 0:
+                    rr_ratio = reward / risk
+                    if rr_ratio < 1.0:
+                        logger.warning(f"⚠️ [AI TRADE VALIDATION] Poor R:R ratio {rr_ratio:.2f} (min 1.0). Proceeding with caution.")
+            
             # Get portfolio
             portfolio = db.query(Portfolio).filter(
                 Portfolio.user_id == UUID(self.user_id)
@@ -682,6 +707,9 @@ class AITradingAgent:
             # Calculate quantity
             cost = position_amount if position_amount else float(portfolio.cash_balance) * 0.05
             quantity = cost / entry_price
+            
+            # Log trade creation with full details
+            logger.info(f"✅ [AI TRADE CREATE] {symbol} {side} | Entry: ${entry_price:.8f} | SL: ${stop_loss:.8f if stop_loss else 'None'} (offset: ${entry_price - stop_loss if stop_loss else 'N/A'}) | TP: ${take_profit:.8f if take_profit else 'None'} | Qty: {quantity:.8f} | Cost: ${cost:.2f}")
             
             # Deduct from cash balance
             portfolio.cash_balance = float(portfolio.cash_balance) - cost

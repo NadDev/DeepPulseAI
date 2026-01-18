@@ -100,37 +100,51 @@ Profits from natural market oscillations in ranging markets.
             # Calculate position in range (0 = at lower band, 1 = at upper band)
             position_in_range = (current_price - bb_lower) / range_size if range_size > 0 else 0.5
             
-            # BUY in lower third of range
+            # BUY in lower third of range - ONLY if no position open
             if position_in_range < 0.33:
-                logger.info(f"📊 [GRID-SIGNAL] BUY | position_in_range={position_in_range:.2f}")
-                return 'BUY'
+                if not open_position:
+                    logger.info(f"📊 [GRID-SIGNAL] BUY | position_in_range={position_in_range:.2f} | Price: ${current_price:.8f}")
+                    return 'BUY'
+                else:
+                    logger.debug(f"📊 [GRID-SKIP-BUY] Already have open position (side={open_position.get('side')}) at ${current_price:.8f}")
+                    return 'NONE'
             
-            # SELL in upper third of range - but only if we have an open BUY position
+            # SELL in upper third of range - but ONLY if we have an open BUY position
             if position_in_range > 0.67:
                 if open_position and open_position.get('side') == 'BUY':
-                    logger.info(f"📊 [GRID-SIGNAL] SELL | position_in_range={position_in_range:.2f}")
+                    logger.info(f"📊 [GRID-SIGNAL] SELL | position_in_range={position_in_range:.2f} | Entry: ${open_position.get('entry_price'):.8f} | Current: ${current_price:.8f}")
                     return 'SELL'
                 else:
-                    logger.info(f"📊 [GRID-SKIP] No SELL | position_in_range={position_in_range:.2f}, no open BUY")
+                    logger.debug(f"📊 [GRID-SKIP-SELL] position_in_range={position_in_range:.2f}, no open BUY position at ${current_price:.8f}")
                     return 'NONE'
         
-        # Fallback: use support/resistance
+            # Middle range - no signal
+            logger.debug(f"📊 [GRID-NEUTRAL] position_in_range={position_in_range:.2f} (no signal in middle range) at ${current_price:.8f}")
+            return 'NONE'
+        
+        # Fallback: use support/resistance if Bollinger Bands unavailable
         elif all([support, resistance]):
             range_size = resistance - support
             if range_size > 0:
                 position_in_range = (current_price - support) / range_size
                 
                 if position_in_range < 0.3:
-                    logger.info(f"📊 [GRID-SIGNAL] BUY | position_in_range={position_in_range:.2f}")
-                    return 'BUY'
+                    if not open_position:
+                        logger.info(f"📊 [GRID-SIGNAL-FBALL] BUY | position_in_range={position_in_range:.2f} (using support/resistance)")
+                        return 'BUY'
+                    else:
+                        logger.debug(f"📊 [GRID-SKIP-BUY-FBALL] Already have open position at ${current_price:.8f}")
+                        return 'NONE'
+                        
                 if position_in_range > 0.7:
                     if open_position and open_position.get('side') == 'BUY':
-                        logger.info(f"📊 [GRID-SIGNAL] SELL | position_in_range={position_in_range:.2f}")
+                        logger.info(f"📊 [GRID-SIGNAL-FBALL] SELL | position_in_range={position_in_range:.2f} (using support/resistance)")
                         return 'SELL'
                     else:
-                        logger.info(f"📊 [GRID-SKIP] No SELL | position_in_range={position_in_range:.2f}, no open BUY")
+                        logger.debug(f"📊 [GRID-SKIP-SELL-FBALL] No open BUY position at ${current_price:.8f}")
                         return 'NONE'
         
+        logger.debug(f"📊 [GRID-NO-INDICATORS] No indicators available for grid calculation at ${current_price:.8f}")
         return 'NONE'
     
     def calculate_position_size(
