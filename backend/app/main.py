@@ -10,7 +10,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow info/warnings
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimization to reduce warnings
 
 # Import routes
-from app.routes import health, portfolio, crypto, bots, reports, risk, trades, translations, ml, auth, ai_agent, exchange, watchlist
+from app.routes import health, portfolio, crypto, bots, reports, risk, trades, translations, ml, auth, ai_agent, exchange, watchlist, settings as settings_routes
 from app.config import settings
 from app.db.database import Base, engine, SessionLocal
 from app.services import bot_engine as bot_engine_module
@@ -337,6 +337,7 @@ app.include_router(ml.router)
 app.include_router(ai_agent.router)  # AI Agent routes
 app.include_router(exchange.router)  # Exchange configuration routes
 app.include_router(watchlist.router)  # Watchlist management routes
+app.include_router(settings_routes.router)  # Trading settings routes
 
 @app.get("/")
 async def root():

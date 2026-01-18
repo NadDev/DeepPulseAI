@@ -268,3 +268,160 @@ class MLPrediction(Base):
     
     def __repr__(self):
         return f"<MLPrediction {self.symbol} pred_1h={self.pred_1h:.2f}±{self.confidence_1h:.2%} @ {self.timestamp}>"
+
+
+# ============================================
+# User Trading Settings
+# Per-user SL/TP configuration and preferences
+# ============================================
+class UserTradingSettings(Base):
+    """
+    Stores per-user trading preferences including SL/TP profile selection.
+    
+    Profiles:
+    - PRUDENT: Tight stops, secure gains quickly (beginners, volatile markets)
+    - BALANCED: Standard risk/reward (most traders)
+    - AGGRESSIVE: Wide stops, let profits run (trending markets, experienced)
+    """
+    __tablename__ = "user_trading_settings"
+    
+    # Primary key = user_id (one row per user)
+    user_id = Column(UUID(as_uuid=True), primary_key=True)
+    
+    # ============================================
+    # SL/TP Profile Selection
+    # ============================================
+    sl_tp_profile = Column(String(20), default="BALANCED", nullable=False)  # PRUDENT, BALANCED, AGGRESSIVE
+    
+    # ============================================
+    # SL Configuration
+    # ============================================
+    sl_method = Column(String(20), default="ATR", nullable=False)  # ATR, STRUCTURE, FIXED_PCT, HYBRID
+    sl_atr_multiplier = Column(Float, default=1.5)
+    sl_fixed_pct = Column(Float, default=2.5)
+    sl_min_distance = Column(Float, default=0.01)
+    sl_max_pct = Column(Float, default=5.0)
+    
+    # ============================================
+    # TP Configuration
+    # ============================================
+    tp1_risk_reward = Column(Float, default=1.5)  # R:R ratio for TP1
+    tp1_exit_pct = Column(Float, default=50.0)    # % of position to exit at TP1
+    tp2_risk_reward = Column(Float, default=3.0)  # R:R ratio for TP2
+    
+    # ============================================
+    # Trailing Stop Configuration
+    # ============================================
+    enable_trailing_sl = Column(Boolean, default=True)
+    trailing_activation_pct = Column(Float, default=1.5)
+    trailing_distance_pct = Column(Float, default=1.0)
+    
+    # ============================================
+    # Trade Phase Configuration
+    # ============================================
+    enable_trade_phases = Column(Boolean, default=True)
+    validation_threshold_pct = Column(Float, default=0.5)
+    move_sl_to_breakeven = Column(Boolean, default=True)
+    
+    # ============================================
+    # Partial TP Configuration
+    # ============================================
+    enable_partial_tp = Column(Boolean, default=True)
+    
+    # ============================================
+    # Risk Limits (per user override)
+    # ============================================
+    max_position_pct = Column(Float, default=25.0)
+    max_daily_loss_pct = Column(Float, default=5.0)
+    max_trades_per_day = Column(Integer, default=10)
+    
+    # ============================================
+    # Timestamps
+    # ============================================
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    
+    def __repr__(self):
+        return f"<UserTradingSettings user={self.user_id} profile={self.sl_tp_profile}>"
+
+
+# ============================================
+# SL/TP Profile Presets
+# Default configurations for each profile
+# ============================================
+class SLTPProfilePreset(Base):
+    """
+    Stores default configurations for PRUDENT, BALANCED, AGGRESSIVE profiles.
+    Used as reference/defaults when user doesn't override specific values.
+    """
+    __tablename__ = "sl_tp_profile_presets"
+    
+    profile_name = Column(String(20), primary_key=True)  # PRUDENT, BALANCED, AGGRESSIVE
+    display_name = Column(String(50), nullable=False)
+    description = Column(Text, nullable=True)
+    
+    # SL Config
+    sl_atr_multiplier = Column(Float, nullable=False)
+    sl_fixed_pct = Column(Float, nullable=False)
+    sl_max_pct = Column(Float, nullable=False)
+    
+    # TP Config
+    tp1_risk_reward = Column(Float, nullable=False)
+    tp1_exit_pct = Column(Float, nullable=False)
+    tp2_risk_reward = Column(Float, nullable=False)
+    
+    # Trailing Config
+    trailing_activation_pct = Column(Float, nullable=False)
+    trailing_distance_pct = Column(Float, nullable=False)
+    
+    # Phase Config
+    validation_threshold_pct = Column(Float, nullable=False)
+    
+    def __repr__(self):
+        return f"<SLTPProfilePreset {self.profile_name}: SL={self.sl_fixed_pct}%, TP1={self.tp1_risk_reward}R>"
+
+
+# ============================================
+# Profile Presets Data (for seeding)
+# ============================================
+SLTP_PROFILE_PRESETS = {
+    "PRUDENT": {
+        "display_name": "Prudent",
+        "description": "Conservative: tight stops, secure gains quickly. Best for beginners or volatile markets.",
+        "sl_atr_multiplier": 1.0,
+        "sl_fixed_pct": 1.5,
+        "sl_max_pct": 3.0,
+        "tp1_risk_reward": 1.3,
+        "tp1_exit_pct": 70.0,
+        "tp2_risk_reward": 2.0,
+        "trailing_activation_pct": 1.0,
+        "trailing_distance_pct": 0.75,
+        "validation_threshold_pct": 0.3
+    },
+    "BALANCED": {
+        "display_name": "Balanced",
+        "description": "Balanced risk/reward. Good for most market conditions.",
+        "sl_atr_multiplier": 1.5,
+        "sl_fixed_pct": 2.5,
+        "sl_max_pct": 5.0,
+        "tp1_risk_reward": 1.5,
+        "tp1_exit_pct": 50.0,
+        "tp2_risk_reward": 3.0,
+        "trailing_activation_pct": 1.5,
+        "trailing_distance_pct": 1.0,
+        "validation_threshold_pct": 0.5
+    },
+    "AGGRESSIVE": {
+        "display_name": "Aggressive",
+        "description": "Let profits run with wider stops. Best for trending markets and experienced traders.",
+        "sl_atr_multiplier": 2.0,
+        "sl_fixed_pct": 4.0,
+        "sl_max_pct": 8.0,
+        "tp1_risk_reward": 1.5,
+        "tp1_exit_pct": 30.0,
+        "tp2_risk_reward": 4.0,
+        "trailing_activation_pct": 2.0,
+        "trailing_distance_pct": 1.5,
+        "validation_threshold_pct": 0.75
+    }
+}
