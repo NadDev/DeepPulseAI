@@ -278,6 +278,48 @@ class SLTPManager:
                 reward_1 = (entry_price - tp1) * position_size if tp1 else 0
                 reward_2 = (entry_price - tp2) * position_size if tp2 else 0
         
+        # ============================================
+        # VALIDATION: Check for NaN/Invalid values
+        # ============================================
+        import math
+        
+        errors = []
+        
+        # Check SL
+        if not isinstance(sl_price, (int, float)) or math.isnan(sl_price) or math.isinf(sl_price):
+            errors.append(f"Invalid SL: {sl_price}")
+            sl_price = self._calculate_fixed_pct_sl(entry_price, side, settings)
+            logger.warning(f"⚠️ [SLTP-FIX] SL was invalid, using FIXED_PCT fallback: ${sl_price:.4f}")
+        
+        # Check TP1
+        if not isinstance(tp1, (int, float)) or math.isnan(tp1) or math.isinf(tp1):
+            errors.append(f"Invalid TP1: {tp1}")
+            # Fallback: TP1 = Entry + (SL_distance * 1.5)
+            fallback_distance = abs(entry_price - sl_price) * 1.5
+            tp1 = entry_price + fallback_distance if side == "BUY" else entry_price - fallback_distance
+            logger.warning(f"⚠️ [SLTP-FIX] TP1 was invalid, using fallback: ${tp1:.4f}")
+        
+        # Check TP2
+        if tp2 and (not isinstance(tp2, (int, float)) or math.isnan(tp2) or math.isinf(tp2)):
+            errors.append(f"Invalid TP2: {tp2}")
+            # Fallback: TP2 = Entry + (SL_distance * 3.0)
+            fallback_distance = abs(entry_price - sl_price) * 3.0
+            tp2 = entry_price + fallback_distance if side == "BUY" else entry_price - fallback_distance
+            logger.warning(f"⚠️ [SLTP-FIX] TP2 was invalid, using fallback: ${tp2:.4f}")
+        
+        # Check validation price
+        if not isinstance(validation_price, (int, float)) or math.isnan(validation_price) or math.isinf(validation_price):
+            validation_price = self._calculate_validation_price(entry_price, side, settings)
+            logger.warning(f"⚠️ [SLTP-FIX] Validation price was invalid, recalculated: ${validation_price:.4f}")
+        
+        # Check distances
+        if not isinstance(sl_distance_pct, (int, float)) or math.isnan(sl_distance_pct) or math.isinf(sl_distance_pct):
+            sl_distance_pct = abs((sl_price - entry_price) / entry_price) * 100
+            logger.warning(f"⚠️ [SLTP-FIX] SL distance was invalid, recalculated: {sl_distance_pct:.2f}%")
+        
+        if errors:
+            logger.error(f"❌ [SLTP-VALIDATION] Fixed {len(errors)} invalid value(s): {', '.join(errors)}")
+        
         config = SLTPConfig(
             stop_loss=sl_price,
             sl_method=sl_method_used,

@@ -444,6 +444,15 @@ class BotEngine:
             final_stop_loss = sltp_config.stop_loss
             take_profit = sltp_config.take_profit_1
             
+            # Validate SL/TP (fallback in case SLTPManager failed)
+            if not final_stop_loss or final_stop_loss <= 0 or final_stop_loss == current_price:
+                logger.warning(f"⚠️ Invalid SL from SLTPManager: {final_stop_loss}, using fallback")
+                final_stop_loss = current_price * 0.97  # 3% below
+            
+            if not take_profit or take_profit <= 0 or take_profit == current_price:
+                logger.warning(f"⚠️ Invalid TP from SLTPManager: {take_profit}, using fallback")
+                take_profit = current_price * 1.03  # 3% above
+            
             logger.info(f"🎯 [SLTP] Using intelligent SL/TP: SL=${final_stop_loss:.4f}, TP=${take_profit:.4f}")
             
         except Exception as e:
