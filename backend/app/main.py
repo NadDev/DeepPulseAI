@@ -176,6 +176,38 @@ async def lifespan(app: FastAPI):
             except Exception as create_error:
                 logger.error(f"❌ Failed to create AI system user: {create_error}")
         
+        # Check if user_trading_settings table exists, if not create it
+        try:
+            db.execute(text("SELECT 1 FROM user_trading_settings LIMIT 1"))
+            logger.info("[OK] user_trading_settings table exists")
+        except Exception as check_error:
+            try:
+                logger.info(f"⚙️ Creating user_trading_settings table...")
+                
+                migration_paths = [
+                    "/app/database/migrations/007_create_user_trading_settings.sql",
+                    "database/migrations/007_create_user_trading_settings.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/007_create_user_trading_settings.sql"
+                ]
+                
+                migration_sql = None
+                for path in migration_paths:
+                    try:
+                        migration_sql = open(path).read()
+                        logger.info(f"✅ Found migration at: {path}")
+                        break
+                    except:
+                        continue
+                
+                if migration_sql:
+                    db.execute(text(migration_sql))
+                    db.commit()
+                    logger.info("✅ user_trading_settings table created successfully")
+                else:
+                    logger.error(f"❌ Could not find user_trading_settings migration file")
+            except Exception as create_error:
+                logger.error(f"❌ Failed to create user_trading_settings table: {create_error}")
+        
         db.close()
     except Exception as e:
         logger.warning(f"⚠️ Could not verify/create tables: {e}")
