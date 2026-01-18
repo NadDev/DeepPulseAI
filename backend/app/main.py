@@ -208,6 +208,38 @@ async def lifespan(app: FastAPI):
             except Exception as create_error:
                 logger.error(f"❌ Failed to create user_trading_settings table: {create_error}")
         
+        # Check if trades table has TP2/phase columns, if not add them (migration 009)
+        try:
+            db.execute(text("SELECT take_profit_2, trade_phase FROM trades LIMIT 1"))
+            logger.info("[OK] trades table has TP2/phase columns")
+        except Exception as check_error:
+            try:
+                logger.info(f"⚙️ Adding TP2/phase columns to trades table...")
+                
+                migration_paths = [
+                    "/app/database/migrations/009_add_tp2_and_phase_to_trades.sql",
+                    "database/migrations/009_add_tp2_and_phase_to_trades.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/009_add_tp2_and_phase_to_trades.sql"
+                ]
+                
+                migration_sql = None
+                for path in migration_paths:
+                    try:
+                        migration_sql = open(path).read()
+                        logger.info(f"✅ Found migration at: {path}")
+                        break
+                    except:
+                        continue
+                
+                if migration_sql:
+                    db.execute(text(migration_sql))
+                    db.commit()
+                    logger.info("✅ trades table extended with TP2/phase columns successfully")
+                else:
+                    logger.error(f"❌ Could not find trades TP2/phase migration file")
+            except Exception as create_error:
+                logger.error(f"❌ Failed to add TP2/phase columns: {create_error}")
+        
         db.close()
     except Exception as e:
         logger.warning(f"⚠️ Could not verify/create tables: {e}")
