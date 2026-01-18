@@ -573,7 +573,12 @@ class SLTPManager:
             # Estimate ATR from high-low range if not available
             high = market_data.get("high", entry_price * 1.02)
             low = market_data.get("low", entry_price * 0.98)
-            atr = (high - low) * 0.5  # Rough estimate
+            atr = abs(high - low) * 0.5  # Rough estimate
+        
+        # Validate ATR value (must be positive)
+        if not atr or atr <= 0:
+            # Fallback to fixed percentage if ATR is invalid
+            return self._calculate_fixed_pct_sl(entry_price, side, settings)
         
         # SL distance = ATR * multiplier
         sl_distance = atr * settings.sl_atr_multiplier

@@ -356,6 +356,7 @@ class BotEngine:
             sma_50 = self.technical_analysis.calculate_sma(closes, 50)
             rsi = self.technical_analysis.calculate_rsi(closes, 14)
             bb_upper, bb_middle, bb_lower = self.technical_analysis.calculate_bollinger_bands(closes, 20, 2)
+            atr = self.technical_analysis.calculate_atr(candles, 14)
             
             # Find support/resistance (simplified)
             resistance = max(highs[-20:])
@@ -378,6 +379,7 @@ class BotEngine:
                     "bb_upper": bb_upper[-1] if bb_upper else None,
                     "bb_middle": bb_middle[-1] if bb_middle else None,
                     "bb_lower": bb_lower[-1] if bb_lower else None,
+                    "atr": atr[-1] if atr and atr[-1] is not None else None,
                     "resistance": resistance,
                     "support": support,
                     "avg_volume": avg_volume
