@@ -2,6 +2,7 @@
 Bot Execution Engine
 Manages active trading bots and executes their strategies
 Integrates with AI Agent for enhanced decision making
+Integrates with SLTPManager for intelligent SL/TP management
 """
 import asyncio
 import json
@@ -13,6 +14,7 @@ from app.services.strategies import StrategyRegistry
 from app.services.market_data import MarketDataCollector
 from app.services.technical_analysis import TechnicalAnalysis
 from app.services.risk_manager import RiskManager
+from app.services.sl_tp_manager import SLTPManager, TradeState, TradePhase, ExitReason
 import uuid
 import logging
 
@@ -24,6 +26,7 @@ class BotEngine:
     Central engine for executing trading bots.
     Manages active bots, executes strategies, and handles paper trading.
     Integrates with AI Agent for intelligent trade validation.
+    Integrates with SLTPManager for intelligent SL/TP management.
     """
     
     def __init__(self, db_session_factory):
@@ -42,6 +45,13 @@ class BotEngine:
         
         # Risk Manager (centralized validation)
         self.risk_manager = RiskManager(db_session_factory)
+        
+        # SL/TP Manager (intelligent stop loss and take profit)
+        self.sltp_manager = SLTPManager(
+            market_data_service=self.market_data,
+            technical_analysis=self.technical_analysis,
+            db_session_factory=db_session_factory
+        )
         
         # AI Agent integration
         self.ai_agent = None  # Will be set via set_ai_agent()
@@ -386,7 +396,7 @@ class BotEngine:
         market_data: Dict[str, Any],
         ai_validation: Optional[Dict[str, Any]] = None
     ):
-        """Execute a BUY trade (paper trading) with centralized risk validation"""
+        """Execute a BUY trade (paper trading) with centralized risk validation and intelligent SL/TP"""
         ABSOLUTE_MAX_POSITION_PCT = 0.25  # 25% max
         
         bot_id = bot_state["bot_id"]
@@ -415,7 +425,39 @@ class BotEngine:
             logger.warning(f"⚠️ {symbol}: {warning}")
         
         # ================================================================
-        # 2. Execute the trade
+        # 2. Calculate Intelligent SL/TP with SLTPManager
+        # ================================================================
+        try:
+            from uuid import UUID
+            user_uuid = UUID(user_id) if isinstance(user_id, str) else user_id
+            
+            sltp_config = await self.sltp_manager.calculate_sl_tp(
+                user_id=user_uuid,
+                symbol=symbol,
+                entry_price=current_price,
+                side="BUY",
+                market_data=market_data
+            )
+            
+            final_stop_loss = sltp_config.stop_loss
+            take_profit = sltp_config.take_profit_1
+            
+            logger.info(f"🎯 [SLTP] Using intelligent SL/TP: SL=${final_stop_loss:.4f}, TP=${take_profit:.4f}")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ SLTPManager error, falling back to strategy: {e}")
+            # Fallback to strategy-based SL/TP
+            final_stop_loss = strategy.get_stop_loss(current_price, "BUY", market_data)
+            take_profit = strategy.get_take_profit(current_price, "BUY", market_data)
+        
+        # Override with RiskManager values if provided (for backward compatibility)
+        if validation.stop_loss:
+            final_stop_loss = validation.stop_loss
+        if validation.take_profit:
+            take_profit = validation.take_profit
+        
+        # ================================================================
+        # 3. Execute the trade
         # ================================================================
         db = self.db_session_factory()
         try:
@@ -425,23 +467,26 @@ class BotEngine:
                 logger.warning(f"❌ Portfolio not found for user {user_id}")
                 return
             
-            # Calculate position size (use RiskManager's adjusted amount if available)
-            stop_loss = strategy.get_stop_loss(current_price, "BUY", market_data)
+            # Calculate position size using SLTPManager (risk-first approach)
+            portfolio_value = float(portfolio.total_value) if portfolio.total_value else float(portfolio.cash_balance)
             
             if validation.adjusted_amount:
                 # Use RiskManager's calculated amount
                 cost = validation.adjusted_amount
                 quantity = cost / current_price
             else:
-                # Fallback to strategy calculation
-                risk_amount = float(portfolio.cash_balance) * (bot_state["risk_percent"] / 100)
-                quantity = strategy.calculate_position_size(risk_amount, current_price, stop_loss)
-                cost = quantity * current_price
+                # Use SLTPManager's position sizing (risk-first)
+                quantity, cost = self.sltp_manager.calculate_position_size_from_sl(
+                    portfolio_value=portfolio_value,
+                    entry_price=current_price,
+                    stop_loss=final_stop_loss,
+                    risk_percent=bot_state["risk_percent"],
+                    max_position_pct=ABSOLUTE_MAX_POSITION_PCT * 100
+                )
             
             # ================================================================
             # CRITICAL: Position Size Enforcement (FIX #3 & #4)
             # ================================================================
-            portfolio_value = float(portfolio.total_value) if portfolio.total_value else float(portfolio.cash_balance)
             max_position_cost = portfolio_value * ABSOLUTE_MAX_POSITION_PCT
             
             if cost > max_position_cost:
@@ -450,10 +495,6 @@ class BotEngine:
                 quantity = cost / current_price
             
             old_balance = float(portfolio.cash_balance)
-            
-            # Use RiskManager's SL/TP if provided, otherwise use strategy's
-            final_stop_loss = validation.stop_loss if validation.stop_loss else stop_loss
-            take_profit = validation.take_profit if validation.take_profit else strategy.get_take_profit(current_price, "BUY", market_data)
             
             # Deduct from balance (paper trading)
             if bot_state["paper_trading"]:

@@ -85,8 +85,10 @@ class AITradingAgent:
         logger.info(f"🤖 AI Trading Agent started (mode: {self.mode})")
         self._task = asyncio.create_task(self._monitoring_loop())
         
-        # ✅ QUICK WIN: Lightweight position monitoring every 60s (separate from 300s analysis)
-        self._position_monitor_task = asyncio.create_task(self._position_monitoring_loop())
+        # ====== ARCHITECTURE CHANGE: Position monitoring now handled by SLTPManager ======
+        # _position_monitoring_loop() is DEPRECATED - SLTPManager handles all exit logic
+        # self._position_monitor_task = asyncio.create_task(self._position_monitoring_loop())
+        logger.info("ℹ️ AI Agent: Exit monitoring delegated to SLTPManager")
     
     async def stop(self):
         """Stop the AI agent"""
@@ -100,7 +102,7 @@ class AITradingAgent:
             except asyncio.CancelledError:
                 pass
         
-        # Cancel position monitoring task
+        # Cancel position monitoring task (if running - deprecated)
         if hasattr(self, '_position_monitor_task') and self._position_monitor_task:
             self._position_monitor_task.cancel()
             try:
@@ -197,9 +199,11 @@ class AITradingAgent:
                         except Exception as e:
                             logger.error(f"❌ Error analyzing {symbol}: {str(e)}")
                 
-                # === CHECK OPEN AI_AGENT POSITIONS FOR TP/SL ===
-                if self.autonomous_enabled:
-                    await self._monitor_autonomous_positions()
+                # === ARCHITECTURE CHANGE: Position monitoring now handled by SLTPManager ===
+                # _monitor_autonomous_positions() is DEPRECATED
+                # SLTPManager handles all SL/TP/Trailing logic for better cohesion
+                # if self.autonomous_enabled:
+                #     await self._monitor_autonomous_positions()
                 
                 logger.info(f"✅ Analysis cycle complete. Next in {self.check_interval}s")
                 
@@ -637,14 +641,12 @@ class AITradingAgent:
                     await self._update_decision_status(decision_id, "FAILED", "Trade creation failed")
                     
             elif action == "SELL":
-                # For SELL, we need to close an existing AI position
-                closed = await self._close_ai_position(symbol, current_price, confidence)
-                if closed:
-                    logger.info(f"✅ [AUTONOMOUS] SELL {symbol} @ ${current_price:.2f}")
-                    await self._update_decision_status(decision_id, "EXECUTED")
-                else:
-                    logger.info(f"⚠️ [AUTONOMOUS] No open AI position to SELL for {symbol}")
-                    await self._update_decision_status(decision_id, "SKIPPED", "No open position")
+                # ====== ARCHITECTURE CHANGE: SELL handled by SLTPManager ======
+                # AI Agent now ONLY handles BUY signals (entry decisions)
+                # All exits (SL, TP, trailing, partial TP) are managed by SLTPManager
+                # This prevents conflicts between AI and SLTPManager exit logic
+                logger.info(f"⏭️ [AUTONOMOUS] SELL signal for {symbol} ignored - exits handled by SLTPManager")
+                await self._update_decision_status(decision_id, "SKIPPED", "SELL delegated to SLTPManager")
                     
         except Exception as e:
             logger.error(f"❌ [AUTONOMOUS] Error executing {action} on {symbol}: {str(e)}")

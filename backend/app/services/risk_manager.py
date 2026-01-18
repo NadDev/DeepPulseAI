@@ -327,37 +327,42 @@ class RiskManager:
         source: str,
         bot_id: Optional[UUID]
     ) -> bool:
-        """Check if duplicate position exists"""
+        """
+        Check if duplicate position exists.
+        
+        FIX: Also checks CLOSING status to prevent race conditions
+        where a trade is being closed but not yet complete.
+        """
         
         if source == "BOT" and bot_id:
             # Bot checks its own positions only
             existing = db.query(Trade).filter(
                 Trade.bot_id == bot_id,
                 Trade.symbol == symbol,
-                Trade.status == "OPEN",
+                Trade.status.in_(["OPEN", "CLOSING"]),  # FIX: Include CLOSING
                 Trade.side == "BUY"
             ).first()
             if existing:
-                logger.info(f"🚫 [DUP-CHECK-BOT] Found existing trade {existing.id} for {symbol}")
+                logger.info(f"🚫 [DUP-CHECK-BOT] {symbol}: Found existing {existing.status} position (trade_id={existing.id})")
         elif source == "AI_AGENT":
             # AI Agent checks all AI positions for user
             existing = db.query(Trade).filter(
                 Trade.user_id == user_id,
                 Trade.symbol == symbol,
-                Trade.status == "OPEN",
+                Trade.status.in_(["OPEN", "CLOSING"]),  # FIX: Include CLOSING
                 Trade.strategy == "AI_AGENT"
             ).first()
             if existing:
-                logger.info(f"🚫 [DUP-CHECK-AI] Found existing trade {existing.id} for {symbol}")
+                logger.info(f"🚫 [DUP-CHECK-AI] {symbol}: Found existing {existing.status} AI position (trade_id={existing.id})")
         else:
             # Manual checks all positions for user
             existing = db.query(Trade).filter(
                 Trade.user_id == user_id,
                 Trade.symbol == symbol,
-                Trade.status == "OPEN"
+                Trade.status.in_(["OPEN", "CLOSING"])  # FIX: Include CLOSING
             ).first()
             if existing:
-                logger.info(f"🚫 [DUP-CHECK-MANUAL] Found existing trade {existing.id} for {symbol}")
+                logger.info(f"🚫 [DUP-CHECK-MANUAL] {symbol}: Found existing {existing.status} position (trade_id={existing.id})")
         
         return existing is not None
     
