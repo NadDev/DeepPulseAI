@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Target, Flame, Info, Save, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
  * TradingSettings Component
