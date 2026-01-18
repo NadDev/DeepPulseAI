@@ -36,9 +36,13 @@ class Trade(Base):
     strategy = Column(String(50))
     # FEATURE 1.1: Trading Limits
     stop_loss_price = Column(Float, nullable=True)
-    take_profit_price = Column(Float, nullable=True)
+    take_profit_price = Column(Float, nullable=True)  # TP1 or full TP
+    take_profit_2 = Column(Float, nullable=True)  # Runner TP (for partial exits)
     trailing_stop_percent = Column(Float, nullable=True)
     max_loss_amount = Column(Float, nullable=True)
+    # FEATURE 1.2: Intelligent SL/TP
+    trade_phase = Column(String(20), nullable=True)  # PENDING, VALIDATED, TRAILING
+    tp1_partial_executed = Column(Boolean, default=False)  # True if 50% exited at TP1
     created_at = Column(DateTime, server_default=func.now())
 
 class Bot(Base):

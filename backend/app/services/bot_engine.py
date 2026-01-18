@@ -540,7 +540,10 @@ class BotEngine:
                 exit_time=None,
                 strategy=bot_state["strategy"].__class__.__name__,
                 stop_loss_price=final_stop_loss,
-                take_profit_price=take_profit
+                take_profit_price=sltp_config.take_profit_1,
+                take_profit_2=sltp_config.take_profit_2,  # Add TP2 from SLTPManager
+                trade_phase="PENDING",  # Start in PENDING phase
+                tp1_partial_executed=False  # TP1 not hit yet
             )
             
             db.add(trade)
@@ -617,10 +620,11 @@ class BotEngine:
             db.close()
     
     async def _check_open_positions(self, bot_state: Dict[str, Any], strategy: Any, symbol: str, market_data: Dict[str, Any]):
-        """Check if any open positions should be closed"""
+        """Check if any open positions should be closed - uses intelligent SLTPManager"""
         db = self.db_session_factory()
         try:
             bot_id = bot_state["bot_id"]
+            user_id = bot_state["user_id"]
             
             open_trades = db.query(Trade).filter(
                 Trade.bot_id == bot_id,
@@ -638,30 +642,76 @@ class BotEngine:
             for trade in open_trades:
                 trade_id = str(trade.id)
                 
-                # Check stop loss
-                if trade.stop_loss_price:
-                    sl_price = float(trade.stop_loss_price)
-                    if trade.side == "BUY" and current_price <= sl_price:
-                        logger.info(f"🛑 [SL-TRIGGER] {symbol} | Trade {trade_id[:8]} | Price ${current_price:.2f} ≤ SL ${sl_price:.2f}")
-                        await self._close_position(db, bot_state, trade, current_price, "Stop Loss")
+                # ================================================================
+                # Use SLTPManager to check for intelligent exits
+                # (Phase transitions, Trailing SL, Partial TP, etc.)
+                # ================================================================
+                try:
+                    from uuid import UUID
+                    
+                    # Build TradeState from DB record
+                    trade_state = TradeState(
+                        trade_id=trade_id,
+                        symbol=symbol,
+                        side=trade.side,
+                        entry_price=float(trade.entry_price),
+                        quantity=float(trade.quantity),
+                        sl_initial=float(trade.stop_loss_price) if trade.stop_loss_price else float(trade.entry_price) * 0.97,
+                        sl_current=float(trade.stop_loss_price) if trade.stop_loss_price else float(trade.entry_price) * 0.97,
+                        tp1=float(trade.take_profit_price) if trade.take_profit_price else float(trade.entry_price) * 1.03,
+                        tp2=float(trade.take_profit_2) if trade.take_profit_2 else None,
+                        tp1_exit_pct=50.0,  # Standard: exit 50% at TP1
+                        phase=getattr(trade, 'trade_phase', 'PENDING') or 'PENDING',  # Load from DB
+                        tp1_hit=getattr(trade, 'tp1_partial_executed', False),  # Track if TP1 already hit
+                    )
+                    
+                    # Call SLTPManager to check for updates
+                    update = await self.sltp_manager.update_trade(
+                        trade_state=trade_state,
+                        current_price=current_price,
+                        market_data=market_data,
+                        user_settings=None  # Will use defaults in SLTPManager
+                    )
+                    
+                    # ================================================================
+                    # Apply updates from SLTPManager
+                    # ================================================================
+                    
+                    # Update SL if it changed (trailing or validation)
+                    if update.new_sl and update.new_sl != trade.stop_loss_price:
+                        old_sl = float(trade.stop_loss_price) if trade.stop_loss_price else "N/A"
+                        trade.stop_loss_price = update.new_sl
+                        logger.info(f"📈 [SL-UPDATE] {symbol} | Trade {trade_id[:8]} | SL: ${old_sl} → ${update.new_sl:.4f}")
+                    
+                    # Update phase if it changed
+                    if update.new_phase:
+                        trade.trade_phase = update.new_phase.value  # Persist to DB
+                        logger.info(f"✅ [PHASE] {symbol} | Trade {trade_id[:8]} | Phase: {update.new_phase.value}")
+                    
+                    # Handle closes (SL, TP, etc.)
+                    if update.should_close:
+                        logger.info(f"{update.log_message}")
+                        
+                        # Mark TP1 as executed if this is a partial close
+                        if update.close_reason == ExitReason.TP_PARTIAL:
+                            trade.tp1_partial_executed = True
+                        
+                        await self._close_position(
+                            db, bot_state, trade, current_price, 
+                            update.close_reason.value if update.close_reason else "Unknown",
+                            quantity_override=update.close_quantity  # For partial exits
+                        )
                         continue
+                    
+                    # Commit updates even if trade is not closed (SL changes, phase changes)
+                    db.commit()
+                    
+                except Exception as e:
+                    logger.warning(f"⚠️ SLTPManager error for {symbol}: {e}, using fallback checks")
                 
-                # Check take profit
-                if trade.take_profit_price:
-                    tp_price = float(trade.take_profit_price)
-                    if trade.side == "BUY" and current_price >= tp_price:
-                        logger.info(f"💰 [TP-TRIGGER] {symbol} | Trade {trade_id[:8]} | Price ${current_price:.2f} ≥ TP ${tp_price:.2f}")
-                        await self._close_position(db, bot_state, trade, current_price, "Take Profit")
-                        continue
-                    elif current_price < tp_price:
-                        # Still monitoring TP
-                        tp_distance = tp_price - current_price
-                        tp_pct = (tp_distance / current_price) * 100
-                        logger.debug(f"📊 [TP-WATCH] {symbol} | Trade {trade_id[:8]} | ${current_price:.2f} → TP ${tp_price:.2f} (+{tp_pct:.2f}%)")
-                else:
-                    logger.debug(f"⚠️ [NO-TP] Trade {trade_id[:8]} has no take_profit_price set")
-                
-                # Check strategy exit conditions
+                # ================================================================
+                # Fallback: Check strategy exit conditions
+                # ================================================================
                 trade_dict = {
                     "entry_price": float(trade.entry_price),
                     "side": trade.side,
@@ -681,72 +731,80 @@ class BotEngine:
         finally:
             db.close()
     
-    async def _close_position(self, db: Session, bot_state: Dict[str, Any], trade: Trade, exit_price: float, reason: str, ai_result: str = "N/A"):
-        """Close an open position"""
+    async def _close_position(self, db: Session, bot_state: Dict[str, Any], trade: Trade, exit_price: float, reason: str, ai_result: str = "N/A", quantity_override: Optional[float] = None):
+        """Close an open position (or partially for TP1 exits)"""
         entry_price = float(trade.entry_price)
         trade_id = str(trade.id)
         
-        trade.exit_price = exit_price
-        trade.exit_time = datetime.utcnow()
-        trade.status = "CLOSED"
+        # Check if this is a partial close (TP1 exit)
+        is_partial = quantity_override and quantity_override < float(trade.quantity)
+        close_quantity = quantity_override if quantity_override else float(trade.quantity)
         
-        # Calculate PnL
-        if trade.side == "BUY":
-            trade.pnl = (exit_price - entry_price) * float(trade.quantity)
-            trade.pnl_percent = ((exit_price - entry_price) / entry_price) * 100
+        if is_partial:
+            # Partial close: Update trade quantity, keep trade OPEN
+            pnl = (exit_price - entry_price) * close_quantity
+            pnl_percent = ((exit_price - entry_price) / entry_price) * 100
+            
+            # Update remaining quantity
+            remaining_qty = float(trade.quantity) - close_quantity
+            trade.quantity = remaining_qty
+            
+            logger.info(f"💰 [PARTIAL-CLOSE] {trade.symbol} | Trade {trade_id[:8]}")
+            logger.info(f"├─ Exiting: {close_quantity:.6f} @ ${exit_price:.2f}")
+            logger.info(f"├─ Remaining: {remaining_qty:.6f}")
+            logger.info(f"├─ PnL: ${pnl:.2f} ({pnl_percent:.2f}%)")
+            logger.info(f"└─ Reason: {reason}")
+            
+        else:
+            # Full close
+            trade.exit_price = exit_price
+            trade.exit_time = datetime.utcnow()
+            trade.status = "CLOSED"
+            
+            # Calculate PnL
+            if trade.side == "BUY":
+                trade.pnl = (exit_price - entry_price) * close_quantity
+                trade.pnl_percent = ((exit_price - entry_price) / entry_price) * 100
+            
+            pnl = trade.pnl or 0
+            pnl_percent = trade.pnl_percent or 0
+            
+            logger.info(f"✅ [CLOSE-EXEC] {trade.symbol}")
+            logger.info(f"├─ Trade ID: {trade_id}")
+            logger.info(f"├─ Entry: ${entry_price:.2f} → Exit: ${exit_price:.2f}")
+            logger.info(f"├─ PnL: {f'+${pnl:.2f}' if pnl > 0 else f'${pnl:.2f}'} ({f'+{pnl_percent:.2f}%' if pnl_percent > 0 else f'{pnl_percent:.2f}%'})")
+            logger.info(f"└─ Reason: {reason}")
         
-        # Update portfolio (paper trading)
+        # Update portfolio (paper trading) - always add PnL regardless of full/partial
         if bot_state["paper_trading"]:
             portfolio = db.query(Portfolio).filter(Portfolio.user_id == bot_state["user_id"]).first()
             if portfolio:
-                # BUG FIX: Add only the PnL (gain/loss), not the full proceeds
-                # When selling at exit_price:
-                #   - Proceeds = exit_price * quantity (total cash received)
-                #   - But we spent = entry_price * quantity (initial cost)
-                #   - Gain/Loss = PnL = (exit_price - entry_price) * quantity
-                pnl = trade.pnl or 0
+                pnl = (exit_price - entry_price) * close_quantity
                 new_balance = float(portfolio.cash_balance) + pnl
                 
-                # === CRITICAL: Protect against negative balance ===
-                if new_balance < 0:
-                    logger.error(f"🚨 CRITICAL: Portfolio balance would go negative! ({new_balance:.2f})")
-                    logger.error(f"   Current: ${float(portfolio.cash_balance):.2f}, PnL: ${pnl:.2f}")
-                    logger.error(f"   Trade: {trade.symbol} {trade.side} {float(trade.quantity):.6f} @ Entry: ${entry_price:.2f}, Exit: ${exit_price:.2f}")
-                    # Still allow the transaction but alert the user
-                    # This shouldn't happen if protections work, but catches bugs
-                
+                # Only add back the exit proceeds + PnL
                 portfolio.cash_balance = new_balance
                 portfolio.total_pnl = float(portfolio.total_pnl or 0) + pnl
-                db.add(portfolio)  # Ensure portfolio changes are persisted
+                db.add(portfolio)
         
-        # Update bot stats
-        bot = db.query(Bot).filter(Bot.id == bot_state["bot_id"]).first()
-        if bot:
-            bot.total_pnl = float(bot.total_pnl or 0) + (trade.pnl or 0)
-            
-            # Recalculate win rate
-            closed_trades = db.query(Trade).filter(
-                Trade.bot_id == bot.id,
-                Trade.status == "CLOSED"
-            ).all()
-            
-            if closed_trades:
-                winning = len([t for t in closed_trades if (t.pnl or 0) > 0])
-                bot.win_rate = (winning / len(closed_trades)) * 100
+        # Update bot stats (only on full close)
+        if not is_partial:
+            bot = db.query(Bot).filter(Bot.id == bot_state["bot_id"]).first()
+            if bot:
+                pnl = trade.pnl or 0
+                bot.total_pnl = float(bot.total_pnl or 0) + pnl
+                
+                # Recalculate win rate
+                closed_trades = db.query(Trade).filter(
+                    Trade.bot_id == bot.id,
+                    Trade.status == "CLOSED"
+                ).all()
+                
+                if closed_trades:
+                    winning = len([t for t in closed_trades if (t.pnl or 0) > 0])
+                    bot.win_rate = (winning / len(closed_trades)) * 100
         
         db.commit()
-        
-        # ================================================================
-        # Comprehensive Close Logging (FIX #5)
-        # ================================================================
-        pnl_str = f"+${trade.pnl:.2f}" if trade.pnl and trade.pnl > 0 else f"${trade.pnl:.2f}" if trade.pnl else "$0.00"
-        pnl_pct_str = f"+{trade.pnl_percent:.2f}%" if trade.pnl_percent and trade.pnl_percent > 0 else f"{trade.pnl_percent:.2f}%" if trade.pnl_percent else "0.00%"
-        
-        logger.info(f"✅ [CLOSE-EXEC] {trade.symbol}")
-        logger.info(f"├─ Trade ID: {trade_id}")
-        logger.info(f"├─ Entry: ${entry_price:.2f} → Exit: ${exit_price:.2f}")
-        logger.info(f"├─ PnL: {pnl_str} ({pnl_pct_str})")
-        logger.info(f"└─ Reason: {reason}")
     
     async def _handle_bot_error(self, bot_id: str, error: str):
         """Handle bot execution error"""
