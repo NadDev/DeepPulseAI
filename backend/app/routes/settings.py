@@ -18,7 +18,7 @@ from uuid import UUID
 import logging
 
 from app.db.database import get_db
-from app.auth.supabase_auth import get_current_user
+from app.auth.supabase_auth import get_current_user, UserResponse
 from app.models.database_models import (
     UserTradingSettings, 
     SLTPProfilePreset,
@@ -129,14 +129,14 @@ class ProfilePresetResponse(BaseModel):
 
 @router.get("/trading", response_model=TradingSettingsResponse)
 async def get_trading_settings(
-    current_user: dict = Depends(get_current_user),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Get user's current trading settings.
     Creates default settings if none exist.
     """
-    user_id = UUID(current_user["id"])
+    user_id = UUID(current_user.id)
     
     # Try to get existing settings
     settings = db.query(UserTradingSettings).filter(
@@ -181,7 +181,7 @@ async def get_trading_settings(
 @router.put("/trading", response_model=TradingSettingsResponse)
 async def update_trading_settings(
     update_data: TradingSettingsUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -190,7 +190,7 @@ async def update_trading_settings(
     If sl_tp_profile is changed, applies the profile defaults first,
     then applies any other specified overrides.
     """
-    user_id = UUID(current_user["id"])
+    user_id = UUID(current_user.id)
     
     # Get or create settings
     settings = db.query(UserTradingSettings).filter(
@@ -254,7 +254,7 @@ async def update_trading_settings(
 
 @router.get("/trading/profiles", response_model=List[ProfilePresetResponse])
 async def get_profile_presets(
-    current_user: dict = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Get available SL/TP profile presets.
@@ -276,14 +276,14 @@ async def get_profile_presets(
 
 @router.post("/trading/reset", response_model=TradingSettingsResponse)
 async def reset_to_profile_defaults(
-    current_user: dict = Depends(get_current_user),
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Reset user's trading settings to their current profile's defaults.
     Useful when user wants to undo custom overrides.
     """
-    user_id = UUID(current_user["id"])
+    user_id = UUID(current_user.id)
     
     settings = db.query(UserTradingSettings).filter(
         UserTradingSettings.user_id == user_id
@@ -350,7 +350,7 @@ async def reset_to_profile_defaults(
 @router.get("/trading/profile/{profile_name}", response_model=ProfilePresetResponse)
 async def get_profile_details(
     profile_name: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Get details for a specific profile preset.
