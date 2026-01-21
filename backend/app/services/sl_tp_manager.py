@@ -893,3 +893,234 @@ def create_sltp_manager(
         technical_analysis=technical_analysis,
         db_session_factory=db_session_factory
     )
+
+
+# ============================================
+# Global Trade Monitor (includes AI_AGENT trades)
+# ============================================
+
+class GlobalTradeMonitor:
+    """
+    Monitors ALL open trades including AI_AGENT trades (bot_id=NULL).
+    
+    This solves the architecture gap where BotEngine only monitors trades
+    with an associated bot_id, leaving AI_AGENT trades unmonitored.
+    
+    Usage:
+        monitor = GlobalTradeMonitor(
+            sltp_manager=sltp_manager,
+            db_session_factory=SessionLocal,
+            market_data_service=market_data
+        )
+        await monitor.start()  # Runs every 60s
+    """
+    
+    def __init__(
+        self,
+        sltp_manager: SLTPManager,
+        db_session_factory,
+        market_data_service
+    ):
+        self.sltp_manager = sltp_manager
+        self.db_session_factory = db_session_factory
+        self.market_data = market_data_service
+        self._running = False
+        self._task = None
+    
+    async def start(self):
+        """Start the global trade monitoring loop"""
+        if self._running:
+            logger.warning("⚠️ GlobalTradeMonitor already running")
+            return
+        
+        self._running = True
+        self._task = asyncio.create_task(self._monitor_loop())
+        logger.info("🔄 GlobalTradeMonitor started - monitoring ALL trades including AI_AGENT")
+    
+    async def stop(self):
+        """Stop the monitoring loop"""
+        self._running = False
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+        logger.info("🛑 GlobalTradeMonitor stopped")
+    
+    async def _monitor_loop(self):
+        """Main monitoring loop - checks ALL open trades every 60 seconds"""
+        logger.info("🔄 GlobalTradeMonitor loop started (60s interval)")
+        
+        while self._running:
+            try:
+                await self._check_all_trades()
+                await asyncio.sleep(60)
+            except Exception as e:
+                logger.error(f"❌ Error in GlobalTradeMonitor loop: {e}")
+                await asyncio.sleep(60)
+    
+    async def _check_all_trades(self):
+        """Check all open trades for SL/TP hits"""
+        from app.models.database_models import Trade, Portfolio
+        from uuid import UUID
+        
+        db = self.db_session_factory()
+        try:
+            # Get ALL open trades (including AI_AGENT with bot_id=NULL)
+            open_trades = db.query(Trade).filter(
+                Trade.status == "OPEN"
+            ).all()
+            
+            if not open_trades:
+                return
+            
+            # Group by strategy for logging
+            ai_trades = [t for t in open_trades if t.strategy == "AI_AGENT"]
+            bot_trades = [t for t in open_trades if t.strategy != "AI_AGENT"]
+            
+            logger.info(f"🔍 [GLOBAL-MONITOR] Checking {len(open_trades)} trades ({len(ai_trades)} AI_AGENT, {len(bot_trades)} Bot)")
+            
+            for trade in open_trades:
+                await self._check_trade(db, trade)
+            
+            db.commit()
+            
+        except Exception as e:
+            logger.error(f"❌ Error checking trades: {e}")
+            db.rollback()
+        finally:
+            db.close()
+    
+    async def _check_trade(self, db, trade):
+        """Check a single trade for SL/TP and apply updates"""
+        from app.models.database_models import Portfolio
+        from uuid import UUID
+        
+        try:
+            symbol = trade.symbol
+            
+            # Fetch current price
+            candles = await self.market_data.get_candles(symbol, timeframe="1m", limit=1)
+            if not candles:
+                logger.warning(f"⚠️ Could not fetch price for {symbol}")
+                return
+            
+            current_price = candles[-1]['close']
+            entry_price = float(trade.entry_price)
+            sl = float(trade.stop_loss_price) if trade.stop_loss_price else None
+            tp = float(trade.take_profit_price) if trade.take_profit_price else None
+            tp2 = float(trade.take_profit_2) if hasattr(trade, 'take_profit_2') and trade.take_profit_2 else None
+            
+            # Calculate PnL %
+            pnl_pct = ((current_price - entry_price) / entry_price) * 100 if trade.side == "BUY" else ((entry_price - current_price) / entry_price) * 100
+            
+            # ===== BUG FIX: Detect and fix misconfigured SL =====
+            if sl and trade.side == "BUY" and sl >= entry_price:
+                logger.error(f"🚨 [BUG] {symbol}: SL ${sl:.4f} >= Entry ${entry_price:.4f}! Auto-fixing...")
+                sl = current_price * 0.97  # 3% below current
+                trade.stop_loss_price = sl
+                logger.warning(f"🔧 [AUTO-FIX] {symbol}: SL set to ${sl:.4f}")
+            
+            # Log status for AI_AGENT trades (more verbose)
+            if trade.strategy == "AI_AGENT":
+                logger.info(f"📊 [AI-TRADE] {symbol}: Entry=${entry_price:.4f} | Current=${current_price:.4f} ({pnl_pct:+.2f}%) | SL=${sl} | TP=${tp}")
+            
+            # Build TradeState for SLTPManager
+            trade_state = TradeState(
+                trade_id=str(trade.id),
+                symbol=symbol,
+                side=trade.side,
+                entry_price=entry_price,
+                quantity=float(trade.quantity),
+                sl_initial=sl or entry_price * 0.97,
+                sl_current=sl or entry_price * 0.97,
+                tp1=tp or entry_price * 1.03,
+                tp2=tp2,
+                tp1_exit_pct=50.0,
+                phase=TradePhase(trade.trade_phase) if hasattr(trade, 'trade_phase') and trade.trade_phase else TradePhase.PENDING,
+                tp1_hit=getattr(trade, 'tp1_partial_executed', False) if hasattr(trade, 'tp1_partial_executed') else False
+            )
+            
+            # Get market data for SLTPManager
+            market_data = {
+                'close': current_price,
+                'high': candles[-1].get('high', current_price),
+                'low': candles[-1].get('low', current_price),
+                'indicators': {}
+            }
+            
+            # Call SLTPManager
+            update = await self.sltp_manager.update_trade(
+                trade_state=trade_state,
+                current_price=current_price,
+                market_data=market_data,
+                user_settings=None
+            )
+            
+            # Apply SL updates
+            if update.new_sl and update.new_sl != trade.stop_loss_price:
+                old_sl = trade.stop_loss_price
+                trade.stop_loss_price = update.new_sl
+                logger.info(f"📈 [SL-UPDATE] {symbol} | SL: ${old_sl} → ${update.new_sl:.4f}")
+            
+            # Apply phase updates
+            if update.new_phase and hasattr(trade, 'trade_phase'):
+                trade.trade_phase = update.new_phase.value
+                logger.info(f"✅ [PHASE] {symbol} | → {update.new_phase.value}")
+            
+            # Handle closes
+            if update.should_close:
+                logger.info(f"{update.log_message}")
+                await self._close_trade(db, trade, current_price, update.close_reason.value if update.close_reason else "SL_TP")
+                
+        except Exception as e:
+            logger.error(f"❌ Error checking trade {trade.symbol}: {e}")
+    
+    async def _close_trade(self, db, trade, exit_price: float, reason: str):
+        """Close a trade and update portfolio"""
+        from app.models.database_models import Portfolio
+        from uuid import UUID
+        from datetime import datetime
+        
+        try:
+            # Calculate PnL
+            entry_price = float(trade.entry_price)
+            quantity = float(trade.quantity)
+            
+            if trade.side == "BUY":
+                pnl = (exit_price - entry_price) * quantity
+            else:
+                pnl = (entry_price - exit_price) * quantity
+            
+            pnl_percent = (pnl / (entry_price * quantity)) * 100
+            
+            # Update trade
+            trade.status = "CLOSED"
+            trade.exit_price = exit_price
+            trade.exit_time = datetime.utcnow()
+            trade.pnl = pnl
+            trade.pnl_percent = pnl_percent
+            
+            # Update portfolio
+            portfolio = db.query(Portfolio).filter(
+                Portfolio.user_id == trade.user_id
+            ).first()
+            
+            if portfolio:
+                # Return cost + PnL to cash
+                trade_value = entry_price * quantity
+                portfolio.cash_balance = float(portfolio.cash_balance) + trade_value + pnl
+                portfolio.total_pnl = float(portfolio.total_pnl or 0) + pnl
+                portfolio.daily_pnl = float(portfolio.daily_pnl or 0) + pnl
+            
+            emoji = "💰" if pnl >= 0 else "📉"
+            logger.info(f"{emoji} [CLOSED] {trade.symbol} | {reason} | PnL: ${pnl:.2f} ({pnl_percent:+.2f}%)")
+            
+        except Exception as e:
+            logger.error(f"❌ Error closing trade: {e}")
+
+
+# Import asyncio at module level for GlobalTradeMonitor
+import asyncio
+

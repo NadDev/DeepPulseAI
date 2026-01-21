@@ -254,6 +254,33 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"[ERROR] Failed to start Bot Engine: {e}")
     
+    # ===== START GLOBAL TRADE MONITOR (monitors ALL trades including AI_AGENT) =====
+    try:
+        from app.services.sl_tp_manager import GlobalTradeMonitor, create_sltp_manager
+        from app.services.market_data import market_data_collector
+        from app.services.technical_analysis import TechnicalAnalysis
+        
+        # Create SLTPManager with dependencies
+        sltp_manager = create_sltp_manager(
+            market_data_service=market_data_collector,
+            technical_analysis=TechnicalAnalysis(),
+            db_session_factory=SessionLocal
+        )
+        
+        # Create and start GlobalTradeMonitor
+        global_trade_monitor = GlobalTradeMonitor(
+            sltp_manager=sltp_manager,
+            db_session_factory=SessionLocal,
+            market_data_service=market_data_collector
+        )
+        await global_trade_monitor.start()
+        
+        # Store reference for shutdown
+        app.state.global_trade_monitor = global_trade_monitor
+        logger.info("[OK] GlobalTradeMonitor started - monitoring ALL trades (incl. AI_AGENT)")
+    except Exception as e:
+        logger.error(f"[ERROR] Failed to start GlobalTradeMonitor: {e}")
+    
     # Initialize AI Agent if enabled
     if os.getenv("AI_AGENT_ENABLED", "true").lower() == "true":
         try:
@@ -333,6 +360,14 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("🛑 CRBot API Shutting down...")
+    
+    # Stop GlobalTradeMonitor first
+    try:
+        if hasattr(app.state, 'global_trade_monitor') and app.state.global_trade_monitor:
+            await app.state.global_trade_monitor.stop()
+            logger.info("[OK] GlobalTradeMonitor stopped")
+    except Exception as e:
+        logger.debug(f"Error stopping GlobalTradeMonitor: {e}")
     
     # Stop accuracy tracker
     try:

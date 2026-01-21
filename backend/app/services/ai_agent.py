@@ -85,10 +85,10 @@ class AITradingAgent:
         logger.info(f"🤖 AI Trading Agent started (mode: {self.mode})")
         self._task = asyncio.create_task(self._monitoring_loop())
         
-        # ====== ARCHITECTURE CHANGE: Position monitoring now handled by SLTPManager ======
-        # _position_monitoring_loop() is DEPRECATED - SLTPManager handles all exit logic
-        # self._position_monitor_task = asyncio.create_task(self._position_monitoring_loop())
-        logger.info("ℹ️ AI Agent: Exit monitoring delegated to SLTPManager")
+        # ====== ARCHITECTURE: AI_AGENT trade monitoring handled by GlobalTradeMonitor ======
+        # GlobalTradeMonitor (in sl_tp_manager.py) monitors ALL trades including AI_AGENT
+        # This ensures consistent SL/TP logic through a single code path (SLTPManager)
+        logger.info("ℹ️ AI Agent: Exit monitoring delegated to GlobalTradeMonitor (SLTPManager)")
     
     async def stop(self):
         """Stop the AI agent"""
@@ -710,8 +710,11 @@ class AITradingAgent:
             cost = position_amount if position_amount else float(portfolio.cash_balance) * 0.05
             quantity = cost / entry_price
             
-            # Log trade creation with full details
-            logger.info(f"✅ [AI TRADE CREATE] {symbol} {side} | Entry: ${entry_price:.8f} | SL: ${stop_loss:.8f if stop_loss else 'None'} (offset: ${entry_price - stop_loss if stop_loss else 'N/A'}) | TP: ${take_profit:.8f if take_profit else 'None'} | Qty: {quantity:.8f} | Cost: ${cost:.2f}")
+            # Log trade creation with full details (fixed f-string formatting)
+            sl_str = f"${stop_loss:.8f}" if stop_loss else "None"
+            tp_str = f"${take_profit:.8f}" if take_profit else "None"
+            sl_offset_str = f"${entry_price - stop_loss:.8f}" if stop_loss else "N/A"
+            logger.info(f"✅ [AI TRADE CREATE] {symbol} {side} | Entry: ${entry_price:.8f} | SL: {sl_str} (offset: {sl_offset_str}) | TP: {tp_str} | Qty: {quantity:.8f} | Cost: ${cost:.2f}")
             
             # Deduct from cash balance
             portfolio.cash_balance = float(portfolio.cash_balance) - cost
@@ -855,9 +858,22 @@ class AITradingAgent:
                     sl = float(trade.stop_loss_price) if trade.stop_loss_price else None
                     tp = float(trade.take_profit_price) if trade.take_profit_price else None
                     
-                    logger.debug(f"📊 {symbol}: Entry=${entry_price:.4f} | Current=${current_price:.4f} | SL={sl} | TP={tp}")
+                    # Calculate unrealized PnL
+                    pnl_pct = ((current_price - entry_price) / entry_price) * 100 if trade.side == "BUY" else ((entry_price - current_price) / entry_price) * 100
                     
-                    # Check Stop Loss
+                    logger.info(f"📊 [AI-MONITOR] {symbol}: Entry=${entry_price:.4f} | Current=${current_price:.4f} ({pnl_pct:+.2f}%) | SL=${sl} | TP=${tp}")
+                    
+                    # ===== BUG FIX: Detect misconfigured SL (SL > Entry for BUY) =====
+                    if sl and trade.side == "BUY" and sl >= entry_price:
+                        logger.error(f"🚨 [BUG DETECTED] {symbol}: SL (${sl:.4f}) >= Entry (${entry_price:.4f}) for BUY trade!")
+                        # Auto-fix: Set SL to 3% below current price
+                        new_sl = current_price * 0.97
+                        trade.stop_loss_price = new_sl
+                        db.commit()
+                        logger.warning(f"🔧 [AUTO-FIX] {symbol}: SL corrected to ${new_sl:.4f} (3% below current)")
+                        sl = new_sl
+                    
+                    # Check Stop Loss (for correctly configured trades)
                     if sl and trade.side == "BUY" and current_price <= sl:
                         logger.warning(f"🛑 Stop Loss HIT for {symbol} @ ${current_price:.4f} (SL: ${sl:.4f})")
                         await self._close_ai_position(symbol, current_price, confidence=100)
