@@ -254,6 +254,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"[ERROR] Failed to start Bot Engine: {e}")
     
+    # Initialize Strategy Context Manager
+    try:
+        from app.services.strategy_context_manager import initialize_strategy_context_manager
+        initialize_strategy_context_manager()
+        logger.info("[OK] Strategy Context Manager initialized")
+    except Exception as e:
+        logger.error(f"[ERROR] Failed to initialize Strategy Context Manager: {e}")
+    
     # ===== START GLOBAL TRADE MONITOR (monitors ALL trades including AI_AGENT) =====
     try:
         from app.services.sl_tp_manager import GlobalTradeMonitor, create_sltp_manager

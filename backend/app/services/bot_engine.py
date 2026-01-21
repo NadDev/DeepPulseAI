@@ -15,6 +15,7 @@ from app.services.market_data import MarketDataCollector
 from app.services.technical_analysis import TechnicalAnalysis
 from app.services.risk_manager import RiskManager
 from app.services.sl_tp_manager import SLTPManager, TradeState, TradePhase, ExitReason
+from app.services.strategy_context_manager import StrategyContextManager, initialize_strategy_context_manager
 import uuid
 import logging
 
@@ -52,6 +53,9 @@ class BotEngine:
             technical_analysis=self.technical_analysis,
             db_session_factory=db_session_factory
         )
+        
+        # Strategy Context Manager (market regime detection)
+        self.strategy_context_manager = StrategyContextManager()
         
         # AI Agent integration
         self.ai_agent = None  # Will be set via set_ai_agent()
@@ -257,6 +261,33 @@ class BotEngine:
                 
                 logger.info(f"📊 [SIGNAL] {bot_state['name']} | {symbol} | Signal: {signal}")
                 
+                # === MARKET CONTEXT ANALYSIS ===
+                # Analyze market regime to determine if strategy should be active
+                context_analysis = await self.strategy_context_manager.analyze_context(
+                    symbol=symbol,
+                    candles=market_data.get("candles", []),
+                    current_price=market_data.get("close", 0),
+                    atr=market_data.get("indicators", {}).get("atr", 0),
+                    volume=market_data.get("volume", 0)
+                )
+                
+                # Log strategy activation decisions
+                if context_analysis:
+                    self.strategy_context_manager.log_strategy_decisions(symbol, context_analysis)
+                    
+                    # Check if this strategy should be active in current market context
+                    strategy_name = bot_state["config"].get("strategy", bot_state.get("strategy", "unknown")).lower()
+                    strategy_should_be_active = self.strategy_context_manager.should_activate_strategy(
+                        strategy_name, context_analysis
+                    )
+                    
+                    if not strategy_should_be_active and signal != "HOLD":
+                        logger.info(f"⏭️ [CONTEXT] {symbol}: {strategy_name.upper()} signal {signal} SKIPPED - "
+                                   f"inactive in {context_analysis.market_context.value} market")
+                        # Still check open positions but don't execute new trades
+                        await self._check_open_positions(bot_state, strategy, symbol, market_data)
+                        continue
+                
                 # === AI AGENT VALIDATION ===
                 ai_validation = None
                 if signal in ["BUY", "SELL"] and self.ai_enabled and self.ai_agent:
@@ -278,9 +309,9 @@ class BotEngine:
                                 continue  # Skip this trade
                 
                 if signal == "BUY":
-                    await self._execute_buy(bot_state, strategy, symbol, market_data, ai_validation)
+                    await self._execute_buy(bot_state, strategy, symbol, market_data, ai_validation, context_analysis)
                 elif signal == "SELL":
-                    await self._execute_sell(bot_state, strategy, symbol, market_data, ai_validation)
+                    await self._execute_sell(bot_state, strategy, symbol, market_data, ai_validation, context_analysis)
                 
                 # Check open positions for exit signals
                 await self._check_open_positions(bot_state, strategy, symbol, market_data)
@@ -338,8 +369,8 @@ class BotEngine:
     async def _get_market_data(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Fetch and prepare market data with indicators"""
         try:
-            # Get historical data from Binance
-            candles = await self.market_data.get_candles(symbol, timeframe="1h", limit=100)
+            # Get historical data from Binance (need 200 for context analysis)
+            candles = await self.market_data.get_candles(symbol, timeframe="1h", limit=200)
             
             if not candles or len(candles) < 20:
                 logger.warning(f"Insufficient market data for {symbol}")
@@ -372,6 +403,7 @@ class BotEngine:
                 "low": current['low'],
                 "volume": current['volume'],
                 "timestamp": current['timestamp'],
+                "candles": candles,  # Include full candle data for StrategyContextManager
                 "indicators": {
                     "sma_20": sma_20[-1] if sma_20 else None,
                     "sma_50": sma_50[-1] if sma_50 else None,
@@ -396,7 +428,8 @@ class BotEngine:
         strategy: Any,
         symbol: str,
         market_data: Dict[str, Any],
-        ai_validation: Optional[Dict[str, Any]] = None
+        ai_validation: Optional[Dict[str, Any]] = None,
+        context_analysis: Optional[Any] = None
     ):
         """Execute a BUY trade (paper trading) with centralized risk validation and intelligent SL/TP"""
         ABSOLUTE_MAX_POSITION_PCT = 0.25  # 25% max
@@ -587,7 +620,8 @@ class BotEngine:
         strategy: Any,
         symbol: str,
         market_data: Dict[str, Any],
-        ai_validation: Optional[Dict[str, Any]] = None
+        ai_validation: Optional[Dict[str, Any]] = None,
+        context_analysis: Optional[Any] = None
     ):
         """Execute a SELL trade (close position)"""
         db = self.db_session_factory()
