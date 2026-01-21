@@ -48,7 +48,7 @@ class AITradingAgent:
         self.autonomous_enabled = False  # Toggle for autonomous trading
         self.autonomous_config = {
             "position_size_pct": 5.0,
-            "min_confidence": 40,  # Lowered from 65 to 40% for more trading opportunities
+            "min_confidence": 60,  # Harmonized with RiskManager at 60% threshold
             "use_risk_manager_sl_tp": True,
             "notifications_enabled": True
         }
@@ -85,10 +85,10 @@ class AITradingAgent:
         logger.info(f"🤖 AI Trading Agent started (mode: {self.mode})")
         self._task = asyncio.create_task(self._monitoring_loop())
         
-        # ====== ARCHITECTURE: AI_AGENT trade monitoring handled by GlobalTradeMonitor ======
-        # GlobalTradeMonitor (in sl_tp_manager.py) monitors ALL trades including AI_AGENT
-        # This ensures consistent SL/TP logic through a single code path (SLTPManager)
-        logger.info("ℹ️ AI Agent: Exit monitoring delegated to GlobalTradeMonitor (SLTPManager)")
+        # ====== ARCHITECTURE CHANGE: Position monitoring now handled by SLTPManager ======
+        # _position_monitoring_loop() is DEPRECATED - SLTPManager handles all exit logic
+        # self._position_monitor_task = asyncio.create_task(self._position_monitoring_loop())
+        logger.info("ℹ️ AI Agent: Exit monitoring delegated to SLTPManager")
     
     async def stop(self):
         """Stop the AI agent"""
@@ -710,11 +710,8 @@ class AITradingAgent:
             cost = position_amount if position_amount else float(portfolio.cash_balance) * 0.05
             quantity = cost / entry_price
             
-            # Log trade creation with full details (fixed f-string formatting)
-            sl_str = f"${stop_loss:.8f}" if stop_loss else "None"
-            tp_str = f"${take_profit:.8f}" if take_profit else "None"
-            sl_offset_str = f"${entry_price - stop_loss:.8f}" if stop_loss else "N/A"
-            logger.info(f"✅ [AI TRADE CREATE] {symbol} {side} | Entry: ${entry_price:.8f} | SL: {sl_str} (offset: {sl_offset_str}) | TP: {tp_str} | Qty: {quantity:.8f} | Cost: ${cost:.2f}")
+            # Log trade creation with full details
+            logger.info(f"✅ [AI TRADE CREATE] {symbol} {side} | Entry: ${entry_price:.8f} | SL: ${stop_loss:.8f if stop_loss else 'None'} (offset: ${entry_price - stop_loss if stop_loss else 'N/A'}) | TP: ${take_profit:.8f if take_profit else 'None'} | Qty: {quantity:.8f} | Cost: ${cost:.2f}")
             
             # Deduct from cash balance
             portfolio.cash_balance = float(portfolio.cash_balance) - cost

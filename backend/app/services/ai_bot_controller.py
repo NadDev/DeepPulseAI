@@ -59,7 +59,7 @@ class AIBotController:
             "max_stop_loss_percent": 3.0,     # Maximum allowed stop loss
             
             # === AI Settings ===
-            "min_confidence": 40,             # Minimum AI confidence to act (lowered from 50% for more trading)
+            "min_confidence": 60,             # Harmonized at 60% - BUY signals must be 60%+ confident
             "check_interval": 300,            # Analysis interval in seconds (5 min)
             "cooldown_minutes": 30,           # Minutes between analyses
             

@@ -35,7 +35,7 @@ class RiskLimits:
     max_daily_trades: int = 30              # Max 30 trades per day
     max_drawdown_pct: float = 20.0          # Stop if drawdown > 20%
     min_cash_buffer: float = 100.0          # Keep $100 minimum
-    min_confidence: int = 65                # Min 65% confidence for AI trades
+    min_confidence: int = 60                # Harmonized at 60% for all AI trades
     no_duplicate_symbols: bool = True       # Only 1 position per symbol per source
     slippage_buffer_pct: float = 5.0        # 5% buffer for slippage
 
