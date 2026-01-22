@@ -262,14 +262,19 @@ class BotEngine:
                 logger.info(f"📊 [SIGNAL] {bot_state['name']} | {symbol} | Signal: {signal}")
                 
                 # === MARKET CONTEXT ANALYSIS ===
-                # Analyze market regime to determine if strategy should be active
-                context_analysis = await self.strategy_context_manager.analyze_context(
-                    symbol=symbol,
-                    candles=market_data.get("candles", []),
-                    current_price=market_data.get("close", 0),
-                    atr=market_data.get("indicators", {}).get("atr", 0),
-                    volume=market_data.get("volume", 0)
-                )
+                # Only analyze context if we have valid ATR data
+                context_analysis = None
+                atr_value = market_data.get("indicators", {}).get("atr")
+                if atr_value and atr_value > 0:
+                    context_analysis = await self.strategy_context_manager.analyze_context(
+                        symbol=symbol,
+                        candles=market_data.get("candles", []),
+                        current_price=market_data.get("close", 0),
+                        atr=atr_value,
+                        volume=market_data.get("volume", 0)
+                    )
+                else:
+                    logger.debug(f"⚠️ [CONTEXT] Skipping context analysis for {symbol} - ATR not available")
                 
                 # Log strategy activation decisions
                 if context_analysis:
@@ -389,6 +394,12 @@ class BotEngine:
             bb_upper, bb_middle, bb_lower = self.technical_analysis.calculate_bollinger_bands(closes, 20, 2)
             atr = self.technical_analysis.calculate_atr(candles, 14)
             
+            # Validate ATR calculation
+            if not atr or all(v is None for v in atr):
+                atr_value = None
+            else:
+                atr_value = next((v for v in reversed(atr) if v is not None), None)
+            
             # Find support/resistance (simplified)
             resistance = max(highs[-20:])
             support = min(lows[-20:])
@@ -411,7 +422,7 @@ class BotEngine:
                     "bb_upper": bb_upper[-1] if bb_upper else None,
                     "bb_middle": bb_middle[-1] if bb_middle else None,
                     "bb_lower": bb_lower[-1] if bb_lower else None,
-                    "atr": atr[-1] if atr and atr[-1] is not None else None,
+                    "atr": atr_value,
                     "resistance": resistance,
                     "support": support,
                     "avg_volume": avg_volume

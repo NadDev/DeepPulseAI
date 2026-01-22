@@ -80,6 +80,19 @@ class StrategyContextManager:
                 logger.warning(f"⚠️ Insufficient candles for {symbol}: {len(candles) if candles else 0}")
                 return None
             
+            # Validate input parameters
+            if not current_price or current_price <= 0:
+                logger.warning(f"⚠️ Invalid current_price for {symbol}: {current_price}")
+                return None
+            
+            if not atr or atr <= 0:
+                logger.warning(f"⚠️ Invalid ATR for {symbol}: {atr}")
+                return None
+            
+            if not volume or volume <= 0:
+                logger.warning(f"⚠️ Invalid volume for {symbol}: {volume}")
+                return None
+            
             # Extract OHLCV data
             closes = [c['close'] for c in candles]
             volumes = [c['volume'] for c in candles]
@@ -114,8 +127,19 @@ class StrategyContextManager:
             )
             
             # ===== CALCULATE VOLATILITY RATIO =====
-            atr_20_avg = self.ta.calculate_sma([c['atr'] for c in candles[-20:]], 20)
-            volatility_ratio = (atr / atr_20_avg[-1]) if atr_20_avg and atr_20_avg[-1] else 1.0
+            # Calculate ATR for historical candles (last 20 periods)
+            if len(candles) >= 20:
+                historical_atrs = self.ta.calculate_atr(candles[-40:], 14)  # Need 14+20 candles
+                atr_20_avg = self.ta.calculate_sma(historical_atrs[-20:], 20) if historical_atrs else None
+            else:
+                atr_20_avg = None
+            
+            if not atr or atr == 0:
+                volatility_ratio = 1.0
+            elif atr_20_avg and atr_20_avg[-1] and atr_20_avg[-1] > 0:
+                volatility_ratio = atr / atr_20_avg[-1]
+            else:
+                volatility_ratio = 1.0
             
             # ===== CALCULATE VOLUME RATIO =====
             vol_20_avg = sum(volumes[-20:]) / 20 if len(volumes) >= 20 else sum(volumes) / len(volumes)
@@ -159,7 +183,9 @@ class StrategyContextManager:
             return analysis
             
         except Exception as e:
-            logger.error(f"❌ Error analyzing context for {symbol}: {str(e)}")
+            logger.error(f"❌ Error analyzing context for {symbol}: {type(e).__name__} - {str(e)}")
+            import traceback
+            logger.debug(f"Traceback: {traceback.format_exc()}")
             return None
     
     def _determine_context(

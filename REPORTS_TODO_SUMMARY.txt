@@ -1,0 +1,324 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║     📊 REPORTS & ANALYTICS ROADMAP - 10 TODO ITEMS CREATED 📊            ║
+║                                                                            ║
+║                        Ready for Implementation                            ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+
+🎯 VISION
+═════════════════════════════════════════════════════════════════════════════
+
+Build a comprehensive Reports & Analytics Dashboard that provides:
+
+✅ Trade-by-Trade Visibility
+   └─ Every trade with full details, market context at entry, strategy used
+
+✅ Strategy Performance Analysis  
+   └─ Win rates by strategy AND market context combinations
+
+✅ Market Context Insights
+   └─ When contexts were active, how strategies performed in each
+
+✅ Exportable Reports
+   └─ PDF summaries, CSV data for external analysis
+
+
+📋 10 TODO ITEMS
+═════════════════════════════════════════════════════════════════════════════
+
+PHASE 1: MVP - TRADE HISTORY (Week 1-2) - HIGHEST PRIORITY
+──────────────────────────────────────────────────────────
+
+[ ] Task 1: Create API endpoint /trades/history detailed
+    Description: Fetch all trades with market context, filters, sorting
+    Scope:
+      • GET /api/trades/history with params (date, strategy, symbol, context)
+      • Return: trade details + market context at entry
+      • Include: entry conditions, exit reason, P&L calculations
+      
+[ ] Task 2: Create API endpoint /strategies/performance
+    Description: Strategy performance analysis with context breakdown
+    Scope:
+      • GET /api/strategies/performance with strategy+context filtering
+      • Return: win rate, avg P&L, profit factor per strategy+context combo
+      • Include: best/worst trades per strategy per context
+      
+[ ] Task 3: Create React TradeHistoryTable with filters
+    Description: Sortable, filterable table showing all trades
+    Scope:
+      • Display: ID, Time, Bot/AI, Symbol, Side, Entry, Exit, P&L, %
+      • Filters: Date range, Strategy, Symbol, Context, P&L range
+      • Sorting: By entry time, profit, duration, strategy, context
+      • Click row → TradeDetailsPanel
+      
+[ ] Task 4: Create React StrategyPerformanceChart
+    Description: Strategy comparison table with by-context breakdown
+    Scope:
+      • Display: Strategy, Trades, Win%, Avg P&L, Total P&L, Sharpe Ratio
+      • By-context matrix: Show win rate per strategy per context
+      • Click strategy → StrategyDetailsPanel with full analysis
+
+
+PHASE 2: CONTEXT INTEGRATION (Week 2-3) - HIGH PRIORITY
+────────────────────────────────────────────────────────
+
+[ ] Task 5: Create MarketContextAnalysis component
+    Description: Visualize market context timeline and stats
+    Scope:
+      • Context timeline showing when each regime was active
+      • Stats: Time distribution, trade count per context, win rates
+      • Strategy activation decisions per context
+      
+[ ] Task 6: Create full Reports page with tabs
+    Description: Main page combining all report views
+    Scope:
+      • Navigation tabs: Trades | Strategies | Context | Dashboard
+      • Date range picker at top
+      • Refresh data button
+      • Export button (prep for Phase 3)
+      
+[ ] Task 7: Add advanced filters (date/strategy/context)
+    Description: Comprehensive filtering across all report views
+    Scope:
+      • Multi-select filters for strategies, symbols, contexts
+      • Min/max P&L range filter
+      • Status filter (Closed/Open/Partial)
+      • Apply across all tabs
+      • Save/load filter presets
+
+
+PHASE 3: DASHBOARD & VISUALIZATIONS (Week 3-4) - MEDIUM PRIORITY
+──────────────────────────────────────────────────────────────────
+
+[ ] Task 8: Create dashboard KPI cards
+    Description: High-level performance metrics display
+    Scope:
+      • Cards: Win Rate, Profit Factor, Sharpe Ratio, Max Drawdown
+      • Cards: Total P&L, Avg Trade P&L, Trading Volume, Return on Risk
+      • Trending indicators (up/down vs previous period)
+      • Comparison vs baseline (38.2%)
+      
+[ ] Task 9: Integrate TradingView-style charts
+    Description: Professional trading charts for performance visualization
+    Scope:
+      • Equity curve (cumulative P&L over time)
+      • Drawdown chart (peak-to-trough analysis)
+      • Win rate by context (bar chart)
+      • Strategy comparison (multi-line or radar)
+      • Context distribution (pie/donut chart)
+      • Use Recharts library
+      
+[ ] Task 10: Create export PDF/CSV functionality
+    Description: Generate exportable reports for external sharing/analysis
+    Scope:
+      • PDF export: Full report with charts, KPIs, strategy analysis
+      • CSV export: Raw trade data for spreadsheet analysis
+      • Include filters in export (show what was filtered)
+      • Add date/time stamp to exports
+
+
+═════════════════════════════════════════════════════════════════════════════
+
+📊 TAB BREAKDOWN
+═════════════════════════════════════════════════════════════════════════════
+
+TRADES TAB (Task 1, 3, 7)
+┌─────────────────────────────────────────────────────────┐
+│ See: Every trade with full context                      │
+│                                                          │
+│ Features:                                                │
+│  • Sortable table: Time, Bot, Symbol, Side, Entry, Exit│
+│  • Filters: Date, Strategy, Symbol, Context, P&L       │
+│  • Click row → Trade details panel                       │
+│                                                          │
+│ Trade Details Show:                                      │
+│  • Entry/exit times, duration                           │
+│  • Price action (OHLC, P&L)                             │
+│  • Risk management (SL, TP)                             │
+│  • Market context (SMAs, alignment, volatility)         │
+│  • AI analysis (confidence, entry conditions)           │
+│  • Execution details (risk check, exit reason)          │
+└─────────────────────────────────────────────────────────┘
+
+
+STRATEGIES TAB (Task 2, 4, 7)
+┌─────────────────────────────────────────────────────────┐
+│ See: Strategy performance by context                    │
+│                                                          │
+│ Features:                                                │
+│  • Summary table: Strategy | Trades | Win% | P&L | SR  │
+│  • By-context matrix: Win rate per strategy per context │
+│  • Click strategy → Details with charts                 │
+│                                                          │
+│ Details Show:                                            │
+│  • Total trades, win rate, profit factor                │
+│  • Average win/loss, best/worst trades                  │
+│  • Performance by symbol (BTCUSDT, ETHUSDT, etc)       │
+│  • Context-specific win rates                           │
+│  • Time analysis (best/worst hours)                     │
+│  • Equity curve per strategy                            │
+└─────────────────────────────────────────────────────────┘
+
+
+CONTEXT TAB (Task 5, 7)
+┌─────────────────────────────────────────────────────────┐
+│ See: Market context timeline and insights               │
+│                                                          │
+│ Features:                                                │
+│  • Timeline: When each context was active               │
+│  • Stats: Time %, trade count, win rate per context    │
+│  • Strategy activation decisions per context            │
+│                                                          │
+│ Analysis Shows:                                          │
+│  • Context distribution (% of time)                     │
+│  • Win rates ranked by context (best → worst)           │
+│  • Which strategies work in which contexts              │
+│  • Context detection accuracy metrics                   │
+└─────────────────────────────────────────────────────────┘
+
+
+DASHBOARD TAB (Task 8, 9)
+┌─────────────────────────────────────────────────────────┐
+│ See: High-level KPIs and performance charts             │
+│                                                          │
+│ Features:                                                │
+│  • KPI Cards: Win Rate, Profit Factor, Sharpe, Drawdown│
+│  • Equity Curve: Cumulative P&L over time               │
+│  • Drawdown Chart: Peak-to-trough losses                │
+│  • Strategy Comparison: Multi-strategy performance      │
+│  • Context Distribution: Time spent in each regime      │
+│                                                          │
+│ Trending:                                                │
+│  • Compare current vs previous period                   │
+│  • Baseline comparison (vs 38.2% before SCM)            │
+└─────────────────────────────────────────────────────────┘
+
+
+═════════════════════════════════════════════════════════════════════════════
+
+🛠️ TECHNICAL SUMMARY
+═════════════════════════════════════════════════════════════════════════════
+
+DATABASE CHANGES (Add to Trade model):
+  • market_context: String (STRONG_BULLISH, etc)
+  • context_confidence: Float (0-100%)
+  • sma_20, sma_50, sma_200: Float (entry context)
+  • volatility_ratio, volume_ratio: Float
+  • strategy_name: String
+  • ai_confidence: Float
+  • risk_manager_check: String
+  • entry_conditions: JSON
+  • exit_reason: String
+
+API ENDPOINTS (Backend):
+  • GET /api/trades/history (with filters)
+  • GET /api/strategies/performance
+  • GET /api/market/context-timeline
+  • GET /api/reports/kpi-summary
+
+REACT COMPONENTS (Frontend):
+  • TradeHistoryTable (sortable, filterable)
+  • TradeDetailsPanel (full trade info)
+  • StrategyPerformanceTable
+  • StrategyDetailsPanel
+  • ContextTimeline
+  • ContextStatsTable
+  • KPICards
+  • ReportsPage (main page with tabs)
+  • EquityCurve, DrawdownChart, etc (Recharts)
+  • ReportFilters (multi-select filtering)
+
+
+═════════════════════════════════════════════════════════════════════════════
+
+📈 EXPECTED OUTCOMES
+═════════════════════════════════════════════════════════════════════════════
+
+After implementing this roadmap:
+
+✅ COMPLETE VISIBILITY
+   └─ See every trade's full context, strategy, and execution details
+
+✅ DATA-DRIVEN DECISIONS
+   └─ Identify which strategies work best in which market contexts
+
+✅ CONTINUOUS IMPROVEMENT
+   └─ Track metrics and optimize strategy parameters
+
+✅ CONTEXT VALIDATION
+   └─ Confirm StrategyContextManager is working correctly
+
+✅ STAKEHOLDER REPORTING
+   └─ Export reports for sharing and external analysis
+
+
+═════════════════════════════════════════════════════════════════════════════
+
+🎯 RECOMMENDED IMPLEMENTATION ORDER
+═════════════════════════════════════════════════════════════════════════════
+
+START WITH PHASE 1 (Tasks 1-4):
+  → Gives you complete trade visibility immediately
+  → Foundation for everything else
+  → Can be used standalone for analysis
+
+THEN ADD PHASE 2 (Tasks 5-7):
+  → Adds market context dimension (critical for validation)
+  → Allows strategy-by-context analysis
+  → Enables advanced filtering
+
+FINALLY ADD PHASE 3 (Tasks 8-10):
+  → Beautiful dashboards and exports
+  → Professional reporting
+  → Analytics at a glance
+
+
+═════════════════════════════════════════════════════════════════════════════
+
+💡 KEY INSIGHTS FROM THIS ROADMAP
+═════════════════════════════════════════════════════════════════════════════
+
+1. TRADES TAB shows the WHAT (what happened)
+   → Use for debugging individual trades
+   
+2. STRATEGIES TAB shows the WHO (which strategy performed best)
+   → Use for strategy selection and optimization
+   
+3. CONTEXT TAB shows the WHEN (when market conditions favored what)
+   → Use for validating StrategyContextManager is working
+   
+4. DASHBOARD shows the SUMMARY (how are we doing overall)
+   → Use for high-level performance monitoring
+
+Together, these give you complete 360° visibility into your trading system!
+
+
+═════════════════════════════════════════════════════════════════════════════
+
+📁 FILES CREATED
+═════════════════════════════════════════════════════════════════════════════
+
+• REPORTS_ANALYTICS_ROADMAP.md - Full detailed roadmap (150+ lines)
+• Your TODO list - 10 actionable items organized by phase
+
+
+═════════════════════════════════════════════════════════════════════════════
+
+READY TO START? 🚀
+═════════════════════════════════════════════════════════════════════════════
+
+Next Steps:
+1. Review TODO list to understand full scope
+2. Choose starting task (recommended: Task 1 - API endpoint)
+3. Let me know which task to implement!
+
+Questions about any task? I can provide:
+  • Detailed code examples
+  • Database schema changes
+  • React component templates
+  • API response structures
+  • Sample data for testing
+
+═════════════════════════════════════════════════════════════════════════════
