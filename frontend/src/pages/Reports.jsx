@@ -4,6 +4,7 @@ import StrategyPerformanceChart from '../components/reports/StrategyPerformanceC
 import MarketContextAnalysis from '../components/reports/MarketContextAnalysis';
 import DashboardKPIs from '../components/reports/DashboardKPIs';
 import PerformanceCharts from '../components/reports/PerformanceCharts';
+import ExportReports from '../components/reports/ExportReports';
 import './Reports.css';
 
 /**
@@ -21,7 +22,8 @@ const Reports = () => {
     { id: 'trades', label: '💼 Trades', icon: '💼' },
     { id: 'strategies', label: '📈 Strategies', icon: '📈' },
     { id: 'context', label: '🎯 Market Context', icon: '🎯' },
-    { id: 'charts', label: '📉 Charts', icon: '📉' }
+    { id: 'charts', label: '📉 Charts', icon: '📉' },
+    { id: 'export', label: '📥 Export', icon: '📥' }
   ];
 
   const renderTabContent = () => {
@@ -36,6 +38,8 @@ const Reports = () => {
         return <MarketContextAnalysis userId={userId} />;
       case 'charts':
         return <PerformanceCharts userId={userId} days={days} />;
+      case 'export':
+        return <ExportReports userId={userId} days={days} />;
       default:
         return <div className="tab-placeholder">Select a tab</div>;
     }
