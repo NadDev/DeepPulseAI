@@ -43,6 +43,9 @@ class Trade(Base):
     # FEATURE 1.2: Intelligent SL/TP
     trade_phase = Column(String(20), nullable=True)  # PENDING, VALIDATED, TRAILING
     tp1_partial_executed = Column(Boolean, default=False)  # True if 50% exited at TP1
+    # FEATURE 1.3: Market Context
+    market_context = Column(String(50), nullable=True)  # STRONG_BULLISH, WEAK_BULLISH, STRONG_BEARISH, etc
+    market_context_confidence = Column(Float, nullable=True)  # 0-100% confidence in market context
     created_at = Column(DateTime, server_default=func.now())
 
 class Bot(Base):

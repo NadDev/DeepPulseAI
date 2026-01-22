@@ -588,7 +588,10 @@ class BotEngine:
                 take_profit_price=sltp_config.take_profit_1,
                 take_profit_2=sltp_config.take_profit_2,  # Add TP2 from SLTPManager
                 trade_phase="PENDING",  # Start in PENDING phase
-                tp1_partial_executed=False  # TP1 not hit yet
+                tp1_partial_executed=False,  # TP1 not hit yet
+                # NEW: Store market context at time of entry
+                market_context=context_analysis.market_context.value if context_analysis else None,
+                market_context_confidence=context_analysis.confidence if context_analysis else None
             )
             
             db.add(trade)
