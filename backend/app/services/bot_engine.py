@@ -281,7 +281,8 @@ class BotEngine:
                     self.strategy_context_manager.log_strategy_decisions(symbol, context_analysis)
                     
                     # Check if this strategy should be active in current market context
-                    strategy_name = bot_state["config"].get("strategy", bot_state.get("strategy", "unknown")).lower()
+                    # Get strategy name from the strategy object class name
+                    strategy_name = strategy.__class__.__name__.lower()
                     strategy_should_be_active = self.strategy_context_manager.should_activate_strategy(
                         strategy_name, context_analysis
                     )
