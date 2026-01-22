@@ -3,22 +3,25 @@ import TradeHistoryTable from '../components/reports/TradeHistoryTable';
 import StrategyPerformanceChart from '../components/reports/StrategyPerformanceChart';
 import MarketContextAnalysis from '../components/reports/MarketContextAnalysis';
 import DashboardKPIs from '../components/reports/DashboardKPIs';
+import PerformanceCharts from '../components/reports/PerformanceCharts';
 import './Reports.css';
 
 /**
  * Reports Page
  * Central hub for all reporting and analytics
- * Tabs: Trades, Strategies, Context, Dashboard
+ * Tabs: Dashboard, Trades, Strategies, Context, Charts
  */
 const Reports = () => {
-  const [activeTab, setActiveTab] = useState('trades');
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [days, setDays] = useState(30);
   const userId = localStorage.getItem('user_id') || 'unknown';
 
   const tabs = [
     { id: 'dashboard', label: '📊 Dashboard', icon: '📊' },
     { id: 'trades', label: '💼 Trades', icon: '💼' },
     { id: 'strategies', label: '📈 Strategies', icon: '📈' },
-    { id: 'context', label: '🎯 Market Context', icon: '🎯' }
+    { id: 'context', label: '🎯 Market Context', icon: '🎯' },
+    { id: 'charts', label: '📉 Charts', icon: '📉' }
   ];
 
   const renderTabContent = () => {
@@ -31,6 +34,8 @@ const Reports = () => {
         return <StrategyPerformanceChart userId={userId} />;
       case 'context':
         return <MarketContextAnalysis userId={userId} />;
+      case 'charts':
+        return <PerformanceCharts userId={userId} days={days} />;
       default:
         return <div className="tab-placeholder">Select a tab</div>;
     }
@@ -44,6 +49,20 @@ const Reports = () => {
           <div className="header-content">
             <h1>📊 Trading Reports & Analytics</h1>
             <p>Comprehensive analysis of your trading performance, strategies, and market conditions</p>
+          </div>
+          <div className="header-controls">
+            <label htmlFor="period-select">Period:</label>
+            <select 
+              id="period-select"
+              value={days} 
+              onChange={(e) => setDays(parseInt(e.target.value))}
+            >
+              <option value={7}>Last 7 days</option>
+              <option value={30}>Last 30 days</option>
+              <option value={60}>Last 60 days</option>
+              <option value={90}>Last 90 days</option>
+              <option value={365}>Last year</option>
+            </select>
           </div>
         </div>
 

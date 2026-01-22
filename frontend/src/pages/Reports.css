@@ -17,6 +17,10 @@
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
   border-radius: 8px;
   border: 1px solid #334155;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
 }
 
 .header-content h1 {
@@ -35,6 +39,43 @@
   font-size: 16px;
   color: #94a3b8;
   line-height: 1.5;
+}
+
+.header-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.header-controls label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #cbd5e1;
+  white-space: nowrap;
+}
+
+.header-controls select {
+  padding: 8px 12px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.header-controls select:hover {
+  border-color: #475569;
+  background: #1e293b;
+}
+
+.header-controls select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 /* Tab Navigation */

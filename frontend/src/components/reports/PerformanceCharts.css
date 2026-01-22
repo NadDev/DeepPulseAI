@@ -1,0 +1,246 @@
+.charts-container {
+  padding: 20px;
+  background: #0f172a;
+  border-radius: 8px;
+  color: #e2e8f0;
+}
+
+.chart-section {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.chart-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #3b82f6, #10b981);
+}
+
+.chart-header {
+  margin-bottom: 20px;
+  margin-top: 4px;
+}
+
+.chart-header h3 {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.chart-description {
+  margin: 0;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+/* Custom Tooltip */
+.custom-tooltip {
+  background: rgba(30, 41, 59, 0.95);
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 8px 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.custom-tooltip p {
+  margin: 4px 0;
+  font-size: 13px;
+  color: #e2e8f0;
+}
+
+.tooltip-label {
+  font-weight: 600;
+  color: #cbd5e1;
+  margin-bottom: 4px !important;
+}
+
+/* Equity Chart */
+.equity-section {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+}
+
+.equity-section::before {
+  background: linear-gradient(90deg, #3b82f6, #06b6d4);
+}
+
+/* Daily P&L Chart */
+.pnl-section {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+}
+
+.pnl-section::before {
+  background: linear-gradient(90deg, #10b981, #14b8a6);
+}
+
+/* Drawdown Chart */
+.drawdown-section {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+}
+
+.drawdown-section::before {
+  background: linear-gradient(90deg, #ef4444, #f97316);
+}
+
+/* Strategy Section */
+.strategy-section {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+}
+
+.strategy-section::before {
+  background: linear-gradient(90deg, #8b5cf6, #d946ef);
+}
+
+/* Strategy Table */
+.strategy-charts {
+  margin-bottom: 24px;
+}
+
+.strategy-table {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.strategy-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.strategy-table thead {
+  background: rgba(15, 23, 42, 0.5);
+  border-bottom: 2px solid #334155;
+}
+
+.strategy-table th {
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.strategy-table tbody tr {
+  border-bottom: 1px solid #334155;
+  transition: background 0.2s;
+}
+
+.strategy-table tbody tr:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.strategy-table td {
+  padding: 12px;
+  color: #e2e8f0;
+}
+
+.strategy-table .positive {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.strategy-table .negative {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+/* Loading & Error */
+.loading {
+  padding: 40px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.error-message {
+  padding: 20px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: #ef4444;
+}
+
+.no-data {
+  padding: 32px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
+  margin: 0;
+}
+
+/* Recharts Customization */
+.recharts-wrapper {
+  outline: none;
+}
+
+.recharts-surface {
+  background: transparent;
+}
+
+.recharts-cartesian-axis-tick {
+  fill: #64748b;
+}
+
+.recharts-text {
+  fill: #64748b;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .chart-section {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .charts-container {
+    padding: 12px;
+  }
+
+  .chart-section {
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+
+  .chart-header h3 {
+    font-size: 16px;
+  }
+
+  .strategy-table {
+    font-size: 12px;
+  }
+
+  .strategy-table th,
+  .strategy-table td {
+    padding: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .charts-container {
+    padding: 8px;
+  }
+
+  .chart-section {
+    padding: 8px;
+    margin-bottom: 12px;
+  }
+
+  .chart-header h3 {
+    font-size: 14px;
+  }
+
+  .custom-tooltip {
+    font-size: 12px;
+  }
+}
