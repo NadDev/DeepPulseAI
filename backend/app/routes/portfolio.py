@@ -465,13 +465,16 @@ async def get_trade_history(
         sort_column = Trade.pnl
     elif sort_by == "status":
         sort_column = Trade.status
-    else:  # Default to entry_time
-        sort_column = Trade.entry_time
+    else:  # Default to entry_time, but prefer exit_time if available (for closed trades)
+        # For trades, we want to sort by exit_time (when trade closed) if available,
+        # otherwise by entry_time (when trade opened)
+        # This ensures most recent closed trades appear first
+        sort_column = Trade.exit_time
     
     if sort_order == "desc":
-        query = query.order_by(sort_column.desc())
+        query = query.order_by(sort_column.desc().nullslast())
     else:
-        query = query.order_by(sort_column.asc())
+        query = query.order_by(sort_column.asc().nullsfirst())
     
     # Calculate pagination
     total_trades = query.count()
