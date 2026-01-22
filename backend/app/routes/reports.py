@@ -275,40 +275,268 @@ async def get_context_performance(
     }
 
 @router.get("/strategies")
-async def get_strategies_report(db: Session = Depends(get_db)):
-    """Get strategies comparison report"""
-    strategies = db.query(StrategyPerformance).all()
+async def get_strategies_report(
+    days: int = 30,
+    db: Session = Depends(get_db)
+):
+    """
+    Get strategies comparison report with market context breakdown
+    Shows performance of each strategy globally and per market condition
+    """
+    since = datetime.utcnow() - timedelta(days=days)
     
-    # Group by strategy
-    strategy_stats = {}
-    for strat in strategies:
-        if strat.strategy_name not in strategy_stats:
-            strategy_stats[strat.strategy_name] = {
+    # Get all trades for the period
+    all_trades = db.query(Trade).filter(
+        Trade.entry_time >= since,
+        Trade.status == "CLOSED"
+    ).all()
+    
+    if not all_trades:
+        return {
+            "strategies": [],
+            "total_strategies": 0,
+            "context_breakdown": {}
+        }
+    
+    # Aggregate by strategy (global stats)
+    strategy_global = {}
+    strategy_by_context = {}
+    
+    for trade in all_trades:
+        strategy = trade.strategy or "UNKNOWN"
+        context = trade.market_context or "UNKNOWN"
+        
+        # Global strategy stats
+        if strategy not in strategy_global:
+            strategy_global[strategy] = {
                 "total_trades": 0,
                 "winning_trades": 0,
+                "losing_trades": 0,
                 "total_pnl": 0,
-                "tests": 0,
+                "best_pnl": None,
+                "worst_pnl": None
             }
         
-        strategy_stats[strat.strategy_name]["total_trades"] += strat.total_trades or 0
-        strategy_stats[strat.strategy_name]["winning_trades"] += strat.winning_trades or 0
-        strategy_stats[strat.strategy_name]["total_pnl"] += strat.profit_factor or 0
-        strategy_stats[strat.strategy_name]["tests"] += 1
+        # By-context stats
+        key = f"{strategy}|{context}"
+        if key not in strategy_by_context:
+            strategy_by_context[key] = {
+                "strategy": strategy,
+                "market_context": context,
+                "total_trades": 0,
+                "winning_trades": 0,
+                "losing_trades": 0,
+                "total_pnl": 0,
+                "best_pnl": None,
+                "worst_pnl": None
+            }
+        
+        # Update global stats
+        strategy_global[strategy]["total_trades"] += 1
+        if trade.pnl and trade.pnl > 0:
+            strategy_global[strategy]["winning_trades"] += 1
+        elif trade.pnl and trade.pnl < 0:
+            strategy_global[strategy]["losing_trades"] += 1
+        
+        strategy_global[strategy]["total_pnl"] += trade.pnl or 0
+        
+        if strategy_global[strategy]["best_pnl"] is None or trade.pnl > strategy_global[strategy]["best_pnl"]:
+            strategy_global[strategy]["best_pnl"] = trade.pnl
+        
+        if strategy_global[strategy]["worst_pnl"] is None or trade.pnl < strategy_global[strategy]["worst_pnl"]:
+            strategy_global[strategy]["worst_pnl"] = trade.pnl
+        
+        # Update by-context stats
+        strategy_by_context[key]["total_trades"] += 1
+        if trade.pnl and trade.pnl > 0:
+            strategy_by_context[key]["winning_trades"] += 1
+        elif trade.pnl and trade.pnl < 0:
+            strategy_by_context[key]["losing_trades"] += 1
+        
+        strategy_by_context[key]["total_pnl"] += trade.pnl or 0
+        
+        if strategy_by_context[key]["best_pnl"] is None or trade.pnl > strategy_by_context[key]["best_pnl"]:
+            strategy_by_context[key]["best_pnl"] = trade.pnl
+        
+        if strategy_by_context[key]["worst_pnl"] is None or trade.pnl < strategy_by_context[key]["worst_pnl"]:
+            strategy_by_context[key]["worst_pnl"] = trade.pnl
     
+    # Build result with global stats
     result = []
-    for name, stats in strategy_stats.items():
+    for strategy, stats in strategy_global.items():
+        if stats["total_trades"] > 0:
+            win_rate = (stats["winning_trades"] / stats["total_trades"]) * 100
+            avg_pnl = stats["total_pnl"] / stats["total_trades"]
+            profit_factor = 0
+            
+            # Calculate profit factor (total wins / abs(total losses))
+            if stats["losing_trades"] > 0:
+                total_wins = sum([t.pnl for t in all_trades if t.strategy == strategy and t.pnl and t.pnl > 0]) or 0
+                total_losses = sum([abs(t.pnl) for t in all_trades if t.strategy == strategy and t.pnl and t.pnl < 0]) or 0
+                if total_losses > 0:
+                    profit_factor = total_wins / total_losses
+        else:
+            win_rate = 0
+            avg_pnl = 0
+            profit_factor = 0
+        
         result.append({
-            "strategy": name,
+            "strategy": strategy,
             "total_trades": stats["total_trades"],
             "winning_trades": stats["winning_trades"],
-            "win_rate": (stats["winning_trades"] / stats["total_trades"] * 100) if stats["total_trades"] > 0 else 0,
-            "average_profit_factor": stats["total_pnl"] / stats["tests"] if stats["tests"] > 0 else 0,
-            "backtest_count": stats["tests"],
+            "losing_trades": stats["losing_trades"],
+            "win_rate": round(win_rate, 2),
+            "total_pnl": round(stats["total_pnl"], 2),
+            "avg_pnl": round(avg_pnl, 2),
+            "best_trade": round(stats["best_pnl"], 2) if stats["best_pnl"] else None,
+            "worst_trade": round(stats["worst_pnl"], 2) if stats["worst_pnl"] else None,
+            "profit_factor": round(profit_factor, 2)
         })
+    
+    # Build context breakdown
+    context_breakdown = {}
+    for key, stats in strategy_by_context.items():
+        strategy, context = key.split("|")
+        
+        if strategy not in context_breakdown:
+            context_breakdown[strategy] = {}
+        
+        if stats["total_trades"] > 0:
+            win_rate = (stats["winning_trades"] / stats["total_trades"]) * 100
+            avg_pnl = stats["total_pnl"] / stats["total_trades"]
+        else:
+            win_rate = 0
+            avg_pnl = 0
+        
+        context_breakdown[strategy][context] = {
+            "total_trades": stats["total_trades"],
+            "winning_trades": stats["winning_trades"],
+            "losing_trades": stats["losing_trades"],
+            "win_rate": round(win_rate, 2),
+            "total_pnl": round(stats["total_pnl"], 2),
+            "avg_pnl": round(avg_pnl, 2),
+            "best_trade": round(stats["best_pnl"], 2) if stats["best_pnl"] else None,
+            "worst_trade": round(stats["worst_pnl"], 2) if stats["worst_pnl"] else None
+        }
+    
+    # Sort result by total trades descending
+    result = sorted(result, key=lambda x: x["total_trades"], reverse=True)
     
     return {
         "strategies": result,
-        "total_strategies": len(result)
+        "total_strategies": len(result),
+        "context_breakdown": context_breakdown,  # NEW: Breakdown by market context
+        "period": {
+            "start": since.isoformat(),
+            "end": datetime.utcnow().isoformat(),
+            "days": days
+        }
+    }
+
+@router.get("/strategies/{strategy_name}")
+async def get_strategy_detail(
+    strategy_name: str,
+    days: int = 30,
+    db: Session = Depends(get_db)
+):
+    """
+    Get detailed performance for a specific strategy
+    Including trades list and performance by market context
+    """
+    since = datetime.utcnow() - timedelta(days=days)
+    
+    # Get all trades for this strategy
+    trades = db.query(Trade).filter(
+        Trade.strategy == strategy_name,
+        Trade.entry_time >= since,
+        Trade.status == "CLOSED"
+    ).order_by(desc(Trade.exit_time)).all()
+    
+    if not trades:
+        return {
+            "strategy": strategy_name,
+            "total_trades": 0,
+            "error": "No trades found for this strategy"
+        }
+    
+    # Global stats
+    winning = len([t for t in trades if t.pnl and t.pnl > 0])
+    losing = len([t for t in trades if t.pnl and t.pnl < 0])
+    total_pnl = sum([t.pnl or 0 for t in trades])
+    
+    winning_pnl = sum([t.pnl for t in trades if t.pnl and t.pnl > 0]) or 0
+    losing_pnl = sum([abs(t.pnl) for t in trades if t.pnl and t.pnl < 0]) or 0
+    
+    profit_factor = (winning_pnl / losing_pnl) if losing_pnl > 0 else 0
+    
+    # By context
+    context_stats = {}
+    for trade in trades:
+        context = trade.market_context or "UNKNOWN"
+        if context not in context_stats:
+            context_stats[context] = {
+                "trades": 0,
+                "wins": 0,
+                "losses": 0,
+                "total_pnl": 0,
+                "best": None,
+                "worst": None
+            }
+        
+        context_stats[context]["trades"] += 1
+        if trade.pnl and trade.pnl > 0:
+            context_stats[context]["wins"] += 1
+        elif trade.pnl and trade.pnl < 0:
+            context_stats[context]["losses"] += 1
+        
+        context_stats[context]["total_pnl"] += trade.pnl or 0
+        
+        if context_stats[context]["best"] is None or trade.pnl > context_stats[context]["best"]:
+            context_stats[context]["best"] = trade.pnl
+        
+        if context_stats[context]["worst"] is None or trade.pnl < context_stats[context]["worst"]:
+            context_stats[context]["worst"] = trade.pnl
+    
+    # Format context stats
+    context_breakdown = {}
+    for context, stats in context_stats.items():
+        win_rate = (stats["wins"] / stats["trades"] * 100) if stats["trades"] > 0 else 0
+        context_breakdown[context] = {
+            "trades": stats["trades"],
+            "wins": stats["wins"],
+            "losses": stats["losses"],
+            "win_rate": round(win_rate, 2),
+            "total_pnl": round(stats["total_pnl"], 2),
+            "avg_pnl": round(stats["total_pnl"] / stats["trades"], 2) if stats["trades"] > 0 else 0,
+            "best_trade": round(stats["best"], 2) if stats["best"] is not None else None,
+            "worst_trade": round(stats["worst"], 2) if stats["worst"] is not None else None
+        }
+    
+    return {
+        "strategy": strategy_name,
+        "total_trades": len(trades),
+        "winning_trades": winning,
+        "losing_trades": losing,
+        "win_rate": round((winning / len(trades) * 100), 2) if trades else 0,
+        "total_pnl": round(total_pnl, 2),
+        "avg_pnl": round(total_pnl / len(trades), 2) if trades else 0,
+        "profit_factor": round(profit_factor, 2),
+        "best_trade": round(max([t.pnl for t in trades if t.pnl]), 2),
+        "worst_trade": round(min([t.pnl for t in trades if t.pnl]), 2),
+        "context_performance": context_breakdown,
+        "recent_trades": [
+            {
+                "id": str(t.id),
+                "symbol": t.symbol,
+                "entry_price": t.entry_price,
+                "exit_price": t.exit_price,
+                "pnl": round(t.pnl, 2) if t.pnl else None,
+                "pnl_percent": round(t.pnl_percent, 2) if t.pnl_percent else None,
+                "market_context": t.market_context,
+                "exit_time": t.exit_time.isoformat() if t.exit_time else None
+            }
+            for t in trades[:10]  # Last 10 trades
+        ]
     }
 
 @router.get("/performance")
