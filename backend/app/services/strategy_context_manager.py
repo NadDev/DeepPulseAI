@@ -293,7 +293,7 @@ class StrategyContextManager:
         ctx = context.market_context
         
         return {
-            "grid_trading": {
+            "gridtrading": {  # Note: matches GridTrading.__class__.__name__.lower()
                 "enabled": True,
                 "reason": "Works in all market contexts (62.5% win rate)",
                 "parameters": {
@@ -301,7 +301,7 @@ class StrategyContextManager:
                     "position_size": 5  # % per level
                 }
             },
-            "mean_reversion": {
+            "meanreversion": {  # Note: matches MeanReversion.__class__.__name__.lower()
                 "enabled": ctx in [MarketContext.WEAK_BULLISH, MarketContext.WEAK_BEARISH],
                 "reason": "Best in weak trends with pullbacks" if ctx in [MarketContext.WEAK_BULLISH, MarketContext.WEAK_BEARISH] else f"Disabled in {ctx.value} market",
                 "parameters": {
@@ -318,7 +318,7 @@ class StrategyContextManager:
                     "tp_percent": 0.3
                 }
             },
-            "trend_following": {
+            "trendfollowing": {  # Note: matches TrendFollowing.__class__.__name__.lower()
                 "enabled": ctx in [MarketContext.STRONG_BULLISH, MarketContext.STRONG_BEARISH],
                 "reason": "Needs strong trend alignment" if ctx in [MarketContext.STRONG_BULLISH, MarketContext.STRONG_BEARISH] else f"Market too weak ({ctx.value})",
                 "parameters": {
@@ -333,6 +333,27 @@ class StrategyContextManager:
                     "min_volume_ratio": 1.5,
                     "min_confidence": 60
                 }
+            },
+            # Additional strategies (less commonly used)
+            "breakout": {
+                "enabled": ctx in [MarketContext.STRONG_BULLISH, MarketContext.STRONG_BEARISH] and context.volatility_ratio > 1.0,
+                "reason": "Enabled during strong trends with sufficient volatility",
+                "parameters": {}
+            },
+            "dca": {
+                "enabled": True,  # DCA works in all conditions
+                "reason": "Dollar-Cost Averaging works in all market conditions",
+                "parameters": {}
+            },
+            "macdcrossover": {
+                "enabled": context.sma_alignment_score > 40,  # Some trend required
+                "reason": "Needs moderate trend alignment for MACD signals",
+                "parameters": {}
+            },
+            "rsidivergence": {
+                "enabled": context.confidence > 50,
+                "reason": "Works when market context is moderately clear",
+                "parameters": {}
             }
         }
     
