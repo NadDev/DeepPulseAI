@@ -10,28 +10,31 @@ const PerformanceCharts = ({ userId, days = 30 }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchEquityData();
-  }, [days]);
-
   const fetchEquityData = async () => {
     try {
       const token = localStorage.getItem('access_token');
+      console.log('📈 [CHARTS] Fetching equity curve with token:', token ? 'YES' : 'NO');
+      
       const response = await axios.get('/api/reports/equity-curve', {
         params: { days },
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      console.log('✅ Equity data:', response.data);
+      console.log('✅ [CHARTS] Equity data received:', response.data?.length || 0, 'points');
       setEquityData(response.data || []);
       setError(null);
     } catch (err) {
-      console.error('❌ Error fetching equity data:', err.message);
+      console.error('❌ [CHARTS] Error:', err.response?.status, err.message);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    console.log('📈 [CHARTS] useEffect triggered, days =', days);
+    fetchEquityData();
+  }, [days]);
 
   if (loading) {
     return <div style={{ padding: '20px', color: '#94a3b8' }}>⏳ Loading performance charts...</div>;

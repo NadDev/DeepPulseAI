@@ -10,17 +10,17 @@ const MarketContextAnalysis = ({ userId, days = 30 }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchContextAnalysis();
-  }, [days]);
-
   const fetchContextAnalysis = async () => {
     try {
       const token = localStorage.getItem('access_token');
+      console.log('🌍 [CONTEXT] Fetching with token:', token ? 'YES' : 'NO');
+      
       const response = await axios.get('/api/reports/trades', {
         params: { days, limit: 1000 },
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
+      console.log('✅ [CONTEXT] Trades received:', response.data.trades?.length || 0);
       
       // Group trades by market context
       const trades = response.data.trades || [];
@@ -46,12 +46,17 @@ const MarketContextAnalysis = ({ userId, days = 30 }) => {
       setContextStats(grouped);
       setError(null);
     } catch (err) {
-      console.error('❌ Error fetching context analysis:', err.message);
+      console.error('❌ [CONTEXT] Error:', err.response?.status, err.message);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    console.log('🌍 [CONTEXT] useEffect triggered, days =', days);
+    fetchContextAnalysis();
+  }, [days]);
 
   if (loading) {
     return <div style={{ padding: '20px', color: '#94a3b8' }}>⏳ Loading market context analysis...</div>;

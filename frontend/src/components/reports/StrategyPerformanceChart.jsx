@@ -10,28 +10,31 @@ const StrategyPerformanceChart = ({ userId, days = 30 }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchStrategies();
-  }, [days]);
-
   const fetchStrategies = async () => {
     try {
       const token = localStorage.getItem('access_token');
+      console.log('🎯 [STRATEGIES] Fetching with token:', token ? 'YES' : 'NO');
+      
       const response = await axios.get('/api/reports/strategies', {
         params: { days },
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      console.log('✅ Strategies:', response.data);
+      console.log('✅ [STRATEGIES] Data received:', response.data);
       setStrategies(response.data.strategies || []);
       setError(null);
     } catch (err) {
-      console.error('❌ Error fetching strategies:', err.message);
+      console.error('❌ [STRATEGIES] Error:', err.response?.status, err.message);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    console.log('🎯 [STRATEGIES] useEffect triggered, days =', days);
+    fetchStrategies();
+  }, [days]);
 
   if (loading) {
     return <div style={{ padding: '20px', color: '#94a3b8' }}>⏳ Loading strategies...</div>;

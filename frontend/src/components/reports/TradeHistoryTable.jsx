@@ -11,28 +11,31 @@ const TradeHistoryTable = ({ userId }) => {
   const [error, setError] = useState(null);
   const [days, setDays] = useState(30);
 
-  useEffect(() => {
-    fetchTrades();
-  }, [days]);
-
   const fetchTrades = async () => {
     try {
       const token = localStorage.getItem('access_token');
+      console.log('📋 [TRADES] Fetching with token:', token ? 'YES' : 'NO');
+      
       const response = await axios.get('/api/reports/trades', {
         params: { days, limit: 50 },
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      console.log('✅ Trades:', response.data);
+      console.log('✅ [TRADES] Trades received:', response.data.trades?.length || 0);
       setTrades(response.data.trades || []);
       setError(null);
     } catch (err) {
-      console.error('❌ Error fetching trades:', err.message);
+      console.error('❌ [TRADES] Error:', err.response?.status, err.message);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    console.log('📋 [TRADES] useEffect triggered, days =', days);
+    fetchTrades();
+  }, [days]);
 
   if (loading) {
     return <div style={{ padding: '20px', color: '#94a3b8' }}>⏳ Loading trades...</div>;

@@ -10,29 +10,30 @@ const DashboardKPIs = ({ userId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
   const fetchDashboardData = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      console.log('📊 Fetching KPIs with token:', token ? 'YES' : 'NO');
+      console.log('📊 [DASHBOARD] Fetching KPIs with token:', token ? 'YES' : 'NO');
       
       const response = await axios.get('/api/reports/dashboard', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      console.log('✅ KPI data:', response.data);
+      console.log('✅ [DASHBOARD] KPI data:', response.data);
       setKpis(response.data);
       setError(null);
     } catch (err) {
-      console.error('❌ Error:', err.message);
+      console.error('❌ [DASHBOARD] Error:', err.response?.status, err.message);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    console.log('📊 [DASHBOARD] useEffect triggered');
+    fetchDashboardData();
+  }, []);
 
   if (loading) {
     return <div style={{ padding: '20px', color: '#94a3b8' }}>⏳ Loading KPIs...</div>;
