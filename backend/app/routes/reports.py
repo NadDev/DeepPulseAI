@@ -5,6 +5,9 @@ from app.models.database_models import Bot, Trade, StrategyPerformance, Portfoli
 from app.auth.supabase_auth import get_current_user, UserResponse
 from sqlalchemy import func, desc
 from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -14,6 +17,7 @@ async def get_dashboard_report(
     db: Session = Depends(get_db)
 ):
     """Get dashboard summary report with comprehensive KPIs"""
+    logger.info(f"📊 [DASHBOARD] Request from user: {current_user.id} | email: {current_user.email}")
     user_id = current_user.id
     
     portfolio = db.query(Portfolio).filter(Portfolio.user_id == user_id).first()
@@ -129,8 +133,7 @@ async def get_trades_report(
     - min_pnl: Filter by minimum P&L
     - max_pnl: Filter by maximum P&L
     - status: Filter by status (OPEN, CLOSED, CLOSING)
-    """
-    user_id = current_user.user_id
+    """    logger.info(f"📋 [TRADES] Request from user: {current_user.id} | days={days}")    user_id = current_user.user_id
     since = datetime.utcnow() - timedelta(days=days)
     
     query = db.query(Trade).filter(
@@ -329,6 +332,7 @@ async def get_strategies_report(
     Get strategies comparison report with market context breakdown
     Shows performance of each strategy globally and per market condition
     """
+    logger.info(f"🎯 [STRATEGIES] Request from user: {current_user.id} | days={days}")
     user_id = current_user.id
     since = datetime.utcnow() - timedelta(days=days)
     
