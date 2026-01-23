@@ -54,64 +54,75 @@ const Reports = () => {
   };
 
   return (
-    <div className="reports-page">
-      <div className="reports-container">
+    <div className="reports-page" style={{ minHeight: '100vh', background: '#0a0e27' }}>
+      <div className="reports-container" style={{ maxWidth: '1400px', margin: '0 auto', padding: '20px' }}>
         {/* Header */}
-        <div className="reports-page-header">
-          <div className="header-content">
-            <h1>📊 Trading Reports & Analytics</h1>
-            <p>Comprehensive analysis of your trading performance, strategies, and market conditions</p>
-          </div>
-          <div className="header-controls">
-            <label htmlFor="period-select">Period:</label>
-            <select 
-              id="period-select"
-              value={days} 
-              onChange={(e) => setDays(parseInt(e.target.value))}
-            >
-              <option value={7}>Last 7 days</option>
-              <option value={30}>Last 30 days</option>
-              <option value={60}>Last 60 days</option>
-              <option value={90}>Last 90 days</option>
-              <option value={365}>Last year</option>
-            </select>
-          </div>
+        <div style={{ 
+          marginBottom: '32px',
+          padding: '24px',
+          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+          borderRadius: '8px',
+          border: '1px solid #334155'
+        }}>
+          <h1 style={{ 
+            margin: '0 0 8px 0',
+            fontSize: '28px',
+            color: '#fff'
+          }}>📊 Trading Reports & Analytics</h1>
+          <p style={{ margin: 0, color: '#94a3b8' }}>
+            Comprehensive analysis of your trading performance
+          </p>
         </div>
 
         {/* Tab Navigation */}
-        <div className="tab-navigation">
-          <div className="tab-list">
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => {
-                  console.log('🔄 Switching to tab:', tab.id);
-                  setActiveTab(tab.id);
-                }}
-              >
-                <span className="tab-icon">{tab.icon}</span>
-                <span className="tab-label">{tab.label}</span>
-              </button>
-            ))}
-          </div>
+        <div style={{ 
+          display: 'flex', 
+          gap: '10px', 
+          marginBottom: '20px',
+          flexWrap: 'wrap'
+        }}>
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                padding: '12px 20px',
+                background: activeTab === tab.id ? '#3b82f6' : '#1e293b',
+                border: activeTab === tab.id ? '2px solid #3b82f6' : '1px solid #334155',
+                borderRadius: '8px',
+                color: activeTab === tab.id ? '#fff' : '#94a3b8',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: activeTab === tab.id ? '600' : '400',
+                transition: 'all 0.2s'
+              }}
+            >
+              {tab.icon} {tab.label.replace(tab.icon, '').trim()}
+            </button>
+          ))}
         </div>
 
-        {/* Debug Info */}
+        {/* Active Tab Indicator */}
         <div style={{ 
-          padding: '10px', 
+          padding: '15px', 
           background: '#1e293b', 
-          borderRadius: '4px', 
-          fontSize: '12px', 
-          color: '#94a3b8',
-          marginBottom: '15px'
+          borderRadius: '8px', 
+          marginBottom: '20px',
+          border: '1px solid #334155'
         }}>
-          <p>🔍 DEBUG: activeTab = {activeTab}</p>
+          <p style={{ margin: 0, color: '#10b981', fontSize: '14px' }}>
+            ✅ Active Tab: <strong>{activeTab}</strong> | User: {userId}
+          </p>
         </div>
 
         {/* Tab Content */}
-        <div className="tab-content">
-          {console.log('📋 Rendering tab content for:', activeTab)}
+        <div style={{ 
+          background: '#0f172a', 
+          borderRadius: '8px', 
+          padding: '20px',
+          border: '1px solid #334155',
+          minHeight: '400px'
+        }}>
           {renderTabContent()}
         </div>
       </div>
