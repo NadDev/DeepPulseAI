@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { cryptoAPI } from '../services/api';
+import { watchlistAPI } from '../services/watchlistAPI';
 import MLPredictions from './MLPredictions';
 import AdvancedAnalysis from './AdvancedAnalysis';
 import { calculateElliottWaves } from '../utils/technicalAnalysis';
@@ -39,7 +40,49 @@ function Charts() {
   const [elliottWave, setElliottWave] = useState(null);
   const [showElliottWaves, setShowElliottWaves] = useState(true);
 
-  const [coins] = useState([
+  const [coins, setCoins] = useState([]);
+
+  useEffect(() => {
+    // Load watchlist on component mount
+    loadWatchlist();
+  }, []);
+
+  const loadWatchlist = async () => {
+    try {
+      const watchlistData = await watchlistAPI.getWatchlist();
+      if (watchlistData && watchlistData.length > 0) {
+        // watchlistData is array of watchlists, get first one's items
+        const items = watchlistData[0].items || [];
+        // Convert BTCUSDT format to BTC for display
+        const coinsFromWatchlist = items.map(item => ({
+          id: item.symbol.replace('/USDT', '').replace('USDT', ''),
+          name: item.symbol,
+          symbol: item.symbol.replace('/USDT', '').replace('USDT', '')
+        }));
+        
+        if (coinsFromWatchlist.length > 0) {
+          setCoins(coinsFromWatchlist);
+          // Set first coin as default
+          setSelectedCoin(coinsFromWatchlist[0].id);
+        } else {
+          // Fallback to default coins if watchlist is empty
+          setCoins(DEFAULT_COINS);
+          setSelectedCoin('BTC');
+        }
+      } else {
+        // Fallback to default coins
+        setCoins(DEFAULT_COINS);
+        setSelectedCoin('BTC');
+      }
+    } catch (error) {
+      console.error('Error loading watchlist:', error);
+      // Fallback to default coins
+      setCoins(DEFAULT_COINS);
+      setSelectedCoin('BTC');
+    }
+  };
+
+  const DEFAULT_COINS = [
     { id: 'BTC', name: 'Bitcoin', symbol: 'BTC' },
     { id: 'ETH', name: 'Ethereum', symbol: 'ETH' },
     { id: 'BNB', name: 'Binance Coin', symbol: 'BNB' },
@@ -47,7 +90,7 @@ function Charts() {
     { id: 'ADA', name: 'Cardano', symbol: 'ADA' },
     { id: 'SOL', name: 'Solana', symbol: 'SOL' },
     { id: 'DOGE', name: 'Dogecoin', symbol: 'DOGE' }
-  ]);
+  ];
 
   useEffect(() => {
     fetchAllData();

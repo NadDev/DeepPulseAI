@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.database import get_db
+from app.models.database_models import WatchlistItem
 import httpx
 import os
 from datetime import datetime, timedelta
 import random
 from typing import Optional, List, Dict, Any
+import logging
 from app.services import (
     market_data_collector,
     TechnicalAnalysis,
@@ -14,30 +16,58 @@ from app.services import (
 )
 from app.services.ml_engine import ml_engine
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api", tags=["crypto"])
 
+# Default symbols for fallback
+DEFAULT_SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "DOGEUSDT", "XRPUSDT"]
+
+async def get_watchlist_symbols(db: Session) -> List[str]:
+    """Get symbols from watchlist, fallback to defaults if empty"""
+    try:
+        items = db.query(WatchlistItem).filter(
+            WatchlistItem.is_active == True
+        ).order_by(WatchlistItem.priority.desc()).all()
+        
+        if items:
+            symbols = [item.symbol for item in items]
+            logger.info(f"📊 Loaded {len(symbols)} symbols from watchlist")
+            return symbols
+        else:
+            logger.warning("⚠️ Watchlist is empty, using default symbols")
+            return DEFAULT_SYMBOLS
+    except Exception as e:
+        logger.error(f"❌ Error loading watchlist symbols: {e}, using defaults")
+        return DEFAULT_SYMBOLS
+
 @router.get("/crypto/prices")
-async def get_crypto_prices():
-    """Get current crypto prices from Binance"""
-    symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "DOGEUSDT", "XRPUSDT"]
+async def get_crypto_prices(db: Session = Depends(get_db)):
+    """Get current crypto prices from Binance (using watchlist symbols)"""
+    symbols = await get_watchlist_symbols(db)
     
     try:
         async with httpx.AsyncClient() as client:
             prices = {}
             
             for symbol in symbols:
-                url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
-                response = await client.get(url)
-                data = response.json()
-                
-                prices[symbol] = {
-                    "symbol": symbol,
-                    "price": float(data["price"]),
-                    "timestamp": data.get("time")
-                }
+                try:
+                    url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
+                    response = await client.get(url, timeout=5)
+                    if response.status_code == 200:
+                        data = response.json()
+                        prices[symbol] = {
+                            "symbol": symbol,
+                            "price": float(data["price"]),
+                            "timestamp": data.get("time")
+                        }
+                except Exception as e:
+                    logger.warning(f"⚠️ Error fetching price for {symbol}: {e}")
+                    continue
             
             return {"prices": prices}
     except Exception as e:
+        logger.error(f"❌ Error fetching crypto prices: {e}")
         # Return demo data if API fails
         return {
             "prices": {
@@ -623,18 +653,25 @@ async def ml_predict_price(symbol: str, lookback_days: int = 90):
 
 
 @router.get("/ml/predict/batch")
-async def ml_predict_batch(symbols: str = "BTC,ETH,ADA,XRP,DOGE"):
+async def ml_predict_batch(symbols: Optional[str] = None, db: Session = Depends(get_db)):
     """
     ML Batch Predictions for multiple symbols
     
     Args:
-        symbols: Comma-separated list (default: "BTC,ETH,ADA,XRP,DOGE")
+        symbols: Comma-separated list (default: uses watchlist)
     
     Returns:
         {symbol: predictions} for all symbols
     """
     try:
-        symbol_list = [s.strip().upper() for s in symbols.split(",")]
+        if symbols:
+            # User provided explicit symbols
+            symbol_list = [s.strip().upper() for s in symbols.split(",")]
+        else:
+            # Use watchlist symbols
+            symbol_list = await get_watchlist_symbols(db)
+        
+        logger.info(f"📊 Running ML predictions for {len(symbol_list)} symbols from watchlist")
         results = await ml_engine.get_multiple_predictions(symbol_list)
         return {
             "status": "success",
@@ -642,6 +679,7 @@ async def ml_predict_batch(symbols: str = "BTC,ETH,ADA,XRP,DOGE"):
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
+        logger.error(f"❌ ML batch prediction error: {e}")
         return {
             "status": "error",
             "message": str(e)
