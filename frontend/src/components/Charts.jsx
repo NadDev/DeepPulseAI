@@ -18,6 +18,7 @@ import './Charts.css';
 
 function Charts() {
   const [selectedCoin, setSelectedCoin] = useState('BTC');
+  const [selectedFullSymbol, setSelectedFullSymbol] = useState('BTCUSDT');
   const [period, setPeriod] = useState('7d');
   const [loading, setLoading] = useState(false);
   const [metricsVisible, setMetricsVisible] = useState(true);
@@ -44,13 +45,13 @@ function Charts() {
   const [coins, setCoins] = useState([]);
 
   const DEFAULT_COINS = [
-    { id: 'BTC', name: 'Bitcoin', symbol: 'BTC' },
-    { id: 'ETH', name: 'Ethereum', symbol: 'ETH' },
-    { id: 'BNB', name: 'Binance Coin', symbol: 'BNB' },
-    { id: 'XRP', name: 'Ripple', symbol: 'XRP' },
-    { id: 'ADA', name: 'Cardano', symbol: 'ADA' },
-    { id: 'SOL', name: 'Solana', symbol: 'SOL' },
-    { id: 'DOGE', name: 'Dogecoin', symbol: 'DOGE' }
+    { id: 'BTC', name: 'Bitcoin', symbol: 'BTC', fullSymbol: 'BTCUSDT' },
+    { id: 'ETH', name: 'Ethereum', symbol: 'ETH', fullSymbol: 'ETHUSDT' },
+    { id: 'BNB', name: 'Binance Coin', symbol: 'BNB', fullSymbol: 'BNBUSDT' },
+    { id: 'XRP', name: 'Ripple', symbol: 'XRP', fullSymbol: 'XRPUSDT' },
+    { id: 'ADA', name: 'Cardano', symbol: 'ADA', fullSymbol: 'ADAUSDT' },
+    { id: 'SOL', name: 'Solana', symbol: 'SOL', fullSymbol: 'SOLUSDT' },
+    { id: 'DOGE', name: 'Dogecoin', symbol: 'DOGE', fullSymbol: 'DOGEUSDT' }
   ];
 
   useEffect(() => {
@@ -93,7 +94,8 @@ function Charts() {
           return {
             id: baseCurrency,
             name: displayName,  // "BTC (BTCUSDT)"
-            symbol: baseCurrency
+            symbol: baseCurrency,
+            fullSymbol: symbol  // Store the full symbol for API calls (BTCUSDT)
           };
         });
         
@@ -102,22 +104,26 @@ function Charts() {
         if (coinsFromWatchlist.length > 0) {
           setCoins(coinsFromWatchlist);
           setSelectedCoin(coinsFromWatchlist[0].id);
-          console.log('✅ [WATCHLIST] Selected first coin:', coinsFromWatchlist[0].id);
+          setSelectedFullSymbol(coinsFromWatchlist[0].fullSymbol);
+          console.log('✅ [WATCHLIST] Selected first coin:', coinsFromWatchlist[0].id, 'fullSymbol:', coinsFromWatchlist[0].fullSymbol);
         } else {
           console.warn('⚠️ [WATCHLIST] Empty after conversion - using defaults');
           setCoins(DEFAULT_COINS);
           setSelectedCoin('BTC');
+          setSelectedFullSymbol('BTCUSDT');
         }
       } else {
         console.warn('⚠️ [WATCHLIST] No watchlist data returned - using defaults');
         setCoins(DEFAULT_COINS);
         setSelectedCoin('BTC');
+        setSelectedFullSymbol('BTCUSDT');
       }
     } catch (error) {
       console.error('❌ [WATCHLIST] ERROR:', error);
       console.error('❌ [WATCHLIST] Error details:', error.message);
       setCoins(DEFAULT_COINS);
       setSelectedCoin('BTC');
+      setSelectedFullSymbol('BTCUSDT');
     }
   };
 
@@ -125,7 +131,7 @@ function Charts() {
     fetchAllData();
     const interval = setInterval(fetchAllData, 30000); // Refresh every 30s
     return () => clearInterval(interval);
-  }, [selectedCoin, period]);
+  }, [selectedCoin, selectedFullSymbol, period];
 
   const fetchAllData = async () => {
     setLoading(true);
@@ -286,12 +292,19 @@ function Charts() {
         <div className="controls">
           <select 
             value={selectedCoin} 
-            onChange={(e) => setSelectedCoin(e.target.value)}
+            onChange={(e) => {
+              const selectedCoinId = e.target.value;
+              const selectedCoinObj = coins.find(c => c.id === selectedCoinId);
+              setSelectedCoin(selectedCoinId);
+              if (selectedCoinObj) {
+                setSelectedFullSymbol(selectedCoinObj.fullSymbol || `${selectedCoinId}USDT`);
+              }
+            }}
             className="coin-select"
           >
             {coins.map(coin => (
               <option key={coin.id} value={coin.id}>
-                {coin.name} ({coin.symbol})
+                {coin.name}
               </option>
             ))}
           </select>

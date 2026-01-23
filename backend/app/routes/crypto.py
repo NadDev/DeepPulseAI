@@ -123,27 +123,31 @@ async def get_crypto_data(symbol: str):
     logger.info(f"💰 [DATA] Requesting crypto data for {symbol}")
     symbol_upper = symbol.upper()
     
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol_upper}USDT"
-            logger.info(f"💰 [DATA] Fetching from Binance: {url}")
-            response = await client.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                logger.info(f"✅ [DATA] Binance data received for {symbol_upper}")
-                return {
-                    "symbol": symbol_upper,
-                    "price": float(data.get("lastPrice", 0)),
-                    "change_24h": float(data.get("priceChangePercent", 0)),
-                    "high_24h": float(data.get("highPrice", 0)),
-                    "low_24h": float(data.get("lowPrice", 0)),
-                    "volume_24h": float(data.get("volume", 0)),
-                    "timestamp": datetime.utcnow().isoformat()
-                }
-    except Exception as e:
-        logger.error(f"❌ [DATA] Error fetching Binance data: {e}")
+    # Ensure symbol ends with USDT (but don't add it twice)
+    if not symbol_upper.endswith('USDT'):
+        symbol_upper = f"{symbol_upper}USDT"
     
-    # Demo fallback
+    try:
+        # Use market_data_collector for consistent data retrieval and caching
+        ticker_data = await market_data_collector.get_ticker_24h(symbol_upper)
+        
+        if "error" not in ticker_data:
+            logger.info(f"✅ [DATA] Binance data received for {symbol_upper}")
+            return {
+                "symbol": symbol_upper,
+                "price": float(ticker_data.get("price", 0)),
+                "change_24h": float(ticker_data.get("change_24h", 0)),
+                "high_24h": float(ticker_data.get("high_24h", 0)),
+                "low_24h": float(ticker_data.get("low_24h", 0)),
+                "volume_24h": float(ticker_data.get("volume_24h", 0)),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        else:
+            logger.error(f"❌ [DATA] Market data error for {symbol_upper}: {ticker_data.get('error')}")
+    except Exception as e:
+        logger.error(f"❌ [DATA] Error fetching data for {symbol_upper}: {e}", exc_info=True)
+    
+    # Demo fallback - only if Binance completely fails
     logger.warn(f"⚠️ [DATA] Using demo data for {symbol_upper}")
     return {
         "symbol": symbol_upper,
