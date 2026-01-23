@@ -63,6 +63,10 @@ const WatchlistManager = () => {
   const [symbolPriority, setSymbolPriority] = useState('medium');
   const [alertPriceAbove, setAlertPriceAbove] = useState('');
   const [alertPriceBelow, setAlertPriceBelow] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [validatingSymbol, setValidatingSymbol] = useState(false);
+  const [symbolValid, setSymbolValid] = useState(null);
   
   // Filter/Sort states
   const [sortBy, setSortBy] = useState('symbol');
@@ -112,7 +116,20 @@ const WatchlistManager = () => {
 
   // Add symbol to watchlist
   const handleAddSymbol = async () => {
-    if (!newSymbol.trim()) return;
+    if (!newSymbol.trim()) {
+      setError('Veuillez entrer un symbole');
+      return;
+    }
+    
+    if (symbolValid === false) {
+      setError(`${newSymbol} n'existe pas sur Binance`);
+      return;
+    }
+    
+    if (symbolValid === null) {
+      setError('Veuillez attendre la validation du symbole');
+      return;
+    }
     
     try {
       const headers = await getAuthHeaders();
@@ -141,6 +158,63 @@ const WatchlistManager = () => {
     } catch (err) {
       setError(err.message);
       setTimeout(() => setError(null), 5000);
+    }
+  };
+  
+  // Validate symbol exists on Binance
+  const validateSymbol = async (symbol) => {
+    if (!symbol) {
+      setSymbolValid(null);
+      return;
+    }
+    
+    setValidatingSymbol(true);
+    setSymbolValid(null);
+    
+    try {
+      // Try to fetch ticker data from Binance to verify symbol exists
+      const binanceSymbol = symbol.toUpperCase().endsWith('USDT') ? symbol.toUpperCase() : `${symbol.toUpperCase()}USDT`;
+      const response = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${binanceSymbol}`, {
+        method: 'GET'
+      });
+      
+      if (response.ok) {
+        setSymbolValid(true);
+        console.log(`✅ Symbol ${binanceSymbol} is valid on Binance`);
+      } else {
+        setSymbolValid(false);
+        console.log(`❌ Symbol ${binanceSymbol} not found on Binance`);
+      }
+    } catch (err) {
+      console.error('Error validating symbol:', err);
+      setSymbolValid(false);
+    } finally {
+      setValidatingSymbol(false);
+    }
+  };
+  
+  // Handle symbol input change with autocomplete
+  const handleSymbolChange = (value) => {
+    const upper = value.toUpperCase();
+    setNewSymbol(upper);
+    
+    // Generate suggestions from popular cryptos
+    if (upper.length > 0) {
+      const filtered = POPULAR_CRYPTOS.filter(c => 
+        c.symbol.includes(upper) || c.name.toUpperCase().includes(upper)
+      );
+      setSuggestions(filtered);
+      setShowSuggestions(true);
+    } else {
+      setSuggestions(POPULAR_CRYPTOS.slice(0, 5)); // Show first 5 by default
+      setShowSuggestions(false);
+    }
+    
+    // Validate after debounce
+    if (upper.length >= 2) {
+      setTimeout(() => validateSymbol(upper), 500);
+    } else {
+      setSymbolValid(null);
     }
   };
 
@@ -513,13 +587,71 @@ const WatchlistManager = () => {
             <div className="modal-body">
               <div className="form-group">
                 <label>Symbole *</label>
-                <input
-                  type="text"
-                  value={newSymbol}
-                  onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
-                  placeholder="BTC, ETH, SOL..."
-                  autoFocus
-                />
+                <div className="input-wrapper" style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    value={newSymbol}
+                    onChange={(e) => handleSymbolChange(e.target.value)}
+                    onFocus={() => setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                    placeholder="BTC, ETH, SOL..."
+                    autoFocus
+                    style={{
+                      paddingRight: '32px'
+                    }}
+                  />
+                  <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)' }}>
+                    {validatingSymbol && <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />}
+                    {symbolValid === true && <Check size={16} style={{ color: '#10b981' }} />}
+                    {symbolValid === false && <AlertTriangle size={16} style={{ color: '#ef4444' }} />}
+                  </div>
+                </div>
+                
+                {showSuggestions && suggestions.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    backgroundColor: '#1f2937',
+                    border: '1px solid #374151',
+                    borderRadius: '4px',
+                    marginTop: '4px',
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    zIndex: 10
+                  }}>
+                    {suggestions.map(crypto => (
+                      <div
+                        key={crypto.symbol}
+                        onClick={() => {
+                          setNewSymbol(crypto.symbol);
+                          setShowSuggestions(false);
+                          validateSymbol(crypto.symbol);
+                        }}
+                        style={{
+                          padding: '8px 12px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #374151',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}
+                        onMouseEnter={(e) => e.target.style.backgroundColor = '#374151'}
+                        onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                      >
+                        <span style={{ fontWeight: 'bold', color: '#10b981' }}>{crypto.symbol}</span>
+                        <span style={{ fontSize: '12px', color: '#9ca3af' }}>{crypto.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {symbolValid === false && (
+                  <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>
+                    ⚠️ Ce symbole n'existe pas sur Binance
+                  </p>
+                )}
               </div>
               
               <div className="form-group">
