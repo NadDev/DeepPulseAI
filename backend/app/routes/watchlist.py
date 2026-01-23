@@ -183,14 +183,17 @@ async def get_watchlist(
         formatted_items = []
         for item in items:
             logger.info(f"📋 [WATCHLIST] Item: {item.symbol} (active={item.is_active})")
+            logger.info(f"📋 [WATCHLIST] base_currency from DB: '{item.base_currency}' (type: {type(item.base_currency)})")
             
             # Extract base_currency from symbol if empty
             base_currency = item.base_currency
             if not base_currency and item.symbol:
                 # Remove 'USDT' suffix to get base currency (e.g., BTCUSDT -> BTC)
                 base_currency = item.symbol.replace('USDT', '').replace('/USDT', '').strip()
+                logger.info(f"📋 [WATCHLIST] Extracted base_currency from symbol: '{base_currency}'")
             
             quote_currency = item.quote_currency or 'USDT'
+            logger.info(f"📋 [WATCHLIST] Final: symbol={item.symbol}, base={base_currency}, quote={quote_currency}")
             
             formatted_items.append({
                 "id": str(item.id),

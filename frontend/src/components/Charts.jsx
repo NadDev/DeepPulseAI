@@ -88,6 +88,12 @@ function Charts() {
         const coinsFromWatchlist = items.map(item => {
           const symbol = item.symbol || '';
           const baseCurrency = item.base_currency || symbol.replace('USDT', '').replace('/USDT', '');
+          console.log('✅ [WATCHLIST] Item details:', {
+            symbol,
+            base_currency_from_api: item.base_currency,
+            extracted_base_currency: baseCurrency,
+            final_id: baseCurrency
+          });
           const displayName = `${baseCurrency} (${symbol})`;
           
           console.log('✅ [WATCHLIST] Converting:', symbol, '→', displayName);
@@ -304,7 +310,7 @@ function Charts() {
           >
             {coins.map(coin => (
               <option key={coin.id} value={coin.id}>
-                {coin.name}
+                {coin.id}
               </option>
             ))}
           </select>
