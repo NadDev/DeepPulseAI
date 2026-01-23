@@ -23,32 +23,44 @@ const DashboardKPIs = ({ userId }) => {
     setError(null);
     
     try {
+      const token = localStorage.getItem('access_token');
+      console.log('🔐 Using token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+      
       // Fetch KPIs
+      console.log('📊 Fetching dashboard data...');
       const kpiResponse = await axios.get(
         '/api/reports/dashboard',
         {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+            'Authorization': `Bearer ${token}`
           }
         }
       );
       
+      console.log('✅ KPI Data received:', kpiResponse.data);
       setKpis(kpiResponse.data);
       
       // Fetch equity curve
+      console.log('📈 Fetching equity curve...');
       const equityResponse = await axios.get(
         `/api/reports/equity-curve?days=${days}`,
         {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+            'Authorization': `Bearer ${token}`
           }
         }
       );
       
+      console.log('✅ Equity data received:', equityResponse.data.length, 'points');
       setEquityData(equityResponse.data);
     } catch (err) {
-      setError(err.message || 'Failed to fetch dashboard data');
-      console.error('Error fetching dashboard:', err);
+      console.error('❌ Error fetching dashboard:', {
+        message: err.message,
+        status: err.response?.status,
+        data: err.response?.data,
+        url: err.response?.config?.url
+      });
+      setError(err.response?.data?.detail || err.message || 'Failed to fetch dashboard data');
     } finally {
       setLoading(false);
     }

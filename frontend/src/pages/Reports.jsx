@@ -27,9 +27,17 @@ const Reports = () => {
   ];
 
   const renderTabContent = () => {
+    console.log('Rendering tab:', activeTab);
     switch (activeTab) {
       case 'dashboard':
-        return <DashboardKPIs userId={userId} />;
+        return (
+          <>
+            <div style={{ color: '#ccc', fontSize: '14px', marginBottom: '20px' }}>
+              🔄 Loading Dashboard KPIs...
+            </div>
+            <DashboardKPIs userId={userId} />
+          </>
+        );
       case 'trades':
         return <TradeHistoryTable userId={userId} />;
       case 'strategies':
