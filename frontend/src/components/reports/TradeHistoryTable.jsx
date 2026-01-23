@@ -1,348 +1,140 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import './TradeHistoryTable.css';
 
 /**
- * TradeHistoryTable Component
- * Displays trades with filters, sorting, and market context
+ * TradeHistoryTable - Simplified
+ * Shows recent trades
  */
 const TradeHistoryTable = ({ userId }) => {
   const [trades, setTrades] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  // Filter state
-  const [filters, setFilters] = useState({
-    days: 30,
-    strategy: '',
-    symbol: '',
-    market_context: '',
-    min_pnl: null,
-    max_pnl: null,
-    status: ''
-  });
-  
-  // Sorting state
-  const [sortBy, setSortBy] = useState('entry_time');
-  const [sortOrder, setSortOrder] = useState('desc');
-  
-  // Summary stats
-  const [stats, setStats] = useState(null);
+  const [days, setDays] = useState(30);
 
-  // Fetch trades from API
   useEffect(() => {
     fetchTrades();
-  }, [filters]);
+  }, [days]);
 
   const fetchTrades = async () => {
-    setLoading(true);
-    setError(null);
-    
     try {
-      // Build query params
-      const params = new URLSearchParams();
-      params.append('days', filters.days);
-      if (filters.strategy) params.append('strategy', filters.strategy);
-      if (filters.symbol) params.append('symbol', filters.symbol);
-      if (filters.market_context) params.append('market_context', filters.market_context);
-      if (filters.min_pnl !== null) params.append('min_pnl', filters.min_pnl);
-      if (filters.max_pnl !== null) params.append('max_pnl', filters.max_pnl);
-      if (filters.status) params.append('status', filters.status);
-      
-      const response = await axios.get(
-        `/api/reports/trades?${params.toString()}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-          }
-        }
-      );
-      
-      setTrades(response.data.trades || []);
-      setStats({
-        total_trades: response.data.total_trades,
-        closed_trades: response.data.closed_trades,
-        open_trades: response.data.open_trades,
-        total_pnl: response.data.total_pnl,
-        win_rate: response.data.win_rate,
-        average_pnl: response.data.average_pnl,
-        context_breakdown: response.data.context_breakdown
+      const token = localStorage.getItem('access_token');
+      const response = await axios.get('/api/reports/trades', {
+        params: { days, limit: 50 },
+        headers: { 'Authorization': `Bearer ${token}` }
       });
+      
+      console.log('✅ Trades:', response.data);
+      setTrades(response.data.trades || []);
+      setError(null);
     } catch (err) {
-      setError(err.message || 'Failed to fetch trades');
-      console.error('Error fetching trades:', err);
+      console.error('❌ Error fetching trades:', err.message);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle filter changes
-  const handleFilterChange = (field, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  // Handle sort
-  const handleSort = (field) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('asc');
-    }
-  };
-
-  // Sort trades
-  const sortedTrades = [...trades].sort((a, b) => {
-    let aVal = a[sortBy];
-    let bVal = b[sortBy];
-    
-    if (typeof aVal === 'string') {
-      aVal = aVal.toLowerCase();
-      bVal = bVal.toLowerCase();
-    }
-    
-    if (sortOrder === 'asc') {
-      return aVal > bVal ? 1 : -1;
-    } else {
-      return aVal < bVal ? 1 : -1;
-    }
-  });
-
-  // Get unique values for filter dropdowns
-  const strategies = [...new Set(trades.map(t => t.strategy))].sort();
-  const symbols = [...new Set(trades.map(t => t.symbol))].sort();
-  const contexts = [...new Set(trades.map(t => t.market_context).filter(Boolean))].sort();
-
-  const renderPnL = (pnl, pnlPercent) => {
-    if (!pnl && pnl !== 0) return '-';
-    const className = pnl >= 0 ? 'text-green' : 'text-red';
-    return (
-      <span className={className}>
-        ${pnl.toFixed(2)} ({pnlPercent ? pnlPercent.toFixed(2) : '0.00'}%)
-      </span>
-    );
-  };
-
-  const renderContextBadge = (context) => {
-    if (!context) return <span className="badge badge-gray">Unknown</span>;
-    
-    const contextClass = {
-      'STRONG_BULLISH': 'badge-green',
-      'WEAK_BULLISH': 'badge-light-green',
-      'NEUTRAL': 'badge-gray',
-      'WEAK_BEARISH': 'badge-light-red',
-      'STRONG_BEARISH': 'badge-red'
-    };
-    
-    return (
-      <span className={`badge ${contextClass[context] || 'badge-gray'}`}>
-        {context}
-      </span>
-    );
-  };
+  if (loading) {
+    return <div style={{ padding: '20px', color: '#94a3b8' }}>⏳ Loading trades...</div>;
+  }
 
   if (error) {
-    return <div className="error-message">Error: {error}</div>;
+    return (
+      <div style={{ padding: '20px', background: '#7f1d1d', borderRadius: '4px', color: '#fca5a5' }}>
+        <p><strong>❌ Error:</strong> {error}</p>
+      </div>
+    );
   }
 
   return (
-    <div className="trade-history-container">
-      <div className="trade-history-header">
-        <h2>📊 Trade History</h2>
+    <div style={{ color: '#fff' }}>
+      <h2 style={{ marginTop: 0, marginBottom: '20px' }}>Trade History</h2>
+
+      <div style={{ marginBottom: '20px' }}>
+        <label style={{ color: '#94a3b8', marginRight: '10px' }}>Period:</label>
+        <select 
+          value={days} 
+          onChange={(e) => setDays(parseInt(e.target.value))}
+          style={{
+            padding: '8px 12px',
+            background: '#1e293b',
+            border: '1px solid #334155',
+            borderRadius: '4px',
+            color: '#fff',
+            cursor: 'pointer'
+          }}
+        >
+          <option value={7}>Last 7 days</option>
+          <option value={30}>Last 30 days</option>
+          <option value={60}>Last 60 days</option>
+          <option value={90}>Last 90 days</option>
+        </select>
       </div>
 
-      {/* Summary Stats */}
-      {stats && (
-        <div className="summary-stats">
-          <div className="stat-card">
-            <div className="stat-label">Total Trades</div>
-            <div className="stat-value">{stats.total_trades}</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Closed</div>
-            <div className="stat-value">{stats.closed_trades}</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Win Rate</div>
-            <div className="stat-value text-green">{stats.win_rate.toFixed(1)}%</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Total P&L</div>
-            <div className={`stat-value ${stats.total_pnl >= 0 ? 'text-green' : 'text-red'}`}>
-              ${stats.total_pnl.toFixed(2)}
-            </div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Avg P&L</div>
-            <div className={`stat-value ${stats.average_pnl >= 0 ? 'text-green' : 'text-red'}`}>
-              ${stats.average_pnl.toFixed(2)}
-            </div>
-          </div>
+      {trades.length === 0 ? (
+        <div style={{
+          padding: '40px',
+          textAlign: 'center',
+          background: '#1e293b',
+          borderRadius: '8px',
+          color: '#94a3b8'
+        }}>
+          <p>📭 No trades found</p>
         </div>
-      )}
-
-      {/* Filters */}
-      <div className="filters-section">
-        <h3>Filters</h3>
-        <div className="filter-row">
-          <div className="filter-group">
-            <label>Days</label>
-            <input
-              type="number"
-              value={filters.days}
-              onChange={(e) => handleFilterChange('days', parseInt(e.target.value))}
-              min="1"
-              max="365"
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>Strategy</label>
-            <select
-              value={filters.strategy}
-              onChange={(e) => handleFilterChange('strategy', e.target.value)}
-            >
-              <option value="">All Strategies</option>
-              {strategies.map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>Symbol</label>
-            <select
-              value={filters.symbol}
-              onChange={(e) => handleFilterChange('symbol', e.target.value)}
-            >
-              <option value="">All Symbols</option>
-              {symbols.map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>Market Context</label>
-            <select
-              value={filters.market_context}
-              onChange={(e) => handleFilterChange('market_context', e.target.value)}
-            >
-              <option value="">All Contexts</option>
-              {contexts.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="filter-group">
-            <label>Status</label>
-            <select
-              value={filters.status}
-              onChange={(e) => handleFilterChange('status', e.target.value)}
-            >
-              <option value="">All Status</option>
-              <option value="OPEN">Open</option>
-              <option value="CLOSED">Closed</option>
-              <option value="CLOSING">Closing</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="filter-row">
-          <div className="filter-group">
-            <label>Min P&L</label>
-            <input
-              type="number"
-              value={filters.min_pnl === null ? '' : filters.min_pnl}
-              onChange={(e) => handleFilterChange('min_pnl', e.target.value ? parseFloat(e.target.value) : null)}
-              placeholder="No limit"
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>Max P&L</label>
-            <input
-              type="number"
-              value={filters.max_pnl === null ? '' : filters.max_pnl}
-              onChange={(e) => handleFilterChange('max_pnl', e.target.value ? parseFloat(e.target.value) : null)}
-              placeholder="No limit"
-            />
-          </div>
-
-          <button className="btn-reset" onClick={() => setFilters({
-            days: 30,
-            strategy: '',
-            symbol: '',
-            market_context: '',
-            min_pnl: null,
-            max_pnl: null,
-            status: ''
-          })}>
-            Reset Filters
-          </button>
-        </div>
-      </div>
-
-      {/* Table */}
-      {loading ? (
-        <div className="loading">Loading trades...</div>
-      ) : sortedTrades.length === 0 ? (
-        <div className="no-data">No trades found</div>
       ) : (
-        <div className="table-wrapper">
-          <table className="trade-table">
+        <div style={{
+          overflowX: 'auto',
+          background: '#1e293b',
+          borderRadius: '8px',
+          border: '1px solid #334155'
+        }}>
+          <table style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            fontSize: '14px'
+          }}>
             <thead>
-              <tr>
-                <th onClick={() => handleSort('entry_time')} className="sortable">
-                  Entry Time {sortBy === 'entry_time' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </th>
-                <th onClick={() => handleSort('symbol')} className="sortable">
-                  Symbol {sortBy === 'symbol' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </th>
-                <th onClick={() => handleSort('side')} className="sortable">
-                  Side {sortBy === 'side' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </th>
-                <th onClick={() => handleSort('entry_price')} className="sortable">
-                  Entry {sortBy === 'entry_price' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </th>
-                <th onClick={() => handleSort('exit_price')} className="sortable">
-                  Exit {sortBy === 'exit_price' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </th>
-                <th onClick={() => handleSort('pnl')} className="sortable">
-                  P&L {sortBy === 'pnl' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </th>
-                <th onClick={() => handleSort('strategy')} className="sortable">
-                  Strategy {sortBy === 'strategy' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </th>
-                <th onClick={() => handleSort('market_context')} className="sortable">
-                  Context {sortBy === 'market_context' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </th>
-                <th onClick={() => handleSort('status')} className="sortable">
-                  Status {sortBy === 'status' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </th>
+              <tr style={{ borderBottom: '2px solid #334155', background: '#0f172a' }}>
+                <th style={{ padding: '12px', textAlign: 'left', color: '#94a3b8', fontWeight: '600' }}>Symbol</th>
+                <th style={{ padding: '12px', textAlign: 'left', color: '#94a3b8', fontWeight: '600' }}>Strategy</th>
+                <th style={{ padding: '12px', textAlign: 'right', color: '#94a3b8', fontWeight: '600' }}>Entry</th>
+                <th style={{ padding: '12px', textAlign: 'right', color: '#94a3b8', fontWeight: '600' }}>Exit</th>
+                <th style={{ padding: '12px', textAlign: 'right', color: '#94a3b8', fontWeight: '600' }}>Qty</th>
+                <th style={{ padding: '12px', textAlign: 'right', color: '#94a3b8', fontWeight: '600' }}>P&L</th>
+                <th style={{ padding: '12px', textAlign: 'center', color: '#94a3b8', fontWeight: '600' }}>Status</th>
               </tr>
             </thead>
             <tbody>
-              {sortedTrades.map(trade => (
-                <tr key={trade.id} className={`trade-row ${trade.status.toLowerCase()}`}>
-                  <td className="mono">{new Date(trade.entry_time).toLocaleString()}</td>
-                  <td className="bold">{trade.symbol}</td>
-                  <td>
-                    <span className={`badge ${trade.side === 'BUY' ? 'badge-blue' : 'badge-orange'}`}>
-                      {trade.side}
-                    </span>
+              {trades.map((trade, idx) => (
+                <tr key={idx} style={{ borderBottom: '1px solid #334155' }}>
+                  <td style={{ padding: '12px', color: '#fff', fontWeight: '600' }}>{trade.symbol}</td>
+                  <td style={{ padding: '12px', color: '#94a3b8' }}>{trade.strategy || '-'}</td>
+                  <td style={{ padding: '12px', textAlign: 'right', color: '#94a3b8', fontSize: '12px' }}>
+                    ${trade.entry_price?.toFixed(4) || '-'}
                   </td>
-                  <td className="mono">${trade.entry_price.toFixed(8)}</td>
-                  <td className="mono">{trade.exit_price ? `$${trade.exit_price.toFixed(8)}` : '-'}</td>
-                  <td>{renderPnL(trade.pnl, trade.pnl_percent)}</td>
-                  <td>{trade.strategy}</td>
-                  <td>{renderContextBadge(trade.market_context)}</td>
-                  <td>
-                    <span className={`badge ${trade.status === 'CLOSED' ? 'badge-success' : 'badge-warning'}`}>
+                  <td style={{ padding: '12px', textAlign: 'right', color: '#94a3b8', fontSize: '12px' }}>
+                    ${trade.exit_price?.toFixed(4) || '-'}
+                  </td>
+                  <td style={{ padding: '12px', textAlign: 'right', color: '#94a3b8' }}>
+                    {trade.quantity?.toFixed(2) || '-'}
+                  </td>
+                  <td style={{
+                    padding: '12px',
+                    textAlign: 'right',
+                    fontWeight: '600',
+                    color: (trade.pnl || 0) >= 0 ? '#10b981' : '#ef4444'
+                  }}>
+                    ${(trade.pnl || 0).toFixed(2)}
+                  </td>
+                  <td style={{ padding: '12px', textAlign: 'center' }}>
+                    <span style={{
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      background: trade.status === 'CLOSED' ? '#065f46' : '#1e40af',
+                      color: trade.status === 'CLOSED' ? '#d1fae5' : '#bfdbfe',
+                      fontSize: '12px',
+                      fontWeight: '600'
+                    }}>
                       {trade.status}
                     </span>
                   </td>
@@ -352,6 +144,10 @@ const TradeHistoryTable = ({ userId }) => {
           </table>
         </div>
       )}
+
+      <div style={{ marginTop: '20px', fontSize: '12px', color: '#64748b' }}>
+        📊 Showing {trades.length} trades from last {days} days
+      </div>
     </div>
   );
 };
