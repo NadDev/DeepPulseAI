@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 @router.get("/dashboard")
 async def get_dashboard_report(db: Session = Depends(get_db)):
-    """Get dashboard summary report"""
+    """Get dashboard summary report with comprehensive KPIs"""
     portfolio = db.query(Portfolio).first()
     bots = db.query(Bot).all()
     
@@ -22,14 +22,38 @@ async def get_dashboard_report(db: Session = Depends(get_db)):
     closed_trades = db.query(Trade).filter(Trade.status == "CLOSED").all()
     total_pnl = sum([t.pnl or 0 for t in closed_trades])
     winning_trades = len([t for t in closed_trades if t.pnl and t.pnl > 0])
+    losing_trades = len([t for t in closed_trades if t.pnl and t.pnl < 0])
+    
+    # Calculate advanced metrics
+    winning_pnls = [t.pnl for t in closed_trades if t.pnl and t.pnl > 0]
+    losing_pnls = [t.pnl for t in closed_trades if t.pnl and t.pnl < 0]
+    
+    average_win = sum(winning_pnls) / len(winning_pnls) if winning_pnls else 0
+    average_loss = sum(losing_pnls) / len(losing_pnls) if losing_pnls else 0
+    best_trade = max(winning_pnls) if winning_pnls else 0
+    worst_trade = min(losing_pnls) if losing_pnls else 0
+    avg_trade_pnl = total_pnl / len(closed_trades) if closed_trades else 0
+    
+    # Calculate profit factor (sum of wins / absolute sum of losses)
+    sum_wins = sum(winning_pnls) if winning_pnls else 0
+    sum_losses = abs(sum(losing_pnls)) if losing_pnls else 1
+    profit_factor = sum_wins / sum_losses if sum_losses > 0 else 0
     
     return {
         "portfolio_value": portfolio.total_value if portfolio else 0,
         "total_bots": total_bots,
         "active_bots": active_bots,
         "total_trades": total_trades,
+        "winning_trades": winning_trades,
+        "losing_trades": losing_trades,
         "total_pnl": total_pnl,
         "win_rate": (winning_trades / len(closed_trades) * 100) if closed_trades else 0,
+        "profit_factor": profit_factor,
+        "average_win": average_win,
+        "average_loss": average_loss,
+        "best_trade": best_trade,
+        "worst_trade": worst_trade,
+        "avg_trade_pnl": avg_trade_pnl,
         "last_updated": datetime.utcnow().isoformat(),
     }
 

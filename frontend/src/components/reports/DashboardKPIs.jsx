@@ -25,7 +25,7 @@ const DashboardKPIs = ({ userId }) => {
     try {
       // Fetch KPIs
       const kpiResponse = await axios.get(
-        '/api/reports/performance',
+        '/api/reports/dashboard',
         {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('access_token')}`
