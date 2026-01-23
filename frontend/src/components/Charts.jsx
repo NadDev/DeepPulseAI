@@ -83,15 +83,17 @@ function Charts() {
         const items = firstWatchlist.items || [];
         console.log('✅ [WATCHLIST] Items found:', items.length, items);
         
-        // Convert BTCUSDT format to BTC for display
+        // Convert to display format: BTC (BTCUSDT)
         const coinsFromWatchlist = items.map(item => {
           const symbol = item.symbol || '';
-          const id = symbol.replace('/USDT', '').replace('USDT', '');
-          console.log('✅ [WATCHLIST] Converting:', symbol, '→', id);
+          const baseCurrency = item.base_currency || symbol.replace('USDT', '').replace('/USDT', '');
+          const displayName = `${baseCurrency} (${symbol})`;
+          
+          console.log('✅ [WATCHLIST] Converting:', symbol, '→', displayName);
           return {
-            id,
-            name: symbol,
-            symbol: id
+            id: baseCurrency,
+            name: displayName,  // "BTC (BTCUSDT)"
+            symbol: baseCurrency
           };
         });
         
