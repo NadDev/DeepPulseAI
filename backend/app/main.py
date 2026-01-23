@@ -274,31 +274,39 @@ async def lifespan(app: FastAPI):
         
         # Normalize watchlist symbols to Binance format (migration 011)
         try:
-            logger.info(f"⚙️ Normalizing watchlist symbols to Binance format...")
+            # Check if normalization is needed
+            result = db.execute(text("SELECT COUNT(*) as count FROM watchlist_items WHERE symbol LIKE '%/%'"))
+            row = result.fetchone()
+            symbols_with_slash = row[0] if row else 0
             
-            migration_paths = [
-                "/app/database/migrations/011_normalize_watchlist_symbols.sql",
-                "database/migrations/011_normalize_watchlist_symbols.sql",
-                pathlib.Path(__file__).parent.parent.parent / "database/migrations/011_normalize_watchlist_symbols.sql"
-            ]
-            
-            migration_sql = None
-            for path in migration_paths:
-                try:
-                    migration_sql = open(path).read()
-                    logger.info(f"✅ Found migration at: {path}")
-                    break
-                except:
-                    continue
-            
-            if migration_sql:
-                db.execute(text(migration_sql))
-                db.commit()
-                logger.info("✅ Watchlist symbols normalized to Binance format (BTCUSDT, not BTC/USDT)")
+            if symbols_with_slash > 0:
+                logger.info(f"⚙️ Found {symbols_with_slash} watchlist symbols with slashes - normalizing to Binance format...")
+                
+                migration_paths = [
+                    "/app/database/migrations/011_normalize_watchlist_symbols.sql",
+                    "database/migrations/011_normalize_watchlist_symbols.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/011_normalize_watchlist_symbols.sql"
+                ]
+                
+                migration_sql = None
+                for path in migration_paths:
+                    try:
+                        migration_sql = open(path).read()
+                        logger.info(f"✅ Found migration at: {path}")
+                        break
+                    except:
+                        continue
+                
+                if migration_sql:
+                    db.execute(text(migration_sql))
+                    db.commit()
+                    logger.info("✅ Watchlist symbols normalized to Binance format (BTCUSDT, not BTC/USDT)")
+                else:
+                    logger.warning(f"⚠️ Could not find watchlist normalization migration file - manual update needed")
             else:
-                logger.warning(f"⚠️ Could not find watchlist normalization migration file - symbols may need manual update")
+                logger.info("[OK] Watchlist symbols already normalized to Binance format")
         except Exception as normalize_error:
-            logger.warning(f"⚠️ Watchlist symbol normalization skipped: {normalize_error}")
+            logger.warning(f"⚠️ Watchlist symbol normalization check failed: {normalize_error}")
         
         db.close()
     except Exception as e:
