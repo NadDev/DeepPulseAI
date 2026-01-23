@@ -137,7 +137,7 @@ function Charts() {
     fetchAllData();
     const interval = setInterval(fetchAllData, 30000); // Refresh every 30s
     return () => clearInterval(interval);
-  }, [selectedCoin, selectedFullSymbol, period];
+  }, [selectedCoin, selectedFullSymbol, period]);
 
   const fetchAllData = async () => {
     setLoading(true);
