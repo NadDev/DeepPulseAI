@@ -47,7 +47,8 @@ const ExportReports = ({ userId, days = 30 }) => {
       if (exportFormat === 'csv') {
         exportToCSV(data, filename);
       } else if (exportFormat === 'pdf') {
-        exportToPDF(data, filename, exportType);
+        setMessage('❌ PDF export is currently disabled. Please use CSV format.');
+        setTimeout(() => setMessage(''), 3000);
       }
 
       setMessage(`✅ ${exportType.toUpperCase()} exported as ${exportFormat.toUpperCase()} successfully!`);
@@ -103,6 +104,9 @@ const ExportReports = ({ userId, days = 30 }) => {
     document.body.removeChild(link);
   };
 
+  // PDF export temporarily disabled (requires jsPDF dependency)
+  // Uncomment and install jsPDF when needed: npm install jspdf
+  /*
   const exportToPDF = async (data, filename, exportType) => {
     try {
       // Dynamic import for jsPDF
@@ -172,6 +176,7 @@ const ExportReports = ({ userId, days = 30 }) => {
       alert('PDF export requires jsPDF library. Please install: npm install jspdf');
     }
   };
+  */
 
   return (
     <div className="export-reports-container">
