@@ -16,7 +16,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/watchlist", tags=["Watchlist"])
+router = APIRouter(prefix="/watchlist", tags=["Watchlist"])
 
 
 # ============================================

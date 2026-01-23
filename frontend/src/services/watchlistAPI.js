@@ -5,8 +5,9 @@
  */
 
 import { supabase } from './supabaseClient';
+import { config } from '../config';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+const API_BASE_URL = config.API_URL + '/api';
 
 // Get auth headers with Supabase JWT token
 const getAuthHeaders = async () => {
