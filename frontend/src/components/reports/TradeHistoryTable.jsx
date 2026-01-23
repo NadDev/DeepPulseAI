@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { cryptoAPI as api } from '../../services/api';
 
 /**
  * TradeHistoryTable - Simplified
@@ -13,19 +13,13 @@ const TradeHistoryTable = ({ userId }) => {
 
   const fetchTrades = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      console.log('📋 [TRADES] Fetching with token:', token ? 'YES' : 'NO');
-      
-      const response = await axios.get('/api/reports/trades', {
-        params: { days, limit: 50 },
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      console.log('✅ [TRADES] Trades received:', response.data.trades?.length || 0);
-      setTrades(response.data.trades || []);
+      console.log('📋 [TRADES] Fetching with days:', days);
+      const data = await api.getTradesReport({ days, limit: 50 });
+      console.log('✅ [TRADES] Trades received:', data.trades?.length || 0);
+      setTrades(data.trades || []);
       setError(null);
     } catch (err) {
-      console.error('❌ [TRADES] Error:', err.response?.status, err.message);
+      console.error('❌ [TRADES] Error:', err.message);
       setError(err.message);
     } finally {
       setLoading(false);

@@ -271,6 +271,31 @@ export const cryptoAPI = {
   stopBot: async (botId) => {
     const response = await apiClient.post(`/bots/${botId}/stop`);
     return response.data;
+  },
+
+  // ============ REPORTS & ANALYTICS ============
+  getDashboardReport: async () => {
+    const response = await apiClient.get(`/reports/dashboard`);
+    return response.data;
+  },
+
+  getTradesReport: async (params = {}) => {
+    const response = await apiClient.get(`/reports/trades`, { params });
+    return response.data;
+  },
+
+  getStrategiesReport: async (days = 30) => {
+    const response = await apiClient.get(`/reports/strategies`, {
+      params: { days }
+    });
+    return response.data;
+  },
+
+  getEquityCurveReport: async (days = 30) => {
+    const response = await apiClient.get(`/reports/equity-curve`, {
+      params: { days }
+    });
+    return response.data;
   }
 };
 

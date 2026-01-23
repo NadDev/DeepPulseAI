@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { cryptoAPI as api } from '../../services/api';
 
 /**
  * DashboardKPIs Component - Simplified
@@ -12,18 +12,13 @@ const DashboardKPIs = ({ userId }) => {
 
   const fetchDashboardData = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      console.log('📊 [DASHBOARD] Fetching KPIs with token:', token ? 'YES' : 'NO');
-      
-      const response = await axios.get('/api/reports/dashboard', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      console.log('✅ [DASHBOARD] KPI data:', response.data);
-      setKpis(response.data);
+      console.log('📊 [DASHBOARD] Fetching KPIs...');
+      const data = await api.getDashboardReport();
+      console.log('✅ [DASHBOARD] KPI data:', data);
+      setKpis(data);
       setError(null);
     } catch (err) {
-      console.error('❌ [DASHBOARD] Error:', err.response?.status, err.message);
+      console.error('❌ [DASHBOARD] Error:', err.message);
       setError(err.message);
     } finally {
       setLoading(false);

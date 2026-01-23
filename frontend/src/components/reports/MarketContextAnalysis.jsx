@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { cryptoAPI as api } from '../../services/api';
 
 /**
  * MarketContextAnalysis - Simplified
@@ -12,18 +12,12 @@ const MarketContextAnalysis = ({ userId, days = 30 }) => {
 
   const fetchContextAnalysis = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      console.log('🌍 [CONTEXT] Fetching with token:', token ? 'YES' : 'NO');
-      
-      const response = await axios.get('/api/reports/trades', {
-        params: { days, limit: 1000 },
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      console.log('✅ [CONTEXT] Trades received:', response.data.trades?.length || 0);
+      console.log('🌍 [CONTEXT] Fetching with days:', days);
+      const data = await api.getTradesReport({ days, limit: 1000 });
+      console.log('✅ [CONTEXT] Trades received:', data.trades?.length || 0);
       
       // Group trades by market context
-      const trades = response.data.trades || [];
+      const trades = data.trades || [];
       const grouped = {};
       
       trades.forEach(trade => {

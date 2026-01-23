@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { cryptoAPI as api } from '../../services/api';
 
 /**
  * PerformanceCharts - Simplified
@@ -12,19 +12,13 @@ const PerformanceCharts = ({ userId, days = 30 }) => {
 
   const fetchEquityData = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      console.log('📈 [CHARTS] Fetching equity curve with token:', token ? 'YES' : 'NO');
-      
-      const response = await axios.get('/api/reports/equity-curve', {
-        params: { days },
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      console.log('✅ [CHARTS] Equity data received:', response.data?.length || 0, 'points');
-      setEquityData(response.data || []);
+      console.log('📈 [CHARTS] Fetching equity curve with days:', days);
+      const data = await api.getEquityCurveReport(days);
+      console.log('✅ [CHARTS] Equity data received:', data?.length || 0, 'points');
+      setEquityData(data || []);
       setError(null);
     } catch (err) {
-      console.error('❌ [CHARTS] Error:', err.response?.status, err.message);
+      console.error('❌ [CHARTS] Error:', err.message);
       setError(err.message);
     } finally {
       setLoading(false);

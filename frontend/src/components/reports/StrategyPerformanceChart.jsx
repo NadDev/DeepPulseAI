@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { cryptoAPI as api } from '../../services/api';
 
 /**
  * StrategyPerformanceChart - Simplified
@@ -12,19 +12,13 @@ const StrategyPerformanceChart = ({ userId, days = 30 }) => {
 
   const fetchStrategies = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      console.log('🎯 [STRATEGIES] Fetching with token:', token ? 'YES' : 'NO');
-      
-      const response = await axios.get('/api/reports/strategies', {
-        params: { days },
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      console.log('✅ [STRATEGIES] Data received:', response.data);
-      setStrategies(response.data.strategies || []);
+      console.log('🎯 [STRATEGIES] Fetching with days:', days);
+      const data = await api.getStrategiesReport(days);
+      console.log('✅ [STRATEGIES] Data received:', data);
+      setStrategies(data.strategies || []);
       setError(null);
     } catch (err) {
-      console.error('❌ [STRATEGIES] Error:', err.response?.status, err.message);
+      console.error('❌ [STRATEGIES] Error:', err.message);
       setError(err.message);
     } finally {
       setLoading(false);
