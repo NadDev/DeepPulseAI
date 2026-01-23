@@ -280,19 +280,25 @@ class BotEngine:
                 if context_analysis:
                     self.strategy_context_manager.log_strategy_decisions(symbol, context_analysis)
                     
+                    # ===== DIAGNOSTIC MODE: BYPASS CONTEXT FILTERING =====
+                    # Temporarily disabled to diagnose if strategies generate signals
+                    # or if signals are blocked by context filtering
+                    # 
+                    # Original logic (commented out):
                     # Check if this strategy should be active in current market context
                     # Get strategy name from the strategy object class name
-                    strategy_name = strategy.__class__.__name__.lower()
-                    strategy_should_be_active = self.strategy_context_manager.should_activate_strategy(
-                        strategy_name, context_analysis
-                    )
-                    
-                    if not strategy_should_be_active and signal != "HOLD":
-                        logger.info(f"⏭️ [CONTEXT] {symbol}: {strategy_name.upper()} signal {signal} SKIPPED - "
-                                   f"inactive in {context_analysis.market_context.value} market")
-                        # Still check open positions but don't execute new trades
-                        await self._check_open_positions(bot_state, strategy, symbol, market_data)
-                        continue
+                    # strategy_name = strategy.__class__.__name__.lower()
+                    # strategy_should_be_active = self.strategy_context_manager.should_activate_strategy(
+                    #     strategy_name, context_analysis
+                    # )
+                    # 
+                    # if not strategy_should_be_active and signal != "HOLD":
+                    #     logger.info(f"⏭️ [CONTEXT] {symbol}: {strategy_name.upper()} signal {signal} SKIPPED - "
+                    #                f"inactive in {context_analysis.market_context.value} market")
+                    #     # Still check open positions but don't execute new trades
+                    #     await self._check_open_positions(bot_state, strategy, symbol, market_data)
+                    #     continue
+                    # ===== END DIAGNOSTIC MODE =====
                 
                 # === AI AGENT VALIDATION ===
                 ai_validation = None
