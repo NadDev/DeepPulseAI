@@ -14,7 +14,7 @@ async def get_dashboard_report(
     db: Session = Depends(get_db)
 ):
     """Get dashboard summary report with comprehensive KPIs"""
-    user_id = current_user.user_id
+    user_id = current_user.id
     
     portfolio = db.query(Portfolio).filter(Portfolio.user_id == user_id).first()
     bots = db.query(Bot).filter(Bot.user_id == user_id).all()
@@ -73,7 +73,7 @@ async def get_equity_curve(
     db: Session = Depends(get_db)
 ):
     """Get equity curve data for charts"""
-    user_id = current_user.user_id
+    user_id = current_user.id
     
     # In a real app, this would query a PortfolioHistory table
     # For now, we generate realistic data based on current portfolio value
@@ -239,7 +239,7 @@ async def get_context_performance(
     Get strategy performance broken down by market context
     Shows win rate and P&L for each strategy in each market condition
     """
-    user_id = current_user.user_id
+    user_id = current_user.id
     since = datetime.utcnow() - timedelta(days=days)
     
     all_trades = db.query(Trade).filter(
@@ -329,7 +329,7 @@ async def get_strategies_report(
     Get strategies comparison report with market context breakdown
     Shows performance of each strategy globally and per market condition
     """
-    user_id = current_user.user_id
+    user_id = current_user.id
     since = datetime.utcnow() - timedelta(days=days)
     
     # Get all trades for the period
