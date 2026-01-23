@@ -6,7 +6,7 @@
 import { config } from '../config';
 import { supabase } from './supabaseClient';
 
-const API_BASE_URL = config.API_URL + '/api';
+const API_BASE_URL = config.API_URL;
 
 // Helper to get auth headers
 const getAuthHeaders = async () => {
