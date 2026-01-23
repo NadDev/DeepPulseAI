@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { cryptoAPI } from '../services/api';
 import { watchlistAPI } from '../services/watchlistAPI';
+import { supabase } from '../services/supabaseClient';
 import MLPredictions from './MLPredictions';
 import AdvancedAnalysis from './AdvancedAnalysis';
 import { calculateElliottWaves } from '../utils/technicalAnalysis';
@@ -60,8 +61,19 @@ function Charts() {
   const loadWatchlist = async () => {
     try {
       console.log('🔄 [WATCHLIST] Starting load...');
+      
+      // First check if user is authenticated
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.warn('⚠️ [WATCHLIST] No session found - user not authenticated - using defaults');
+        setCoins(DEFAULT_COINS);
+        setSelectedCoin('BTC');
+        return;
+      }
+      console.log('✅ [WATCHLIST] User authenticated:', session.user.email);
+      
       const watchlistData = await watchlistAPI.getWatchlist();
-      console.log('❌ [WATCHLIST] RAW DATA:', watchlistData);
+      console.log('📋 [WATCHLIST] RAW DATA:', watchlistData);
       
       if (watchlistData && watchlistData.length > 0) {
         console.log('✅ [WATCHLIST] Array found, length:', watchlistData.length);
@@ -88,19 +100,20 @@ function Charts() {
         if (coinsFromWatchlist.length > 0) {
           setCoins(coinsFromWatchlist);
           setSelectedCoin(coinsFromWatchlist[0].id);
-          console.log('✅ [WATCHLIST] Selected:', coinsFromWatchlist[0].id);
+          console.log('✅ [WATCHLIST] Selected first coin:', coinsFromWatchlist[0].id);
         } else {
-          console.warn('⚠️ [WATCHLIST] Empty after conversion, using defaults');
+          console.warn('⚠️ [WATCHLIST] Empty after conversion - using defaults');
           setCoins(DEFAULT_COINS);
           setSelectedCoin('BTC');
         }
       } else {
-        console.warn('⚠️ [WATCHLIST] No watchlist data, using defaults');
+        console.warn('⚠️ [WATCHLIST] No watchlist data returned - using defaults');
         setCoins(DEFAULT_COINS);
         setSelectedCoin('BTC');
       }
     } catch (error) {
-      console.error('❌ [WATCHLIST] Auth/Load error - using defaults:', error.message);
+      console.error('❌ [WATCHLIST] ERROR:', error);
+      console.error('❌ [WATCHLIST] Error details:', error.message);
       setCoins(DEFAULT_COINS);
       setSelectedCoin('BTC');
     }
