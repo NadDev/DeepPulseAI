@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.database import get_db
+from app.models.database_models import WatchlistItem
 import httpx
 import os
 from datetime import datetime, timedelta
 import random
 from typing import Optional, List, Dict, Any
+import logging
 from app.services import (
     market_data_collector,
     TechnicalAnalysis,
@@ -14,30 +16,58 @@ from app.services import (
 )
 from app.services.ml_engine import ml_engine
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api", tags=["crypto"])
 
+# Default symbols for fallback
+DEFAULT_SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "DOGEUSDT", "XRPUSDT"]
+
+async def get_watchlist_symbols(db: Session) -> List[str]:
+    """Get symbols from watchlist, fallback to defaults if empty"""
+    try:
+        items = db.query(WatchlistItem).filter(
+            WatchlistItem.is_active == True
+        ).order_by(WatchlistItem.priority.desc()).all()
+        
+        if items:
+            symbols = [item.symbol for item in items]
+            logger.info(f"📊 Loaded {len(symbols)} symbols from watchlist")
+            return symbols
+        else:
+            logger.warning("⚠️ Watchlist is empty, using default symbols")
+            return DEFAULT_SYMBOLS
+    except Exception as e:
+        logger.error(f"❌ Error loading watchlist symbols: {e}, using defaults")
+        return DEFAULT_SYMBOLS
+
 @router.get("/crypto/prices")
-async def get_crypto_prices():
-    """Get current crypto prices from Binance"""
-    symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "DOGEUSDT", "XRPUSDT"]
+async def get_crypto_prices(db: Session = Depends(get_db)):
+    """Get current crypto prices from Binance (using watchlist symbols)"""
+    symbols = await get_watchlist_symbols(db)
     
     try:
         async with httpx.AsyncClient() as client:
             prices = {}
             
             for symbol in symbols:
-                url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
-                response = await client.get(url)
-                data = response.json()
-                
-                prices[symbol] = {
-                    "symbol": symbol,
-                    "price": float(data["price"]),
-                    "timestamp": data.get("time")
-                }
+                try:
+                    url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
+                    response = await client.get(url, timeout=5)
+                    if response.status_code == 200:
+                        data = response.json()
+                        prices[symbol] = {
+                            "symbol": symbol,
+                            "price": float(data["price"]),
+                            "timestamp": data.get("time")
+                        }
+                except Exception as e:
+                    logger.warning(f"⚠️ Error fetching price for {symbol}: {e}")
+                    continue
             
             return {"prices": prices}
     except Exception as e:
+        logger.error(f"❌ Error fetching crypto prices: {e}")
         # Return demo data if API fails
         return {
             "prices": {
@@ -125,63 +155,76 @@ async def get_crypto_data(symbol: str):
 @router.get("/crypto/{symbol}/analysis")
 async def get_crypto_analysis(symbol: str):
     """
-    FEATURE 4.1: Get comprehensive crypto analysis
-    Returns: trend, sentiment_score, social_mentions, market_cap, 24h_change%
-    Integrates Coingecko API for real data
+    Get comprehensive crypto analysis using Binance as single source
+    Returns: trend, sentiment_score, 24h_change%, volume, market data
     """
-    symbol_lower = symbol.lower()
+    # Normalize symbol to Binance format
+    symbol_normalized = symbol.upper()
+    if not symbol_normalized.endswith("USDT"):
+        symbol_normalized = f"{symbol_normalized}USDT"
     
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            # Try Coingecko API for comprehensive data
-            url = f"https://api.coingecko.com/api/v3/simple/price?ids={symbol_lower}&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true"
-            response = await client.get(url)
+        # Get 24h ticker data from Binance (unified source)
+        ticker_24h = await market_data_collector.get_ticker_24h(symbol_normalized)
+        
+        if "error" not in ticker_24h:
+            change_24h = ticker_24h.get("change_24h", 0)
+            volume_24h = ticker_24h.get("quote_asset_volume", 0)
             
-            if response.status_code == 200:
-                gecko_data = response.json()
-                if symbol_lower in gecko_data:
-                    price_data = gecko_data[symbol_lower]
-                    change_24h = price_data.get("usd_24h_change", 0)
-                    market_cap = price_data.get("usd_market_cap", 0)
-                    
-                    # Determine trend
-                    if change_24h > 5:
-                        trend = "bullish"
-                    elif change_24h < -5:
-                        trend = "bearish"
-                    else:
-                        trend = "neutral"
-                    
-                    return {
-                        "symbol": symbol.upper(),
-                        "trend": trend,
-                        "sentiment_score": (change_24h / 100) * 0.5,  # Normalize to -1 to 1
-                        "change_24h": change_24h,
-                        "market_cap": market_cap or 0,
-                        "social_mentions_count": random.randint(100, 50000),
-                        "reputation_score": 0.5 + (min(abs(change_24h), 20) / 20) * 0.5,
-                        "source": "coingecko"
-                    }
-    except:
-        pass
+            # Determine trend based on 24h change
+            if change_24h > 5:
+                trend = "bullish"
+                sentiment_score = min(change_24h / 20, 1.0)  # Normalize to 0-1
+            elif change_24h < -5:
+                trend = "bearish"
+                sentiment_score = max(change_24h / 20, -1.0)  # Normalize to -1-0
+            else:
+                trend = "neutral"
+                sentiment_score = 0
+            
+            # Calculate reputation score based on volume (higher volume = higher reputation)
+            reputation_base = min(volume_24h / 1000000000, 1.0)  # Normalize by 1B USD volume
+            reputation_score = 0.3 + (reputation_base * 0.7)  # Range 0.3-1.0
+            
+            return {
+                "symbol": symbol.upper(),
+                "price": ticker_24h.get("price", 0),
+                "trend": trend,
+                "sentiment_score": sentiment_score,
+                "change_24h": change_24h,
+                "high_24h": ticker_24h.get("high_24h", 0),
+                "low_24h": ticker_24h.get("low_24h", 0),
+                "volume_24h_usd": ticker_24h.get("quote_asset_volume", 0),
+                "number_of_trades": ticker_24h.get("number_of_trades", 0),
+                "reputation_score": reputation_score,
+                "source": "binance"
+            }
+    except Exception as e:
+        logger.error(f"Error analyzing {symbol}: {e}")
     
     # Demo fallback
     change_24h = random.uniform(-15, 15)
     
     if change_24h > 5:
         trend = "bullish"
+        sentiment_score = min(change_24h / 20, 1.0)
     elif change_24h < -5:
         trend = "bearish"
+        sentiment_score = max(change_24h / 20, -1.0)
     else:
         trend = "neutral"
+        sentiment_score = 0
     
     return {
         "symbol": symbol.upper(),
+        "price": random.uniform(100, 50000),
         "trend": trend,
-        "sentiment_score": (change_24h / 100) * 0.5,
+        "sentiment_score": sentiment_score,
         "change_24h": change_24h,
-        "market_cap": random.uniform(1e9, 100e9),
-        "social_mentions_count": random.randint(100, 50000),
+        "high_24h": random.uniform(200, 60000),
+        "low_24h": random.uniform(50, 40000),
+        "volume_24h_usd": random.uniform(100000000, 10000000000),
+        "number_of_trades": random.randint(100000, 10000000),
         "reputation_score": random.uniform(0.4, 1.0),
         "source": "demo"
     }
@@ -623,18 +666,25 @@ async def ml_predict_price(symbol: str, lookback_days: int = 90):
 
 
 @router.get("/ml/predict/batch")
-async def ml_predict_batch(symbols: str = "BTC,ETH,ADA,XRP,DOGE"):
+async def ml_predict_batch(symbols: Optional[str] = None, db: Session = Depends(get_db)):
     """
     ML Batch Predictions for multiple symbols
     
     Args:
-        symbols: Comma-separated list (default: "BTC,ETH,ADA,XRP,DOGE")
+        symbols: Comma-separated list (default: uses watchlist)
     
     Returns:
         {symbol: predictions} for all symbols
     """
     try:
-        symbol_list = [s.strip().upper() for s in symbols.split(",")]
+        if symbols:
+            # User provided explicit symbols
+            symbol_list = [s.strip().upper() for s in symbols.split(",")]
+        else:
+            # Use watchlist symbols
+            symbol_list = await get_watchlist_symbols(db)
+        
+        logger.info(f"📊 Running ML predictions for {len(symbol_list)} symbols from watchlist")
         results = await ml_engine.get_multiple_predictions(symbol_list)
         return {
             "status": "success",
@@ -642,6 +692,7 @@ async def ml_predict_batch(symbols: str = "BTC,ETH,ADA,XRP,DOGE"):
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
+        logger.error(f"❌ ML batch prediction error: {e}")
         return {
             "status": "error",
             "message": str(e)
@@ -826,6 +877,11 @@ async def ml_prediction_performance(symbol: str, days: int = 7):
 @router.get("/crypto/{symbol}/chart")
 async def get_coin_chart(symbol: str, period: str = "7d"):
     """Get chart data for a specific coin"""
+    # Normalize symbol to Binance format (BTC -> BTCUSDT)
+    symbol = symbol.upper()
+    if not symbol.endswith("USDT"):
+        symbol = f"{symbol}USDT"
+    
     # Determine limit and interval based on period
     limit = 168 # default
     interval = "1h"
@@ -861,8 +917,8 @@ async def get_coin_chart(symbol: str, period: str = "7d"):
             interval = "1d"
             limit = days
         
-    # Use market_data_collector
-    candles = await market_data_collector.get_candles(symbol.upper(), timeframe=interval, limit=limit)
+    # Use market_data_collector with normalized symbol
+    candles = await market_data_collector.get_candles(symbol, timeframe=interval, limit=limit)
     
     # Format for frontend: [[timestamp, price], ...]
     prices = []
