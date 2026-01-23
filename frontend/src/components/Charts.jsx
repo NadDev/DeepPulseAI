@@ -42,6 +42,16 @@ function Charts() {
 
   const [coins, setCoins] = useState([]);
 
+  const DEFAULT_COINS = [
+    { id: 'BTC', name: 'Bitcoin', symbol: 'BTC' },
+    { id: 'ETH', name: 'Ethereum', symbol: 'ETH' },
+    { id: 'BNB', name: 'Binance Coin', symbol: 'BNB' },
+    { id: 'XRP', name: 'Ripple', symbol: 'XRP' },
+    { id: 'ADA', name: 'Cardano', symbol: 'ADA' },
+    { id: 'SOL', name: 'Solana', symbol: 'SOL' },
+    { id: 'DOGE', name: 'Dogecoin', symbol: 'DOGE' }
+  ];
+
   useEffect(() => {
     // Load watchlist on component mount
     loadWatchlist();
@@ -50,9 +60,13 @@ function Charts() {
   const loadWatchlist = async () => {
     try {
       const watchlistData = await watchlistAPI.getWatchlist();
+      console.log('Watchlist data received:', watchlistData);
+      
       if (watchlistData && watchlistData.length > 0) {
         // watchlistData is array of watchlists, get first one's items
         const items = watchlistData[0].items || [];
+        console.log('Watchlist items:', items);
+        
         // Convert BTCUSDT format to BTC for display
         const coinsFromWatchlist = items.map(item => ({
           id: item.symbol.replace('/USDT', '').replace('USDT', ''),
@@ -60,17 +74,22 @@ function Charts() {
           symbol: item.symbol.replace('/USDT', '').replace('USDT', '')
         }));
         
+        console.log('Converted coins:', coinsFromWatchlist);
+        
         if (coinsFromWatchlist.length > 0) {
           setCoins(coinsFromWatchlist);
           // Set first coin as default
           setSelectedCoin(coinsFromWatchlist[0].id);
+          console.log('Selected coin:', coinsFromWatchlist[0].id);
         } else {
           // Fallback to default coins if watchlist is empty
+          console.warn('Watchlist empty, using defaults');
           setCoins(DEFAULT_COINS);
           setSelectedCoin('BTC');
         }
       } else {
         // Fallback to default coins
+        console.warn('No watchlist data, using defaults');
         setCoins(DEFAULT_COINS);
         setSelectedCoin('BTC');
       }
@@ -81,16 +100,6 @@ function Charts() {
       setSelectedCoin('BTC');
     }
   };
-
-  const DEFAULT_COINS = [
-    { id: 'BTC', name: 'Bitcoin', symbol: 'BTC' },
-    { id: 'ETH', name: 'Ethereum', symbol: 'ETH' },
-    { id: 'BNB', name: 'Binance Coin', symbol: 'BNB' },
-    { id: 'XRP', name: 'Ripple', symbol: 'XRP' },
-    { id: 'ADA', name: 'Cardano', symbol: 'ADA' },
-    { id: 'SOL', name: 'Solana', symbol: 'SOL' },
-    { id: 'DOGE', name: 'Dogecoin', symbol: 'DOGE' }
-  ];
 
   useEffect(() => {
     fetchAllData();

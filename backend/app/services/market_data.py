@@ -45,17 +45,19 @@ class MarketDataCollector:
         # Check cache
         if cache_key in self.cache:
             if self._is_cache_valid(cache_key):
-                logger.debug(f"Cache hit for {cache_key}")
+                logger.info(f"✅ [BINANCE] Cache hit: {symbol} {timeframe} (limit={limit})")
                 return self.cache[cache_key]
         
         try:
             # Fetch from Binance API
+            logger.info(f"📊 [BINANCE] Fetching candles: {symbol} {timeframe} (limit={limit})")
             candles = await self._fetch_binance_candles(symbol, timeframe, limit)
             self.cache[cache_key] = candles
             self.update_times[cache_key] = datetime.now()
+            logger.info(f"✅ [BINANCE] Candles fetched: {symbol} returned {len(candles)} candles")
             return candles
         except Exception as e:
-            logger.error(f"Error fetching candles for {symbol}: {str(e)}")
+            logger.error(f"❌ [BINANCE] Error fetching candles for {symbol}: {str(e)}")
             return []
     
     async def get_latest_price(self, symbol: str) -> Optional[float]:
@@ -129,6 +131,7 @@ class MarketDataCollector:
         cache_key = f"ticker_24h_{symbol}"
         
         if cache_key in self.cache and self._is_cache_valid(cache_key):
+            logger.info(f"✅ [BINANCE] Cache hit: 24h ticker {symbol}")
             return self.cache[cache_key]
         
         try:
@@ -138,6 +141,7 @@ class MarketDataCollector:
                 if not symbol.endswith("USDT"):
                     symbol = f"{symbol}USDT"
                 
+                logger.info(f"📊 [BINANCE] Fetching 24h ticker: {symbol}")
                 response = await client.get(
                     f"https://api.binance.com/api/v3/ticker/24hr",
                     params={"symbol": symbol},
@@ -146,6 +150,7 @@ class MarketDataCollector:
                 
                 if response.status_code == 200:
                     data = response.json()
+                    logger.info(f"✅ [BINANCE] 24h ticker fetched: {symbol} price=${data.get('lastPrice', 'N/A')}")
                     ticker_24h = {
                         "symbol": symbol,
                         "price": float(data.get("lastPrice", 0)),

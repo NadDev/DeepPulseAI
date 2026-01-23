@@ -120,14 +120,17 @@ async def get_crypto_data(symbol: str):
     FEATURE 3.1: Get comprehensive crypto data for the selected symbol
     Returns: current price, 24h change, high, low, volume
     """
+    logger.info(f"💰 [DATA] Requesting crypto data for {symbol}")
     symbol_upper = symbol.upper()
     
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol_upper}USDT"
+            logger.info(f"💰 [DATA] Fetching from Binance: {url}")
             response = await client.get(url)
             if response.status_code == 200:
                 data = response.json()
+                logger.info(f"✅ [DATA] Binance data received for {symbol_upper}")
                 return {
                     "symbol": symbol_upper,
                     "price": float(data.get("lastPrice", 0)),
@@ -137,10 +140,11 @@ async def get_crypto_data(symbol: str):
                     "volume_24h": float(data.get("volume", 0)),
                     "timestamp": datetime.utcnow().isoformat()
                 }
-    except:
-        pass
+    except Exception as e:
+        logger.error(f"❌ [DATA] Error fetching Binance data: {e}")
     
     # Demo fallback
+    logger.warn(f"⚠️ [DATA] Using demo data for {symbol_upper}")
     return {
         "symbol": symbol_upper,
         "price": 42150.50 + random.uniform(-1000, 1000),
@@ -158,6 +162,8 @@ async def get_crypto_analysis(symbol: str):
     Get comprehensive crypto analysis using Binance as single source
     Returns: trend, sentiment_score, 24h_change%, volume, market data
     """
+    logger.info(f"📈 [ANALYSIS] Requesting analysis for {symbol}")
+    
     # Normalize symbol to Binance format
     symbol_normalized = symbol.upper()
     if not symbol_normalized.endswith("USDT"):
@@ -165,6 +171,7 @@ async def get_crypto_analysis(symbol: str):
     
     try:
         # Get 24h ticker data from Binance (unified source)
+        logger.info(f"📈 [ANALYSIS] Fetching from Binance for {symbol_normalized}")
         ticker_24h = await market_data_collector.get_ticker_24h(symbol_normalized)
         
         if "error" not in ticker_24h:
@@ -877,10 +884,14 @@ async def ml_prediction_performance(symbol: str, days: int = 7):
 @router.get("/crypto/{symbol}/chart")
 async def get_coin_chart(symbol: str, period: str = "7d"):
     """Get chart data for a specific coin"""
+    logger.info(f"📊 [CHARTS] Requesting chart for {symbol} period={period}")
+    
     # Normalize symbol to Binance format (BTC -> BTCUSDT)
     symbol = symbol.upper()
     if not symbol.endswith("USDT"):
         symbol = f"{symbol}USDT"
+    
+    logger.info(f"📊 [CHARTS] Normalized to: {symbol}")
     
     # Determine limit and interval based on period
     limit = 168 # default
