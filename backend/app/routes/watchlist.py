@@ -143,7 +143,8 @@ async def get_popular_symbols(
     }
 
 
-@router.get("/")
+@router.get("/", name="get_watchlist_with_slash")
+@router.get("", name="get_watchlist_without_slash")
 async def get_watchlist(
     active_only: bool = Query(False, description="Only return active items"),
     db: Session = Depends(get_db),
@@ -192,7 +193,8 @@ async def get_watchlist(
         raise HTTPException(status_code=500, detail=f"Failed to fetch watchlist: {str(e)}")
 
 
-@router.post("/")
+@router.post("/", name="add_to_watchlist_with_slash")
+@router.post("", name="add_to_watchlist_without_slash")
 @router.post("/add")  # Alias for frontend compatibility
 async def add_to_watchlist(
     request: WatchlistItemCreate,
