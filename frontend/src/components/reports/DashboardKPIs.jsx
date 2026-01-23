@@ -105,11 +105,61 @@ const DashboardKPIs = ({ userId }) => {
   };
 
   if (error) {
-    return <div className="error-message">Error: {error}</div>;
+    return (
+      <div style={{
+        padding: '30px',
+        background: '#1e1a2e',
+        border: '1px solid #e74c3c',
+        borderRadius: '8px',
+        color: '#e74c3c'
+      }}>
+        <h3>❌ Error Loading Dashboard</h3>
+        <p><strong>Error:</strong> {error}</p>
+        <p style={{ fontSize: '12px', color: '#95a5a6', marginTop: '10px' }}>
+          🔍 Check the browser console (F12) for more details
+        </p>
+        <button 
+          onClick={fetchDashboardData}
+          style={{
+            marginTop: '15px',
+            padding: '10px 20px',
+            background: '#3498db',
+            border: 'none',
+            color: '#fff',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          🔄 Retry
+        </button>
+      </div>
+    );
   }
 
   if (loading) {
-    return <div className="loading">Loading dashboard...</div>;
+    return (
+      <div style={{
+        padding: '30px',
+        textAlign: 'center',
+        color: '#95a5a6'
+      }}>
+        <p>⏳ Loading KPI data...</p>
+        <p style={{ fontSize: '12px' }}>Fetching from /api/reports/dashboard</p>
+      </div>
+    );
+  }
+
+  if (!kpis) {
+    return (
+      <div style={{
+        padding: '30px',
+        textAlign: 'center',
+        color: '#95a5a6'
+      }}>
+        <p>⚠️ No KPI data available</p>
+        <p style={{ fontSize: '12px' }}>Make sure you have completed trades</p>
+      </div>
+    );
   }
 
   const sharpe = calculateSharpeRatio();
