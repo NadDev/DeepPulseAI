@@ -11,7 +11,7 @@ import Portfolio from './components/Portfolio';
 import BotManager from './components/BotManager';
 import AIAgent from './components/AIAgent';
 import Settings from './components/Settings';
-import Reports from './pages/Reports';
+import Reports from './components/Reports';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';

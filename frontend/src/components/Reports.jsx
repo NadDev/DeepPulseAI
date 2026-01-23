@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import TradeHistoryTable from '../components/reports/TradeHistoryTable';
-import StrategyPerformanceChart from '../components/reports/StrategyPerformanceChart';
-import MarketContextAnalysis from '../components/reports/MarketContextAnalysis';
-import DashboardKPIs from '../components/reports/DashboardKPIs';
-import PerformanceCharts from '../components/reports/PerformanceCharts';
-import ExportReports from '../components/reports/ExportReports';
+import TradeHistoryTable from './reports/TradeHistoryTable';
+import StrategyPerformanceChart from './reports/StrategyPerformanceChart';
+import MarketContextAnalysis from './reports/MarketContextAnalysis';
+import DashboardKPIs from './reports/DashboardKPIs';
+import PerformanceCharts from './reports/PerformanceCharts';
+import ExportReports from './reports/ExportReports';
 import './Reports.css';
 
 /**
@@ -85,7 +85,10 @@ const Reports = () => {
               <button
                 key={tab.id}
                 className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  console.log('🔄 Switching to tab:', tab.id);
+                  setActiveTab(tab.id);
+                }}
               >
                 <span className="tab-icon">{tab.icon}</span>
                 <span className="tab-label">{tab.label}</span>
@@ -94,8 +97,21 @@ const Reports = () => {
           </div>
         </div>
 
+        {/* Debug Info */}
+        <div style={{ 
+          padding: '10px', 
+          background: '#1e293b', 
+          borderRadius: '4px', 
+          fontSize: '12px', 
+          color: '#94a3b8',
+          marginBottom: '15px'
+        }}>
+          <p>🔍 DEBUG: activeTab = {activeTab}</p>
+        </div>
+
         {/* Tab Content */}
         <div className="tab-content">
+          {console.log('📋 Rendering tab content for:', activeTab)}
           {renderTabContent()}
         </div>
       </div>
