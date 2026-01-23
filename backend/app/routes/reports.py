@@ -133,7 +133,9 @@ async def get_trades_report(
     - min_pnl: Filter by minimum P&L
     - max_pnl: Filter by maximum P&L
     - status: Filter by status (OPEN, CLOSED, CLOSING)
-    """    logger.info(f"📋 [TRADES] Request from user: {current_user.id} | days={days}")    user_id = current_user.user_id
+    """
+    logger.info(f"📋 [TRADES] Request from user: {current_user.id} | days={days}")
+    user_id = current_user.id
     since = datetime.utcnow() - timedelta(days=days)
     
     query = db.query(Trade).filter(
