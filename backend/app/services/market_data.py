@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 class MarketDataCollector:
     """
-    Collects market data from various sources (Binance, Coingecko, etc.)
-    Supports both real-time WebSocket and historical data
+    Collects market data from Binance API (single source of truth).
+    Supports both real-time WebSocket and historical data with caching.
     """
     
     def __init__(self):
