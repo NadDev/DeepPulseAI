@@ -79,32 +79,71 @@ async def get_equity_curve(
     """Get equity curve data for charts"""
     user_id = current_user.id
     
-    # In a real app, this would query a PortfolioHistory table
-    # For now, we generate realistic data based on current portfolio value
-    
+    # Get portfolio and calculate real equity curve from trades
     portfolio = db.query(Portfolio).filter(Portfolio.user_id == user_id).first()
-    current_value = portfolio.total_value if portfolio else 100000
+    if not portfolio:
+        return []  # No portfolio = no data
     
+    since = datetime.utcnow() - timedelta(days=days)
+    
+    # Get all trades (open and closed) for this period
+    all_trades = db.query(Trade).filter(
+        Trade.user_id == user_id,
+        Trade.entry_time >= since
+    ).order_by(Trade.entry_time).all()
+    
+    if not all_trades:
+        # No trades, return flat line from portfolio value
+        data = []
+        now = datetime.utcnow()
+        for i in range(days):
+            date = now - timedelta(days=i)
+            data.append({
+                "date": date.strftime("%Y-%m-%d"),
+                "value": round(portfolio.total_value, 2),
+                "pnl": 0
+            })
+        return list(reversed(data))
+    
+    # Build equity curve day by day
     data = []
-    import random
+    daily_pnl = {}  # date -> pnl
     
-    # Generate data points working backwards
-    value = current_value
+    # Group trades by date and calculate daily P&L
+    for trade in all_trades:
+        if trade.entry_time is None:
+            continue
+        
+        date_key = trade.entry_time.strftime("%Y-%m-%d")
+        if date_key not in daily_pnl:
+            daily_pnl[date_key] = 0
+        
+        # Only count closed trades for realized P&L
+        if trade.status == "CLOSED" and trade.pnl is not None:
+            daily_pnl[date_key] += trade.pnl
+    
+    # Start with portfolio initial balance (assuming all trades start from current value / (1 + total_return))
+    # Better: use the cash_balance as starting point
+    starting_balance = portfolio.cash_balance or portfolio.total_value
+    cumulative_pnl = 0
+    
+    # Generate data points
     now = datetime.utcnow()
-    
     for i in range(days):
         date = now - timedelta(days=i)
-        # Random daily change between -2% and +2.5%
-        change_pct = random.uniform(-0.02, 0.025)
+        date_key = date.strftime("%Y-%m-%d")
+        
+        # Add daily P&L if exists
+        daily_change = daily_pnl.get(date_key, 0)
+        cumulative_pnl += daily_change
+        
+        equity_value = starting_balance + cumulative_pnl
         
         data.append({
-            "date": date.strftime("%Y-%m-%d"),
-            "value": round(value, 2),
-            "pnl": round(value * change_pct, 2)
+            "date": date_key,
+            "value": round(equity_value, 2),
+            "pnl": round(daily_change, 2)
         })
-        
-        # Previous day's value
-        value = value / (1 + change_pct)
     
     return list(reversed(data))
 
@@ -435,7 +474,7 @@ async def get_strategies_report(
             profit_factor = 0
         
         result.append({
-            "strategy": strategy,
+            "name": strategy,
             "total_trades": stats["total_trades"],
             "winning_trades": stats["winning_trades"],
             "losing_trades": stats["losing_trades"],
