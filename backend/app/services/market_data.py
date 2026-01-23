@@ -60,40 +60,23 @@ class MarketDataCollector:
     
     async def get_latest_price(self, symbol: str) -> Optional[float]:
         """
-        Get the latest price for a symbol
+        Get the latest price for a symbol using Binance (unified source)
         
         Args:
-            symbol: Trading pair (e.g., 'BTC')
+            symbol: Trading pair (e.g., 'BTC' or 'BTCUSDT')
             
         Returns:
             Latest price or None if error
         """
-        cache_key = f"price_{symbol}"
+        # Normalize to Binance format
+        symbol_normalized = symbol.upper()
+        if not symbol_normalized.endswith("USDT"):
+            symbol_normalized = f"{symbol_normalized}USDT"
         
-        if cache_key in self.cache and self._is_cache_valid(cache_key):
-            return self.cache[cache_key]
+        ticker_24h = await self.get_ticker_24h(symbol_normalized)
         
-        try:
-            async with httpx.AsyncClient() as client:
-                # Coingecko API
-                response = await client.get(
-                    f"https://api.coingecko.com/api/v3/simple/price",
-                    params={
-                        "ids": symbol.lower(),
-                        "vs_currencies": "usd"
-                    },
-                    timeout=10
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    price = data.get(symbol.lower(), {}).get("usd")
-                    if price:
-                        self.cache[cache_key] = price
-                        self.update_times[cache_key] = datetime.now()
-                        return price
-        except Exception as e:
-            logger.error(f"Error fetching price for {symbol}: {str(e)}")
+        if "error" not in ticker_24h:
+            return ticker_24h.get("price")
         
         return None
     
@@ -133,46 +116,85 @@ class MarketDataCollector:
         
         return {}
     
-    async def get_market_data(self, symbol: str) -> Dict[str, Any]:
+    async def get_ticker_24h(self, symbol: str) -> Dict[str, Any]:
         """
-        Get comprehensive market data for a symbol
+        Get 24-hour ticker data from Binance API (single source of truth)
         
         Args:
-            symbol: Symbol (BTC, ETH, etc.)
+            symbol: Trading pair (e.g., 'BTCUSDT')
             
         Returns:
-            Dictionary with price, change_24h, market_cap, volume, etc.
+            Dictionary with price, change_24h, high_24h, low_24h, volume_24h
         """
-        cache_key = f"market_{symbol}"
+        cache_key = f"ticker_24h_{symbol}"
         
         if cache_key in self.cache and self._is_cache_valid(cache_key):
             return self.cache[cache_key]
         
         try:
             async with httpx.AsyncClient() as client:
+                # Normalize symbol to Binance format
+                symbol = symbol.upper()
+                if not symbol.endswith("USDT"):
+                    symbol = f"{symbol}USDT"
+                
                 response = await client.get(
-                    f"https://api.coingecko.com/api/v3/coins/{symbol.lower()}",
-                    params={"localization": "false"},
+                    f"https://api.binance.com/api/v3/ticker/24hr",
+                    params={"symbol": symbol},
                     timeout=10
                 )
                 
                 if response.status_code == 200:
                     data = response.json()
-                    market_data = {
+                    ticker_24h = {
                         "symbol": symbol,
-                        "price": data.get("market_data", {}).get("current_price", {}).get("usd", 0),
-                        "change_24h": data.get("market_data", {}).get("price_change_percentage_24h", 0),
-                        "market_cap": data.get("market_data", {}).get("market_cap", {}).get("usd", 0),
-                        "volume_24h": data.get("market_data", {}).get("total_volume", {}).get("usd", 0),
-                        "ath": data.get("market_data", {}).get("ath", {}).get("usd", 0),
-                        "atl": data.get("market_data", {}).get("atl", {}).get("usd", 0),
+                        "price": float(data.get("lastPrice", 0)),
+                        "change_24h": float(data.get("priceChangePercent", 0)),
+                        "high_24h": float(data.get("highPrice", 0)),
+                        "low_24h": float(data.get("lowPrice", 0)),
+                        "volume_24h": float(data.get("volume", 0)),
+                        "quote_asset_volume": float(data.get("quoteAssetVolume", 0)),
+                        "number_of_trades": int(data.get("count", 0)),
                     }
                     
-                    self.cache[cache_key] = market_data
+                    self.cache[cache_key] = ticker_24h
                     self.update_times[cache_key] = datetime.now()
-                    return market_data
+                    return ticker_24h
         except Exception as e:
-            logger.error(f"Error fetching market data for {symbol}: {str(e)}")
+            logger.error(f"Error fetching 24h ticker for {symbol}: {str(e)}")
+        
+        return {"symbol": symbol, "error": "Failed to fetch 24h ticker"}
+    
+    async def get_market_data(self, symbol: str) -> Dict[str, Any]:
+        """
+        Get comprehensive market data from Binance (unified source)
+        Uses get_ticker_24h as single source of truth
+        
+        Args:
+            symbol: Symbol (BTC, ETH, etc. or BTCUSDT format)
+            
+        Returns:
+            Dictionary with price, change_24h, volume, etc.
+        """
+        # Normalize to Binance format
+        symbol_normalized = symbol.upper()
+        if not symbol_normalized.endswith("USDT"):
+            symbol_normalized = f"{symbol_normalized}USDT"
+        
+        # Use get_ticker_24h as unified source
+        ticker_24h = await self.get_ticker_24h(symbol_normalized)
+        
+        if "error" not in ticker_24h:
+            return {
+                "symbol": symbol.upper(),
+                "price": ticker_24h.get("price", 0),
+                "change_24h": ticker_24h.get("change_24h", 0),
+                "high_24h": ticker_24h.get("high_24h", 0),
+                "low_24h": ticker_24h.get("low_24h", 0),
+                "volume_24h": ticker_24h.get("quote_asset_volume", 0),
+                "number_of_trades": ticker_24h.get("number_of_trades", 0),
+                "source": "binance"
+            }
         
         return {"symbol": symbol, "error": "Failed to fetch market data"}
     
