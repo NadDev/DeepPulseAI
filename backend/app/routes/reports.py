@@ -2,24 +2,33 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.database_models import Bot, Trade, StrategyPerformance, Portfolio
+from app.auth.supabase_auth import get_current_user, UserResponse
 from sqlalchemy import func, desc
 from datetime import datetime, timedelta
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 @router.get("/dashboard")
-async def get_dashboard_report(db: Session = Depends(get_db)):
+async def get_dashboard_report(
+    current_user: UserResponse = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Get dashboard summary report with comprehensive KPIs"""
-    portfolio = db.query(Portfolio).first()
-    bots = db.query(Bot).all()
+    user_id = current_user.user_id
+    
+    portfolio = db.query(Portfolio).filter(Portfolio.user_id == user_id).first()
+    bots = db.query(Bot).filter(Bot.user_id == user_id).all()
     
     # Calculate totals
     total_bots = len(bots)
     active_bots = len([b for b in bots if b.status == "ACTIVE"])
-    total_trades = db.query(Trade).count()
+    total_trades = db.query(Trade).filter(Trade.user_id == user_id).count()
     
     # Calculate overall metrics
-    closed_trades = db.query(Trade).filter(Trade.status == "CLOSED").all()
+    closed_trades = db.query(Trade).filter(
+        Trade.user_id == user_id,
+        Trade.status == "CLOSED"
+    ).all()
     total_pnl = sum([t.pnl or 0 for t in closed_trades])
     winning_trades = len([t for t in closed_trades if t.pnl and t.pnl > 0])
     losing_trades = len([t for t in closed_trades if t.pnl and t.pnl < 0])
@@ -58,12 +67,18 @@ async def get_dashboard_report(db: Session = Depends(get_db)):
     }
 
 @router.get("/equity-curve")
-async def get_equity_curve(days: int = 30, db: Session = Depends(get_db)):
+async def get_equity_curve(
+    days: int = 30,
+    current_user: UserResponse = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Get equity curve data for charts"""
+    user_id = current_user.user_id
+    
     # In a real app, this would query a PortfolioHistory table
     # For now, we generate realistic data based on current portfolio value
     
-    portfolio = db.query(Portfolio).first()
+    portfolio = db.query(Portfolio).filter(Portfolio.user_id == user_id).first()
     current_value = portfolio.total_value if portfolio else 100000
     
     data = []
@@ -99,6 +114,7 @@ async def get_trades_report(
     min_pnl: float = None,
     max_pnl: float = None,
     status: str = None,
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -114,9 +130,11 @@ async def get_trades_report(
     - max_pnl: Filter by maximum P&L
     - status: Filter by status (OPEN, CLOSED, CLOSING)
     """
+    user_id = current_user.user_id
     since = datetime.utcnow() - timedelta(days=days)
     
     query = db.query(Trade).filter(
+        Trade.user_id == user_id,
         Trade.entry_time >= since
     )
     
@@ -214,15 +232,18 @@ async def get_trades_report(
 @router.get("/trades/context-performance")
 async def get_context_performance(
     days: int = 30,
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Get strategy performance broken down by market context
     Shows win rate and P&L for each strategy in each market condition
     """
+    user_id = current_user.user_id
     since = datetime.utcnow() - timedelta(days=days)
     
     all_trades = db.query(Trade).filter(
+        Trade.user_id == user_id,
         Trade.entry_time >= since,
         Trade.status == "CLOSED"
     ).all()
@@ -301,16 +322,19 @@ async def get_context_performance(
 @router.get("/strategies")
 async def get_strategies_report(
     days: int = 30,
+    current_user: UserResponse = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Get strategies comparison report with market context breakdown
     Shows performance of each strategy globally and per market condition
     """
+    user_id = current_user.user_id
     since = datetime.utcnow() - timedelta(days=days)
     
     # Get all trades for the period
     all_trades = db.query(Trade).filter(
+        Trade.user_id == user_id,
         Trade.entry_time >= since,
         Trade.status == "CLOSED"
     ).all()

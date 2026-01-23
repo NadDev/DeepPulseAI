@@ -1,308 +1,165 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import './MarketContextAnalysis.css';
 
 /**
- * MarketContextAnalysis Component
- * Displays market context timeline and strategy performance per context
+ * MarketContextAnalysis - Simplified
+ * Shows trade performance by market context
  */
-const MarketContextAnalysis = ({ userId }) => {
-  const [trades, setTrades] = useState([]);
+const MarketContextAnalysis = ({ userId, days = 30 }) => {
   const [contextStats, setContextStats] = useState({});
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [days, setDays] = useState(30);
 
   useEffect(() => {
-    fetchContextData();
+    fetchContextAnalysis();
   }, [days]);
 
-  const fetchContextData = async () => {
-    setLoading(true);
-    setError(null);
-    
+  const fetchContextAnalysis = async () => {
     try {
-      const response = await axios.get(
-        `/api/reports/trades?days=${days}&limit=1000`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-          }
-        }
-      );
+      const token = localStorage.getItem('access_token');
+      const response = await axios.get('/api/reports/trades', {
+        params: { days, limit: 1000 },
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       
-      setTrades(response.data.trades || []);
-      setContextStats(response.data.context_breakdown || {});
+      // Group trades by market context
+      const trades = response.data.trades || [];
+      const grouped = {};
+      
+      trades.forEach(trade => {
+        const context = trade.market_context || 'UNKNOWN';
+        if (!grouped[context]) {
+          grouped[context] = {
+            name: context,
+            trades: 0,
+            winning: 0,
+            total_pnl: 0,
+            trades_list: []
+          };
+        }
+        grouped[context].trades++;
+        if (trade.pnl && trade.pnl > 0) grouped[context].winning++;
+        grouped[context].total_pnl += (trade.pnl || 0);
+        grouped[context].trades_list.push(trade);
+      });
+
+      setContextStats(grouped);
+      setError(null);
     } catch (err) {
-      setError(err.message || 'Failed to fetch context data');
-      console.error('Error fetching context data:', err);
+      console.error('❌ Error fetching context analysis:', err.message);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const getContextColor = (context) => {
-    const colors = {
-      'STRONG_BULLISH': '#10b981',
-      'WEAK_BULLISH': '#22c55e',
-      'NEUTRAL': '#94a3b8',
-      'WEAK_BEARISH': '#f87171',
-      'STRONG_BEARISH': '#ef4444'
-    };
-    return colors[context] || '#94a3b8';
-  };
-
-  const contextOrder = ['STRONG_BULLISH', 'WEAK_BULLISH', 'NEUTRAL', 'WEAK_BEARISH', 'STRONG_BEARISH'];
-  const sortedContexts = Object.keys(contextStats).sort((a, b) => {
-    const aIdx = contextOrder.indexOf(a);
-    const bIdx = contextOrder.indexOf(b);
-    return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
-  });
-
-  // Calculate timeline data
-  const timelineData = [];
-  let lastContext = null;
-  let contextStartDate = null;
-
-  const sortedTrades = [...trades].sort((a, b) => 
-    new Date(a.entry_time) - new Date(b.entry_time)
-  );
-
-  sortedTrades.forEach((trade, idx) => {
-    const context = trade.market_context || 'UNKNOWN';
-    if (context !== lastContext) {
-      if (lastContext && contextStartDate) {
-        timelineData.push({
-          context: lastContext,
-          startDate: contextStartDate,
-          endDate: trade.entry_time,
-          trades: sortedTrades.slice(
-            Math.max(0, idx - 10),
-            idx
-          ).filter(t => t.market_context === lastContext).length
-        });
-      }
-      lastContext = context;
-      contextStartDate = trade.entry_time;
-    }
-  });
-
-  if (lastContext && contextStartDate) {
-    timelineData.push({
-      context: lastContext,
-      startDate: contextStartDate,
-      endDate: new Date().toISOString(),
-      trades: sortedTrades.filter(t => t.market_context === lastContext).length
-    });
+  if (loading) {
+    return <div style={{ padding: '20px', color: '#94a3b8' }}>⏳ Loading market context analysis...</div>;
   }
 
   if (error) {
-    return <div className="error-message">Error: {error}</div>;
+    return (
+      <div style={{ padding: '20px', background: '#7f1d1d', borderRadius: '4px', color: '#fca5a5' }}>
+        <p><strong>❌ Error:</strong> {error}</p>
+      </div>
+    );
   }
 
+  const contexts = Object.values(contextStats);
+
   return (
-    <div className="market-context-container">
-      <div className="context-header">
-        <h2>🎯 Market Context Analysis</h2>
-        <div className="header-controls">
-          <label>Period</label>
-          <select value={days} onChange={(e) => setDays(parseInt(e.target.value))}>
-            <option value={7}>Last 7 Days</option>
-            <option value={14}>Last 14 Days</option>
-            <option value={30}>Last 30 Days</option>
-            <option value={60}>Last 60 Days</option>
-            <option value={90}>Last 90 Days</option>
-          </select>
+    <div style={{ color: '#fff' }}>
+      <h2 style={{ marginTop: 0, marginBottom: '20px' }}>Market Context Analysis</h2>
+
+      {contexts.length === 0 ? (
+        <div style={{
+          padding: '40px',
+          textAlign: 'center',
+          background: '#1e293b',
+          borderRadius: '8px',
+          color: '#94a3b8'
+        }}>
+          <p>📭 No market context data available</p>
         </div>
-      </div>
-
-      {loading ? (
-        <div className="loading">Loading context data...</div>
       ) : (
-        <>
-          {/* Context Distribution */}
-          <div className="context-distribution-section">
-            <h3>Context Distribution</h3>
-            <div className="distribution-grid">
-              {sortedContexts.map(context => {
-                const stats = contextStats[context];
-                const totalTrades = Object.values(contextStats).reduce((sum, s) => sum + (s.total_trades || 0), 0);
-                const percentage = totalTrades > 0 ? (stats.total_trades / totalTrades) * 100 : 0;
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '20px'
+        }}>
+          {contexts.map((ctx, idx) => {
+            const winRate = ctx.trades > 0 ? (ctx.winning / ctx.trades * 100) : 0;
+            const avgPnl = ctx.trades > 0 ? ctx.total_pnl / ctx.trades : 0;
+            
+            return (
+              <div key={idx} style={{
+                padding: '20px',
+                background: '#1e293b',
+                borderRadius: '8px',
+                border: '1px solid #334155'
+              }}>
+                <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#10b981' }}>
+                  🎯 {ctx.name}
+                </h3>
+                
+                <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                  <span style={{ color: '#94a3b8' }}>Trades:</span>
+                  <span style={{ fontWeight: '600', color: '#fff' }}>{ctx.trades}</span>
+                </div>
 
-                return (
-                  <div key={context} className="distribution-card">
-                    <div className="card-header">
-                      <div className="context-indicator" style={{ backgroundColor: getContextColor(context) }}></div>
-                      <h4>{context}</h4>
-                    </div>
-                    <div className="card-content">
-                      <div className="stat-row">
-                        <span>Trades</span>
-                        <strong>{stats.total_trades}</strong>
-                      </div>
-                      <div className="stat-row">
-                        <span>% of Total</span>
-                        <strong>{percentage.toFixed(1)}%</strong>
-                      </div>
-                      <div className="progress-bar">
-                        <div 
-                          className="progress-fill" 
-                          style={{ 
-                            width: `${percentage}%`,
-                            backgroundColor: getContextColor(context)
-                          }}
-                        ></div>
-                      </div>
-                      <div className="stat-row">
-                        <span>Win Rate</span>
-                        <strong className={stats.win_rate >= 50 ? 'text-green' : 'text-red'}>
-                          {stats.win_rate ? stats.win_rate.toFixed(1) : 0}%
-                        </strong>
-                      </div>
-                      <div className="stat-row">
-                        <span>Total P&L</span>
-                        <strong className={stats.total_pnl >= 0 ? 'text-green' : 'text-red'}>
-                          ${stats.total_pnl ? stats.total_pnl.toFixed(2) : '0.00'}
-                        </strong>
-                      </div>
-                      <div className="stat-row">
-                        <span>Avg P&L</span>
-                        <strong className={stats.avg_pnl >= 0 ? 'text-green' : 'text-red'}>
-                          ${stats.avg_pnl ? stats.avg_pnl.toFixed(2) : '0.00'}
-                        </strong>
-                      </div>
-                    </div>
+                <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                  <span style={{ color: '#94a3b8' }}>Win Rate:</span>
+                  <span style={{
+                    fontWeight: '600',
+                    color: winRate >= 50 ? '#10b981' : '#ef4444'
+                  }}>
+                    {winRate.toFixed(1)}%
+                  </span>
+                </div>
+
+                <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                  <span style={{ color: '#94a3b8' }}>Total P&L:</span>
+                  <span style={{
+                    fontWeight: '600',
+                    color: ctx.total_pnl >= 0 ? '#10b981' : '#ef4444'
+                  }}>
+                    ${ctx.total_pnl.toFixed(2)}
+                  </span>
+                </div>
+
+                <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                  <span style={{ color: '#94a3b8' }}>Avg P&L:</span>
+                  <span style={{
+                    fontWeight: '600',
+                    color: avgPnl >= 0 ? '#10b981' : '#ef4444'
+                  }}>
+                    ${avgPnl.toFixed(2)}
+                  </span>
+                </div>
+
+                <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #334155' }}>
+                  <div style={{
+                    width: '100%',
+                    height: '20px',
+                    background: '#0f172a',
+                    borderRadius: '4px',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${Math.min(100, winRate)}%`,
+                      background: winRate >= 50 ? '#10b981' : '#ef4444',
+                      transition: 'width 0.3s'
+                    }} />
                   </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Performance Comparison */}
-          <div className="context-comparison-section">
-            <h3>Context Performance Comparison</h3>
-            <div className="comparison-table-wrapper">
-              <table className="comparison-table">
-                <thead>
-                  <tr>
-                    <th>Market Context</th>
-                    <th>Trades</th>
-                    <th>Wins</th>
-                    <th>Losses</th>
-                    <th>Win Rate</th>
-                    <th>Total P&L</th>
-                    <th>Avg P&L</th>
-                    <th>Best Trade</th>
-                    <th>Worst Trade</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedContexts.map(context => {
-                    const stats = contextStats[context];
-                    const wins = stats.total_trades > 0 
-                      ? Math.round((stats.win_rate / 100) * stats.total_trades)
-                      : 0;
-                    const losses = stats.total_trades - wins;
-
-                    return (
-                      <tr key={context} className="comparison-row">
-                        <td className="context-name">
-                          <div className="context-badge">
-                            <div 
-                              className="badge-dot" 
-                              style={{ backgroundColor: getContextColor(context) }}
-                            ></div>
-                            {context}
-                          </div>
-                        </td>
-                        <td className="mono">{stats.total_trades}</td>
-                        <td className="mono text-green">{wins}</td>
-                        <td className="mono text-red">{losses}</td>
-                        <td className={`mono ${stats.win_rate >= 50 ? 'text-green' : 'text-red'}`}>
-                          {stats.win_rate ? stats.win_rate.toFixed(1) : 0}%
-                        </td>
-                        <td className={`mono ${stats.total_pnl >= 0 ? 'text-green' : 'text-red'}`}>
-                          ${stats.total_pnl ? stats.total_pnl.toFixed(2) : '0.00'}
-                        </td>
-                        <td className={`mono ${stats.avg_pnl >= 0 ? 'text-green' : 'text-red'}`}>
-                          ${stats.avg_pnl ? stats.avg_pnl.toFixed(2) : '0.00'}
-                        </td>
-                        <td className="mono text-green">${stats.best_pnl ? stats.best_pnl.toFixed(2) : '-'}</td>
-                        <td className="mono text-red">${stats.worst_pnl ? stats.worst_pnl.toFixed(2) : '-'}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Timeline */}
-          <div className="timeline-section">
-            <h3>Context Timeline</h3>
-            <div className="timeline">
-              {timelineData.map((period, idx) => {
-                const duration = Math.abs(
-                  new Date(period.endDate) - new Date(period.startDate)
-                ) / (1000 * 60 * 60 * 24);
-
-                return (
-                  <div key={idx} className="timeline-entry">
-                    <div 
-                      className="timeline-marker" 
-                      style={{ backgroundColor: getContextColor(period.context) }}
-                    ></div>
-                    <div className="timeline-content">
-                      <h4>{period.context}</h4>
-                      <div className="timeline-details">
-                        <span>{new Date(period.startDate).toLocaleDateString()}</span>
-                        <span>•</span>
-                        <span>{duration.toFixed(1)} days</span>
-                        <span>•</span>
-                        <span>{period.trades} trades</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Best and Worst Contexts */}
-          <div className="context-insights">
-            <div className="insight-card best">
-              <h4>🚀 Best Performing Context</h4>
-              {sortedContexts.length > 0 && (() => {
-                const best = sortedContexts.reduce((prev, current) => {
-                  return (contextStats[current].win_rate > contextStats[prev].win_rate) ? current : prev;
-                });
-                return (
-                  <div className="insight-content">
-                    <p className="context-name">{best}</p>
-                    <p className="text-green">{contextStats[best].win_rate.toFixed(1)}% win rate</p>
-                    <p className="text-green">${contextStats[best].total_pnl.toFixed(2)} total P&L</p>
-                  </div>
-                );
-              })()}
-            </div>
-
-            <div className="insight-card worst">
-              <h4>⚠️ Challenging Context</h4>
-              {sortedContexts.length > 0 && (() => {
-                const worst = sortedContexts.reduce((prev, current) => {
-                  return (contextStats[current].win_rate < contextStats[prev].win_rate) ? current : prev;
-                });
-                return (
-                  <div className="insight-content">
-                    <p className="context-name">{worst}</p>
-                    <p className="text-red">{contextStats[worst].win_rate.toFixed(1)}% win rate</p>
-                    <p className="text-red">${contextStats[worst].total_pnl.toFixed(2)} total P&L</p>
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-        </>
+                  <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                    Win rate: {winRate.toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
