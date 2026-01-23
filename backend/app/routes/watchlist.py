@@ -206,7 +206,6 @@ async def get_watchlist(
         
         logger.info(f"✅ [WATCHLIST] Returning {len(formatted_items)} symbols")
         return response
-        }]
     except HTTPException:
         raise
     except Exception as e:
