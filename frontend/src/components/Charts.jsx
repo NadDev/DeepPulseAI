@@ -59,43 +59,48 @@ function Charts() {
 
   const loadWatchlist = async () => {
     try {
+      console.log('🔄 [WATCHLIST] Starting load...');
       const watchlistData = await watchlistAPI.getWatchlist();
-      console.log('Watchlist data received:', watchlistData);
+      console.log('❌ [WATCHLIST] RAW DATA:', watchlistData);
       
       if (watchlistData && watchlistData.length > 0) {
-        // watchlistData is array of watchlists, get first one's items
-        const items = watchlistData[0].items || [];
-        console.log('Watchlist items:', items);
+        console.log('✅ [WATCHLIST] Array found, length:', watchlistData.length);
+        const firstWatchlist = watchlistData[0];
+        console.log('✅ [WATCHLIST] First watchlist:', firstWatchlist);
+        
+        const items = firstWatchlist.items || [];
+        console.log('✅ [WATCHLIST] Items found:', items.length, items);
         
         // Convert BTCUSDT format to BTC for display
-        const coinsFromWatchlist = items.map(item => ({
-          id: item.symbol.replace('/USDT', '').replace('USDT', ''),
-          name: item.symbol,
-          symbol: item.symbol.replace('/USDT', '').replace('USDT', '')
-        }));
+        const coinsFromWatchlist = items.map(item => {
+          const symbol = item.symbol || '';
+          const id = symbol.replace('/USDT', '').replace('USDT', '');
+          console.log('✅ [WATCHLIST] Converting:', symbol, '→', id);
+          return {
+            id,
+            name: symbol,
+            symbol: id
+          };
+        });
         
-        console.log('Converted coins:', coinsFromWatchlist);
+        console.log('✅ [WATCHLIST] Final coins:', coinsFromWatchlist);
         
         if (coinsFromWatchlist.length > 0) {
           setCoins(coinsFromWatchlist);
-          // Set first coin as default
           setSelectedCoin(coinsFromWatchlist[0].id);
-          console.log('Selected coin:', coinsFromWatchlist[0].id);
+          console.log('✅ [WATCHLIST] Selected:', coinsFromWatchlist[0].id);
         } else {
-          // Fallback to default coins if watchlist is empty
-          console.warn('Watchlist empty, using defaults');
+          console.warn('⚠️ [WATCHLIST] Empty after conversion, using defaults');
           setCoins(DEFAULT_COINS);
           setSelectedCoin('BTC');
         }
       } else {
-        // Fallback to default coins
-        console.warn('No watchlist data, using defaults');
+        console.warn('⚠️ [WATCHLIST] No watchlist data, using defaults');
         setCoins(DEFAULT_COINS);
         setSelectedCoin('BTC');
       }
     } catch (error) {
-      console.error('Error loading watchlist:', error);
-      // Fallback to default coins
+      console.error('❌ [WATCHLIST] Auth/Load error - using defaults:', error.message);
       setCoins(DEFAULT_COINS);
       setSelectedCoin('BTC');
     }

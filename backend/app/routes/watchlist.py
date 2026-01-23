@@ -164,8 +164,10 @@ async def get_watchlist(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """Get user's watchlist - returns as array for frontend compatibility"""
+    logger.info(f"📋 [WATCHLIST] Fetching watchlist for user {current_user.id}")
     try:
         user_uuid = get_user_uuid(current_user.id)
+        logger.info(f"📋 [WATCHLIST] User UUID: {user_uuid}")
         
         query = db.query(WatchlistItem).filter(
             WatchlistItem.user_id == user_uuid
@@ -175,10 +177,12 @@ async def get_watchlist(
             query = query.filter(WatchlistItem.is_active == True)
         
         items = query.order_by(WatchlistItem.priority.desc(), WatchlistItem.created_at).all()
+        logger.info(f"📋 [WATCHLIST] Found {len(items)} items")
         
         # Format items for response
         formatted_items = []
         for item in items:
+            logger.info(f"📋 [WATCHLIST] Item: {item.symbol} (active={item.is_active})")
             formatted_items.append({
                 "id": str(item.id),
                 "symbol": item.symbol,
@@ -191,13 +195,17 @@ async def get_watchlist(
             })
         
         # Return as single watchlist in array format (frontend expects array)
-        return [{
+        response = [{
             "id": "default",
             "name": "Ma Watchlist",
             "is_default": True,
             "items": formatted_items,
             "item_count": len(formatted_items),
             "active_count": sum(1 for i in formatted_items if i["is_active"])
+        }]
+        
+        logger.info(f"✅ [WATCHLIST] Returning {len(formatted_items)} symbols")
+        return response
         }]
     except HTTPException:
         raise
