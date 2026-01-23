@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import DashboardKPIs from './reports/DashboardKPIs';
 
 /**
- * Reports Page - Simplified for debugging
+ * Reports Page - With DashboardKPIs
  */
 const Reports = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -43,11 +44,7 @@ const Reports = () => {
       <div style={{ padding: '20px', background: '#1e293b', borderRadius: '8px', marginTop: '20px' }}>
         {activeTab === 'dashboard' && (
           <div>
-            <h2>Dashboard Content</h2>
-            <p>✅ Reports page is working!</p>
-            <p style={{ color: '#94a3b8', fontSize: '14px' }}>
-              Active Tab: <strong>{activeTab}</strong>
-            </p>
+            <DashboardKPIs userId="default" />
           </div>
         )}
         
