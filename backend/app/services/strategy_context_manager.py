@@ -198,49 +198,67 @@ class StrategyContextManager:
         """
         Determine market context from SMA alignment
         
+        BULLISH contexts:
+        - STRONG_BULLISH: SMA20 > SMA50 > SMA200 (complete uptrend, all aligned)
+        - WEAK_BULLISH: Price > SMA50 OR SMA50 > SMA200 (early/partial uptrend)
+        
+        BEARISH contexts:
+        - STRONG_BEARISH: SMA20 < SMA50 < SMA200 (complete downtrend, all aligned)
+        - WEAK_BEARISH: Price < SMA50 OR SMA50 < SMA200 (early/partial downtrend)
+        
         Returns:
             (market_context, alignment_score_0_to_100)
         """
         # ===== BULLISH CONDITIONS =====
+        
+        # STRONG BULLISH: All SMAs perfectly aligned upward (20 > 50 > 200)
         if sma_20 > sma_50 > sma_200:
-            # All SMAs perfectly aligned upward = STRONG_BULLISH
             alignment = ((sma_20 - sma_50) / sma_50 * 100) + ((sma_50 - sma_200) / sma_200 * 100)
             alignment = min(100, alignment * 10)  # Normalize to 0-100
+            logger.debug(f"🎯 Context: STRONG_BULLISH (SMA20>{sma_20:.2f} > SMA50>{sma_50:.2f} > SMA200>{sma_200:.2f}) | Alignment: {alignment:.0f}%")
             return MarketContext.STRONG_BULLISH, alignment
         
-        elif price > sma_50 and sma_50 > sma_200:
-            # Price above 50 and 50 above 200 = WEAK_BULLISH
+        # WEAK BULLISH: Price > SMA50 > SMA200 (uptrend forming, but SMA20 not aligned yet)
+        elif price > sma_50 > sma_200:
             alignment = ((sma_50 - sma_200) / sma_200 * 100)
             alignment = min(100, alignment * 10)
+            logger.debug(f"🎯 Context: WEAK_BULLISH (Price>{price:.2f} > SMA50>{sma_50:.2f} > SMA200>{sma_200:.2f}) | Alignment: {alignment:.0f}%")
             return MarketContext.WEAK_BULLISH, alignment
         
+        # WEAK BULLISH: Price just above SMA50 (early recovery, regardless of SMA200 position)
         elif price > sma_50:
-            # Price just above 50 = WEAK_BULLISH (early recovery)
             offset = (price - sma_50) / sma_50 * 100
             alignment = min(50, offset * 2)
+            logger.debug(f"🎯 Context: WEAK_BULLISH (Price>{price:.2f} > SMA50>{sma_50:.2f}) | Alignment: {alignment:.0f}%")
             return MarketContext.WEAK_BULLISH, alignment
         
         # ===== BEARISH CONDITIONS =====
+        
+        # STRONG BEARISH: All SMAs perfectly aligned downward (20 < 50 < 200)
         elif sma_20 < sma_50 < sma_200:
-            # All SMAs perfectly aligned downward = STRONG_BEARISH
             alignment = ((sma_50 - sma_20) / sma_50 * 100) + ((sma_200 - sma_50) / sma_200 * 100)
             alignment = min(100, alignment * 10)
+            logger.debug(f"🎯 Context: STRONG_BEARISH (SMA20<{sma_20:.2f} < SMA50<{sma_50:.2f} < SMA200<{sma_200:.2f}) | Alignment: {alignment:.0f}%")
             return MarketContext.STRONG_BEARISH, alignment
         
-        elif price < sma_50 and sma_50 < sma_200:
-            # Price below 50 and 50 below 200 = STRONG_BEARISH
+        # WEAK BEARISH: Price < SMA50 < SMA200 (downtrend forming, but SMA20 not aligned yet)
+        # This is the KEY FIX: Changed from "STRONG_BEARISH" to "WEAK_BEARISH"
+        elif price < sma_50 < sma_200:
             alignment = ((sma_200 - sma_50) / sma_200 * 100)
             alignment = min(100, alignment * 10)
-            return MarketContext.STRONG_BEARISH, alignment
-        
-        elif price < sma_50:
-            # Price below 50 = WEAK_BEARISH
-            offset = (sma_50 - price) / sma_50 * 100
-            alignment = min(50, offset * 2)
+            logger.debug(f"🎯 Context: WEAK_BEARISH (Price<{price:.2f} < SMA50<{sma_50:.2f} < SMA200<{sma_200:.2f}) | Alignment: {alignment:.0f}%")
             return MarketContext.WEAK_BEARISH, alignment
         
-        # ===== CHOPPY/CONFLICTING =====
+        # WEAK BEARISH: Price just below SMA50 (early decline, regardless of SMA200 position)
+        elif price < sma_50:
+            offset = (sma_50 - price) / sma_50 * 100
+            alignment = min(50, offset * 2)
+            logger.debug(f"🎯 Context: WEAK_BEARISH (Price<{price:.2f} < SMA50<{sma_50:.2f}) | Alignment: {alignment:.0f}%")
+            return MarketContext.WEAK_BEARISH, alignment
+        
+        # ===== CHOPPY/CONFLICTING (Price between SMAs with no clear trend) =====
         else:
+            logger.debug(f"🎯 Context: CHOPPY (Price={price:.2f} between SMAs: 20={sma_20:.2f}, 50={sma_50:.2f}, 200={sma_200:.2f})")
             return MarketContext.CHOPPY, 0
     
     def _determine_price_position(
@@ -303,7 +321,7 @@ class StrategyContextManager:
             },
             "meanreversion": {  # Note: matches MeanReversion.__class__.__name__.lower()
                 "enabled": ctx in [MarketContext.WEAK_BULLISH, MarketContext.WEAK_BEARISH],
-                "reason": "Best in weak trends with pullbacks" if ctx in [MarketContext.WEAK_BULLISH, MarketContext.WEAK_BEARISH] else f"Disabled in {ctx.value} market",
+                "reason": "✅ Works best in weak trends with pullbacks" if ctx in [MarketContext.WEAK_BULLISH, MarketContext.WEAK_BEARISH] else f"❌ Disabled in {ctx.value} market (SMA20 too aligned with SMA50)",
                 "parameters": {
                     "sl_percent": 2.5 if ctx == MarketContext.WEAK_BULLISH else 3.0,  # Wider SL in bearish
                     "rsi_threshold": 35 if ctx == MarketContext.WEAK_BULLISH else 65
