@@ -864,6 +864,11 @@ async def ml_prediction_performance(symbol: str, days: int = 7):
 @router.get("/crypto/{symbol}/chart")
 async def get_coin_chart(symbol: str, period: str = "7d"):
     """Get chart data for a specific coin"""
+    # Normalize symbol to Binance format (BTC -> BTCUSDT)
+    symbol = symbol.upper()
+    if not symbol.endswith("USDT"):
+        symbol = f"{symbol}USDT"
+    
     # Determine limit and interval based on period
     limit = 168 # default
     interval = "1h"
@@ -899,8 +904,8 @@ async def get_coin_chart(symbol: str, period: str = "7d"):
             interval = "1d"
             limit = days
         
-    # Use market_data_collector
-    candles = await market_data_collector.get_candles(symbol.upper(), timeframe=interval, limit=limit)
+    # Use market_data_collector with normalized symbol
+    candles = await market_data_collector.get_candles(symbol, timeframe=interval, limit=limit)
     
     # Format for frontend: [[timestamp, price], ...]
     prices = []
