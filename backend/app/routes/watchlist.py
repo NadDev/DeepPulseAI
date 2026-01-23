@@ -81,9 +81,12 @@ class WatchlistItemCreate(BaseModel):
     @validator('symbol')
     def validate_symbol(cls, v):
         v = v.upper().strip()
-        # Accept both BTC and BTC/USDT formats
-        if '/' not in v:
-            v = f"{v}/USDT"  # Auto-add /USDT if missing
+        # Normalize to Binance format (BTCUSDT, not BTC/USDT)
+        # Remove any slashes first
+        v = v.replace('/', '')
+        # Add USDT if missing
+        if not v.endswith('USDT'):
+            v = f"{v}USDT"
         return v
     
     @validator('priority', pre=True)
@@ -125,7 +128,17 @@ class BulkAddRequest(BaseModel):
     
     @validator('symbols')
     def validate_symbols(cls, v):
-        return [s.upper().strip() for s in v if '/' in s]
+        # Normalize all symbols to Binance format (BTCUSDT, not BTC/USDT)
+        normalized = []
+        for s in v:
+            s = s.upper().strip()
+            # Remove any slashes
+            s = s.replace('/', '')
+            # Add USDT if missing
+            if not s.endswith('USDT'):
+                s = f"{s}USDT"
+            normalized.append(s)
+        return normalized
 
 
 # ============================================

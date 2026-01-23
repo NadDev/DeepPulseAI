@@ -183,7 +183,11 @@ class MarketDataCollector:
         limit: int
     ) -> List[Dict[str, Any]]:
         """Fetch candles from Binance API"""
-        # Ensure symbol format for Binance (e.g. BTC -> BTCUSDT)
+        # Ensure symbol format for Binance (e.g BTC -> BTCUSDT, BTC/USDT -> BTCUSDT)
+        symbol = symbol.upper().strip()
+        # Remove any slashes
+        symbol = symbol.replace('/', '')
+        # Add USDT if missing
         if not symbol.endswith("USDT"):
             symbol = f"{symbol}USDT"
 
@@ -215,7 +219,7 @@ class MarketDataCollector:
                     
                     return candles
         except Exception as e:
-            logger.error(f"Error fetching Binance candles: {str(e)}")
+            logger.error(f"Error fetching Binance candles for {symbol}: {str(e)}")
         
         return []
     
