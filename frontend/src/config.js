@@ -5,8 +5,8 @@ const isDev = import.meta.env.MODE === 'development';
 
 export const config = {
   API_URL: isDev 
-    ? 'http://127.0.0.1:8002'
-    : import.meta.env.VITE_API_URL || 'https://deeppulseai-production.up.railway.app',
+    ? 'http://127.0.0.1:8002/api'
+    : 'https://deeppulseai-production.up.railway.app/api',
   SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
   SUPABASE_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY,
 };

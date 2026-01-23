@@ -7,7 +7,7 @@
 import { supabase } from './supabaseClient';
 import { config } from '../config';
 
-const API_BASE_URL = config.API_URL + '/api';
+const API_BASE_URL = config.API_URL;
 
 // Get auth headers with Supabase JWT token
 const getAuthHeaders = async () => {
