@@ -5,6 +5,7 @@ import logging
 import asyncio
 import os
 
+# Force Railway redeploy - v2
 # Suppress TensorFlow and CUDA verbose logging
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow info/warnings
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimization to reduce warnings
