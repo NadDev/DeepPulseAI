@@ -47,7 +47,7 @@ const WatchlistRecommendations = ({ onRecommendationAccepted }) => {
       }
 
       const data = await response.json();
-      setRecommendations(data || []);
+      setRecommendations(data.recommendations || []);
     } catch (err) {
       setError(err.message);
       console.error('Error loading recommendations:', err);
