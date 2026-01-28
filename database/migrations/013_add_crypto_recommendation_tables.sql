@@ -23,17 +23,18 @@ CREATE INDEX IF NOT EXISTS idx_crypto_timeframe ON crypto_market_data(timeframe)
 -- Table 2: watchlist_recommendations - Daily AI recommendations for users
 CREATE TABLE IF NOT EXISTS watchlist_recommendations (
     id UUID PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL,
     symbol VARCHAR(20) NOT NULL,
     score FLOAT NOT NULL,                   -- 0-100 score
     action VARCHAR(10) NOT NULL,            -- 'ADD' or 'REMOVE'
     reasoning TEXT,                         -- DeepSeek analysis/explanation
     accepted BOOLEAN DEFAULT NULL,          -- NULL=pending, true=accepted, false=rejected
     accepted_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT NOW(),
-    
-    UNIQUE(user_id, symbol, DATE(created_at))
+    created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Create unique constraint using expression index (one recommendation per symbol per day)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rec_user_symbol_date ON watchlist_recommendations(user_id, symbol, DATE(created_at));
 
 CREATE INDEX IF NOT EXISTS idx_rec_user_created ON watchlist_recommendations(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_rec_user_accepted ON watchlist_recommendations(user_id, accepted);
@@ -45,11 +46,11 @@ CREATE TABLE IF NOT EXISTS recommendation_score_log (
     symbol VARCHAR(20) NOT NULL,
     score FLOAT NOT NULL,
     components JSONB NOT NULL,              -- {momentum, volume, volatility, rsi} with values
-    timestamp TIMESTAMP DEFAULT NOW(),
-    
-    INDEX idx_score_log_symbol (symbol),
-    INDEX idx_score_log_timestamp (timestamp)
+    timestamp TIMESTAMP DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_score_log_symbol ON recommendation_score_log(symbol);
+CREATE INDEX IF NOT EXISTS idx_score_log_timestamp ON recommendation_score_log(timestamp);
 
 -- Verify tables exist
 SELECT 'crypto_market_data'::text as table_name, count(*) as row_count FROM crypto_market_data
