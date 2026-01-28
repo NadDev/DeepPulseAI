@@ -952,6 +952,7 @@ async def bootstrap_market_data(
     crypto_count: int = 200,
     days: int = 730,
     timeframes: str = "1d,4h,1h",
+    force_full: bool = False,
     background_tasks: BackgroundTasks = BackgroundTasks()
 ):
     """
@@ -961,12 +962,14 @@ async def bootstrap_market_data(
         crypto_count: Number of top cryptos to fetch (default: 200)
         days: Days of history to fetch (default: 730 = 2 years)
         timeframes: Comma-separated timeframes (default: 1d,4h,1h)
+        force_full: If true, refetch full history even if data exists (default: false)
     
     Returns:
         Immediate response - task runs in background
     
     Example:
         POST /api/market-data/bootstrap?crypto_count=200&days=730
+        POST /api/market-data/bootstrap?crypto_count=200&days=730&force_full=true
     """
     import asyncio
     from app.services.market_data_bootstrapper import MarketDataBootstrapper
@@ -974,7 +977,7 @@ async def bootstrap_market_data(
     
     timeframes_list = [tf.strip() for tf in timeframes.split(",")]
     
-    logger.info(f"🚀 [BOOTSTRAP] Task queued - Cryptos: {crypto_count} | Days: {days} | Timeframes: {timeframes_list}")
+    logger.info(f"🚀 [BOOTSTRAP] Task queued - Cryptos: {crypto_count} | Days: {days} | Timeframes: {timeframes_list} | Force: {force_full}")
     
     # Schedule background task
     async def _run_bootstrap():
@@ -988,7 +991,8 @@ async def bootstrap_market_data(
                 await bootstrapper.run(
                     crypto_count=crypto_count,
                     days=days,
-                    timeframes=timeframes_list
+                    timeframes=timeframes_list,
+                    force_full=force_full
                 )
             
             logger.info(f"✅ [BOOTSTRAP] Complete! Total inserted: {bootstrapper.total_inserted:,} candles")

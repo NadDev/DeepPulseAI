@@ -168,33 +168,48 @@ class MarketDataBootstrapper:
     
     def batch_insert(self, db: Session, klines: List[Dict]) -> int:
         """
-        Batch insert klines into database.
-        Uses ON CONFLICT DO NOTHING for idempotency.
+        Batch insert klines into database using proper parameterized queries.
+        Uses executemany for efficiency.
         
         Returns number of rows inserted.
         """
         if not klines:
             return 0
         
-        # Build bulk insert query
-        values = []
-        for k in klines:
-            values.append(
-                f"('{k['symbol']}', {k['timestamp']}, {k['open']}, {k['high']}, "
-                f"{k['low']}, {k['close']}, {k['volume']}, '{k['timeframe']}')"
-            )
+        try:
+            # Prepare data for batch insert
+            insert_data = []
+            for k in klines:
+                insert_data.append({
+                    'symbol': k['symbol'],
+                    'timestamp': k['timestamp'],
+                    'open': float(k['open']),
+                    'high': float(k['high']),
+                    'low': float(k['low']),
+                    'close': float(k['close']),
+                    'volume': float(k['volume']),
+                    'timeframe': k['timeframe']
+                })
+            
+            # Use parameterized insert to avoid SQL injection and handle large batches
+            query = text("""
+                INSERT INTO crypto_market_data 
+                (symbol, timestamp, open, high, low, close, volume, timeframe)
+                VALUES (:symbol, :timestamp, :open, :high, :low, :close, :volume, :timeframe)
+                ON CONFLICT (symbol, timestamp, timeframe) DO NOTHING
+            """)
+            
+            # Execute batch insert
+            db.execute(query, insert_data)
+            db.commit()
+            
+            logger.debug(f"✅ Batch inserted {len(insert_data)} klines")
+            return len(insert_data)
         
-        query = f"""
-            INSERT INTO crypto_market_data 
-            (symbol, timestamp, open, high, low, close, volume, timeframe)
-            VALUES {', '.join(values)}
-            ON CONFLICT (symbol, timestamp, timeframe) DO NOTHING
-        """
-        
-        result = db.execute(text(query))
-        db.commit()
-        
-        return result.rowcount
+        except Exception as e:
+            logger.error(f"❌ Batch insert failed: {e}", exc_info=True)
+            db.rollback()
+            return 0
     
     async def bootstrap_symbol(
         self, 
@@ -219,6 +234,31 @@ class MarketDataBootstrapper:
         
         db = self.db_session_factory()
         
+async def bootstrap_symbol(
+        self, 
+        symbol: str, 
+        days: int = 730,
+        timeframes: List[str] = None,
+        force_full: bool = False
+    ) -> Tuple[int, int]:
+        """
+        Bootstrap historical data for a single symbol.
+        
+        Args:
+            symbol: Trading pair
+            days: Number of days of history to fetch (only used if force_full=True)
+            timeframes: List of timeframes to fetch
+            force_full: If True, always fetch full 730 days. If False, resume from last data.
+            
+        Returns:
+            Tuple of (inserted_count, skipped_count)
+        """
+        timeframes = timeframes or self.TIMEFRAMES
+        inserted = 0
+        skipped = 0
+        
+        db = self.db_session_factory()
+        
         try:
             for tf in timeframes:
                 # Check if we already have data
@@ -227,22 +267,26 @@ class MarketDataBootstrapper:
                 # Calculate time range
                 end_time = int(datetime.now().timestamp() * 1000)
                 
-                if last_ts:
-                    # Resume from last timestamp + 1 interval
+                if last_ts and not force_full:
+                    # Resume from last timestamp + 1 interval (incremental update)
                     start_time = last_ts + self._get_interval_ms(tf)
                     if start_time >= end_time:
                         logger.debug(f"  ⏭️ {symbol} {tf}: Already up to date")
                         skipped += 1
                         continue
+                    logger.info(f"  📥 {symbol} {tf}: Delta update from {datetime.fromtimestamp(start_time/1000)}")
                 else:
-                    # Start from N days ago
+                    # Fetch full 730 days (initial bootstrap or force_full=True)
                     start_time = int((datetime.now() - timedelta(days=days)).timestamp() * 1000)
-                
-                logger.info(f"  📥 {symbol} {tf}: Fetching from {datetime.fromtimestamp(start_time/1000)}")
+                    if force_full:
+                        logger.info(f"  📥 {symbol} {tf}: Force full fetch from {datetime.fromtimestamp(start_time/1000)}")
+                    else:
+                        logger.info(f"  📥 {symbol} {tf}: Initial fetch from {datetime.fromtimestamp(start_time/1000)}")
                 
                 # Fetch in chunks (max 1000 candles per request)
                 all_klines = []
                 current_start = start_time
+                chunk_count = 0
                 
                 while current_start < end_time:
                     klines = await self.fetch_klines(
@@ -250,9 +294,11 @@ class MarketDataBootstrapper:
                     )
                     
                     if not klines:
+                        logger.debug(f"    No more data for {symbol} {tf}")
                         break
                     
                     all_klines.extend(klines)
+                    chunk_count += 1
                     
                     # Move to next chunk
                     current_start = klines[-1]["timestamp"] + self._get_interval_ms(tf)
@@ -264,7 +310,9 @@ class MarketDataBootstrapper:
                 if all_klines:
                     count = self.batch_insert(db, all_klines)
                     inserted += count
-                    logger.info(f"  ✅ {symbol} {tf}: Inserted {count} candles")
+                    logger.info(f"  ✅ {symbol} {tf}: Fetched {len(all_klines)} candles ({chunk_count} chunks), inserted {count}")
+                else:
+                    logger.warning(f"  ⚠️ {symbol} {tf}: No data fetched from Binance")
                 
         finally:
             db.close()
@@ -287,7 +335,8 @@ class MarketDataBootstrapper:
         self, 
         crypto_count: int = 200, 
         days: int = 730,
-        timeframes: List[str] = None
+        timeframes: List[str] = None,
+        force_full: bool = False
     ):
         """
         Main bootstrap process.
@@ -296,10 +345,13 @@ class MarketDataBootstrapper:
             crypto_count: Number of top cryptos to fetch
             days: Days of history per crypto
             timeframes: Timeframes to fetch
+            force_full: If True, always fetch full history (ignores existing data)
         """
         start_time = datetime.now()
         logger.info(f"🚀 Starting MarketDataBootstrapper")
         logger.info(f"   Cryptos: {crypto_count} | Days: {days} | Timeframes: {timeframes or self.TIMEFRAMES}")
+        if force_full:
+            logger.info(f"   ⚠️  FORCE_FULL=True - Will refetch full {days} days (ignore existing data)")
         
         # Get top cryptos
         symbols = await self.get_top_cryptos(crypto_count)
@@ -315,7 +367,9 @@ class MarketDataBootstrapper:
             logger.info(f"📊 [{i}/{len(symbols)}] Processing {symbol}...")
             
             try:
-                inserted, skipped = await self.bootstrap_symbol(symbol, days, timeframes)
+                inserted, skipped = await self.bootstrap_symbol(
+                    symbol, days, timeframes, force_full=force_full
+                )
                 total_inserted += inserted
                 total_skipped += skipped
             except Exception as e:
