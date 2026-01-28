@@ -353,6 +353,72 @@ class UserTradingSettings(Base):
 
 
 # ============================================
+# Crypto Market Data & Recommendations
+# (Feature: RecommendationCrypto)
+# ============================================
+class CryptoMarketData(Base):
+    """
+    Historical market data for 200+ cryptocurrencies.
+    Stores OHLCV candles for 1h, 4h, 1d timeframes.
+    Used for scoring algorithm and recommendations.
+    """
+    __tablename__ = "crypto_market_data"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)  # BIGSERIAL
+    symbol = Column(String(20), nullable=False, index=True)  # BTCUSDT, ETHUSDT
+    timestamp = Column(Integer, nullable=False, index=True)  # Unix milliseconds
+    open = Column(Float, nullable=False)
+    high = Column(Float, nullable=False)
+    low = Column(Float, nullable=False)
+    close = Column(Float, nullable=False)
+    volume = Column(Float, nullable=False)
+    timeframe = Column(String(10), nullable=False, index=True)  # '1h', '4h', '1d'
+    created_at = Column(DateTime, server_default=func.now())
+    
+    def __repr__(self):
+        return f"<CryptoMarketData {self.symbol} {self.timeframe} @ {self.timestamp}>"
+
+
+class WatchlistRecommendation(Base):
+    """
+    Daily AI-powered crypto recommendations for users.
+    Generated at 8:00 AM UTC with score 0-100 and DeepSeek reasoning.
+    """
+    __tablename__ = "watchlist_recommendations"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    score = Column(Float, nullable=False)  # 0-100
+    action = Column(String(10), nullable=False)  # 'ADD' or 'REMOVE'
+    reasoning = Column(Text, nullable=True)  # DeepSeek explanation
+    accepted = Column(Boolean, nullable=True, default=None)  # None=pending, True=accepted, False=rejected
+    accepted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), index=True)
+    
+    def __repr__(self):
+        status = "pending" if self.accepted is None else ("accepted" if self.accepted else "rejected")
+        return f"<WatchlistRecommendation {self.symbol} score={self.score} {status}>"
+
+
+class RecommendationScoreLog(Base):
+    """
+    Stores detailed score component breakdown for each recommendation.
+    Used for ML training and algorithm improvement.
+    """
+    __tablename__ = "recommendation_score_log"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    symbol = Column(String(20), nullable=False, index=True)
+    score = Column(Float, nullable=False)
+    components = Column(JSON, nullable=False)  # {momentum: 85, volume: 70, volatility: 60, rsi: 45}
+    timestamp = Column(DateTime, server_default=func.now(), index=True)
+    
+    def __repr__(self):
+        return f"<RecommendationScoreLog {self.symbol} score={self.score}>"
+
+
+# ============================================
 # SL/TP Profile Presets
 # Default configurations for each profile
 # ============================================

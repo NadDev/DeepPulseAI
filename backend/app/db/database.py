@@ -4,6 +4,18 @@ from sqlalchemy.pool import QueuePool
 from app.config import settings
 import socket
 
+# ============================================
+# DATABASE ARCHITECTURE
+# ============================================
+# Railway PostgreSQL: ALL business data (bots, trades, portfolios, crypto_market_data, recommendations, etc.)
+# Supabase: Auth ONLY (JWT validation happens in frontend → backend, no direct DB connection needed)
+#
+# Why Railway for business data?
+# - Unlimited storage (Supabase Free = 0.5 GB limit)
+# - Better for 200 cryptos × 730 days × 3 timeframes = 44 MB historical data
+# - Simpler architecture: one database for all business logic
+# ============================================
+
 # Create database engine
 # For SQLite, disable some features that PostgreSQL has
 kwargs = {

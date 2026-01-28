@@ -4,6 +4,7 @@ import { TrendingUp, TrendingDown, Wallet, DollarSign } from 'lucide-react'
 import RecentTrades from './RecentTrades'
 import ActiveBots from './ActiveBots'
 import EquityChart from './EquityChart'
+import RecommendationStatsWidget from './RecommendationStatsWidget'
 import './Dashboard.css'
 import './DashboardGrid.css'
 
@@ -118,6 +119,13 @@ function Dashboard() {
         
         <div className="bots-section-wrapper">
           <ActiveBots />
+        </div>
+
+        <div className="recommendations-widget-section">
+          <RecommendationStatsWidget onViewMore={() => {
+            // This would navigate to recommendations in a full app
+            console.log('Navigate to recommendations');
+          }} />
         </div>
       </div>
 

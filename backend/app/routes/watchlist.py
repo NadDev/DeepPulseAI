@@ -160,6 +160,7 @@ async def get_popular_symbols(
 @router.get("", name="get_watchlist_without_slash")
 async def get_watchlist(
     active_only: bool = Query(False, description="Only return active items"),
+    include_recommendations: bool = Query(False, description="Include pending recommendations"),
     db: Session = Depends(get_db),
     current_user: UserResponse = Depends(get_current_user)
 ):
@@ -206,7 +207,7 @@ async def get_watchlist(
                 "created_at": item.created_at.isoformat() if item.created_at else None
             })
         
-        # Return as single watchlist in array format (frontend expects array)
+        # Build base response
         response = [{
             "id": "default",
             "name": "Ma Watchlist",
@@ -215,6 +216,18 @@ async def get_watchlist(
             "item_count": len(formatted_items),
             "active_count": sum(1 for i in formatted_items if i["is_active"])
         }]
+        
+        # Add pending recommendations if requested
+        if include_recommendations:
+            from app.services.watchlist_recommendation_engine import get_recommendation_engine
+            engine = get_recommendation_engine()
+            
+            recommendations = engine.get_user_pending_recommendations(db, str(user_uuid), limit=10)
+            
+            response[0]["pending_recommendations"] = recommendations
+            response[0]["recommendation_count"] = len(recommendations)
+            
+            logger.info(f"📋 [WATCHLIST] Added {len(recommendations)} pending recommendations")
         
         logger.info(f"✅ [WATCHLIST] Returning {len(formatted_items)} symbols")
         return response
@@ -489,3 +502,261 @@ async def _sync_watchlist_to_ai(db: Session, user_id: str):
             
     except Exception as e:
         logger.error(f"Failed to sync watchlist to AI: {e}")
+
+
+# ============================================
+# Crypto Recommendations Routes (Feature: RecommendationCrypto)
+# ============================================
+
+class RecommendationResponse(BaseModel):
+    """Response model for recommendation"""
+    id: str
+    symbol: str
+    score: float
+    action: str
+    reasoning: Optional[str]
+    created_at: str
+
+
+class RecommendationAcceptRequest(BaseModel):
+    """Request to accept a recommendation"""
+    add_to_watchlist: bool = True
+
+
+@router.get("/recommendations/pending")
+async def get_pending_recommendations(
+    limit: int = Query(50, le=100),
+    db: Session = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Get pending (not yet accepted/rejected) recommendations for today.
+    
+    Returns recommendations sorted by score (highest first).
+    """
+    try:
+        user_uuid = get_user_uuid(current_user.id)
+        
+        from app.services.watchlist_recommendation_engine import get_recommendation_engine
+        engine = get_recommendation_engine()
+        
+        recommendations = engine.get_user_pending_recommendations(
+            db, str(user_uuid), limit
+        )
+        
+        logger.info(f"[RECOMMENDATION] User {user_uuid}: {len(recommendations)} pending")
+        
+        return {
+            "recommendations": recommendations,
+            "count": len(recommendations),
+            "date": datetime.now().date().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"[RECOMMENDATION] Error fetching pending: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/recommendations/{recommendation_id}/accept")
+async def accept_recommendation(
+    recommendation_id: str,
+    request: RecommendationAcceptRequest,
+    db: Session = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Accept a recommendation.
+    Optionally adds the symbol to the user's watchlist.
+    """
+    try:
+        user_uuid = get_user_uuid(current_user.id)
+        
+        # Get recommendation
+        from sqlalchemy import text
+        result = db.execute(text("""
+            SELECT symbol, action FROM watchlist_recommendations
+            WHERE id = :id AND user_id = :user_id
+        """), {"id": recommendation_id, "user_id": str(user_uuid)})
+        
+        rec = result.fetchone()
+        
+        if not rec:
+            raise HTTPException(status_code=404, detail="Recommendation not found")
+        
+        symbol = rec[0]
+        action = rec[1]
+        
+        # Mark as accepted
+        db.execute(text("""
+            UPDATE watchlist_recommendations
+            SET accepted = true, accepted_at = NOW()
+            WHERE id = :id
+        """), {"id": recommendation_id})
+        
+        # Add to watchlist if requested and action is ADD
+        if request.add_to_watchlist and action == "ADD":
+            # Check if already exists
+            existing = db.query(WatchlistItem).filter(
+                WatchlistItem.user_id == user_uuid,
+                WatchlistItem.symbol == symbol
+            ).first()
+            
+            if not existing:
+                # Extract base currency from symbol
+                base_currency = symbol.replace('USDT', '').replace('/USDT', '').strip()
+                
+                new_item = WatchlistItem(
+                    user_id=user_uuid,
+                    symbol=symbol,
+                    base_currency=base_currency,
+                    quote_currency='USDT',
+                    is_active=True,
+                    priority=5,
+                    notes=f"Added from recommendation"
+                )
+                db.add(new_item)
+                logger.info(f"[RECOMMENDATION] Added {symbol} to watchlist for user {user_uuid}")
+        
+        db.commit()
+        
+        logger.info(f"[RECOMMENDATION] User {user_uuid} accepted {symbol}")
+        
+        return {
+            "success": True,
+            "message": f"Recommendation accepted",
+            "symbol": symbol,
+            "added_to_watchlist": request.add_to_watchlist and action == "ADD"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[RECOMMENDATION] Error accepting: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/recommendations/{recommendation_id}/reject")
+async def reject_recommendation(
+    recommendation_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Reject a recommendation.
+    Marks it as not accepted without adding to watchlist.
+    """
+    try:
+        user_uuid = get_user_uuid(current_user.id)
+        
+        # Check if exists
+        from sqlalchemy import text
+        result = db.execute(text("""
+            SELECT symbol FROM watchlist_recommendations
+            WHERE id = :id AND user_id = :user_id
+        """), {"id": recommendation_id, "user_id": str(user_uuid)})
+        
+        rec = result.fetchone()
+        
+        if not rec:
+            raise HTTPException(status_code=404, detail="Recommendation not found")
+        
+        symbol = rec[0]
+        
+        # Mark as rejected
+        db.execute(text("""
+            UPDATE watchlist_recommendations
+            SET accepted = false, accepted_at = NOW()
+            WHERE id = :id
+        """), {"id": recommendation_id})
+        
+        db.commit()
+        
+        logger.info(f"[RECOMMENDATION] User {user_uuid} rejected {symbol}")
+        
+        return {
+            "success": True,
+            "message": f"Recommendation rejected",
+            "symbol": symbol
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[RECOMMENDATION] Error rejecting: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/recommendations/history")
+async def get_recommendation_history(
+    status: Optional[str] = Query(None, regex="^(accepted|rejected|all)$"),
+    limit: int = Query(50, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Get recommendation history with pagination.
+    
+    Args:
+        status: Filter by status (accepted, rejected, or all)
+        limit: Number of results per page
+        offset: Pagination offset
+    """
+    try:
+        user_uuid = get_user_uuid(current_user.id)
+        
+        from sqlalchemy import text
+        
+        # Build query based on status filter
+        where_clause = "WHERE user_id = :user_id AND accepted IS NOT NULL"
+        if status == "accepted":
+            where_clause += " AND accepted = true"
+        elif status == "rejected":
+            where_clause += " AND accepted = false"
+        
+        # Get total count
+        count_result = db.execute(text(f"""
+            SELECT COUNT(*) FROM watchlist_recommendations
+            {where_clause}
+        """), {"user_id": str(user_uuid)})
+        
+        total_count = count_result.fetchone()[0]
+        
+        # Get paginated results
+        result = db.execute(text(f"""
+            SELECT id, symbol, score, action, reasoning, accepted, accepted_at, created_at
+            FROM watchlist_recommendations
+            {where_clause}
+            ORDER BY accepted_at DESC
+            LIMIT :limit OFFSET :offset
+        """), {"user_id": str(user_uuid), "limit": limit, "offset": offset})
+        
+        history = [
+            {
+                "id": str(row[0]),
+                "symbol": row[1],
+                "score": row[2],
+                "action": row[3],
+                "reasoning": row[4],
+                "accepted": row[5],
+                "accepted_at": row[6].isoformat() if row[6] else None,
+                "created_at": row[7].isoformat() if row[7] else None
+            }
+            for row in result.fetchall()
+        ]
+        
+        logger.info(f"[RECOMMENDATION] History for user {user_uuid}: {len(history)} items")
+        
+        return {
+            "history": history,
+            "total_count": total_count,
+            "limit": limit,
+            "offset": offset,
+            "has_more": (offset + limit) < total_count
+        }
+        
+    except Exception as e:
+        logger.error(f"[RECOMMENDATION] Error fetching history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
