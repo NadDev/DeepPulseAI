@@ -1,0 +1,26 @@
+# ====================================================
+# LOCAL DEVELOPMENT ONLY - DO NOT COMMIT
+# ====================================================
+# These files contain local development settings
+# that should NEVER be pushed to production
+
+# Local portfolio/trade test data
+backend/app/models/database_models.py
+backend/app/routes/portfolio.py
+backend/app/routes/reports.py
+backend/seed_data.py
+
+# Local API configuration
+frontend/src/config.js
+frontend/package-lock.json
+
+# Local database
+*.db
+*.sqlite
+*.sqlite3
+crbot_local.db
+
+# Local development env
+.env.local
+.env.development.local
+.env.*.local

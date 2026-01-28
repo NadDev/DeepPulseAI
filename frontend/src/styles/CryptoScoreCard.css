@@ -1,0 +1,210 @@
+.crypto-score-card {
+  background: white;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-left: 4px solid #667eea;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.crypto-score-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.crypto-score-card.add {
+  border-left-color: #10b981;
+}
+
+.crypto-score-card.remove {
+  border-left-color: #ef4444;
+}
+
+.crypto-score-card.hold {
+  border-left-color: #f59e0b;
+}
+
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.symbol-badge {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.symbol {
+  font-size: 18px;
+  font-weight: bold;
+  color: #111;
+}
+
+.action-label {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.action-label.add {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.action-label.remove {
+  background: #fee2e2;
+  color: #7f1d1d;
+}
+
+.action-label.hold {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.score-display {
+  display: flex;
+  align-items: center;
+}
+
+.score-circle {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.score-number {
+  font-size: 28px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.score-max {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.price-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 13px;
+}
+
+.price {
+  font-weight: 600;
+  color: #111;
+}
+
+.change {
+  font-weight: 600;
+}
+
+.change.positive {
+  color: #10b981;
+}
+
+.change.negative {
+  color: #ef4444;
+}
+
+.components-breakdown {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  padding: 10px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.component-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.component-item .label {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  transition: width 0.3s ease;
+}
+
+.component-item .value {
+  font-size: 12px;
+  font-weight: bold;
+  color: #667eea;
+}
+
+.reasoning-box {
+  padding: 10px;
+  background: #f0f4ff;
+  border-left: 3px solid #667eea;
+  border-radius: 4px;
+}
+
+.reasoning-box strong {
+  display: block;
+  font-size: 11px;
+  color: #667eea;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.reasoning-box p {
+  font-size: 12px;
+  color: #4b5563;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.score-bar-bottom {
+  padding-top: 10px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.score-bar-bottom .bar {
+  width: 100%;
+  height: 4px;
+  background: #e5e7eb;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.score-bar-bottom .fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  transition: width 0.3s ease;
+}

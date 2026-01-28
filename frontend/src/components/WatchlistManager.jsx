@@ -20,6 +20,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
+import WatchlistRecommendations from './WatchlistRecommendations';
 import '../styles/WatchlistManager.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -45,6 +46,7 @@ const POPULAR_CRYPTOS = [
 const WatchlistManager = () => {
   const [watchlists, setWatchlists] = useState([]);
   const [activeWatchlist, setActiveWatchlist] = useState(null);
+  const [activeTab, setActiveTab] = useState('watchlist'); // 'watchlist' or 'recommendations'
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -429,6 +431,36 @@ const WatchlistManager = () => {
         </div>
       )}
 
+      {/* Content Tabs (Watchlist vs Recommendations) */}
+      <div className="content-tabs">
+        <button
+          className={`content-tab ${activeTab === 'watchlist' ? 'active' : ''}`}
+          onClick={() => setActiveTab('watchlist')}
+        >
+          My Watchlist
+        </button>
+        <button
+          className={`content-tab ${activeTab === 'recommendations' ? 'active' : ''}`}
+          onClick={() => setActiveTab('recommendations')}
+        >
+          <Sparkles size={16} />
+          Recommendations
+        </button>
+      </div>
+
+      {/* Recommendations Tab */}
+      {activeTab === 'recommendations' && (
+        <WatchlistRecommendations onRecommendationAccepted={(symbol) => {
+          setSuccess(`✓ ${symbol} ajouté à la watchlist`);
+          setTimeout(() => setSuccess(null), 3000);
+          fetchWatchlists(); // Refresh watchlist
+        }} />
+      )}
+
+      {/* Watchlist Tab */}
+      {activeTab === 'watchlist' && (
+      <>
+
       {/* Toolbar */}
       <div className="watchlist-toolbar">
         <div className="search-box">
@@ -711,6 +743,9 @@ const WatchlistManager = () => {
             </div>
           </div>
         </div>
+      )}
+
+      </>
       )}
 
       {/* Create Watchlist Modal removed - single watchlist per user */}
