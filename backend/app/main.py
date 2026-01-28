@@ -308,6 +308,38 @@ async def lifespan(app: FastAPI):
         except Exception as normalize_error:
             logger.warning(f"⚠️ Watchlist symbol normalization check failed: {normalize_error}")
         
+        # Check if crypto_market_data table exists, if not create it (migration 013)
+        try:
+            db.execute(text("SELECT 1 FROM crypto_market_data LIMIT 1"))
+            logger.info("[OK] crypto_market_data table exists")
+        except Exception as check_error:
+            try:
+                logger.info(f"⚙️ Creating crypto recommendation tables (migration 013)...")
+                
+                migration_paths = [
+                    "/app/database/migrations/013_add_crypto_recommendation_tables.sql",
+                    "database/migrations/013_add_crypto_recommendation_tables.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/013_add_crypto_recommendation_tables.sql"
+                ]
+                
+                migration_sql = None
+                for path in migration_paths:
+                    try:
+                        migration_sql = open(path).read()
+                        logger.info(f"✅ Found migration at: {path}")
+                        break
+                    except:
+                        continue
+                
+                if migration_sql:
+                    db.execute(text(migration_sql))
+                    db.commit()
+                    logger.info("✅ Crypto recommendation tables created successfully (crypto_market_data, watchlist_recommendations, recommendation_score_log)")
+                else:
+                    logger.error(f"❌ Could not find crypto recommendation migration file")
+            except Exception as create_error:
+                logger.error(f"❌ Failed to create crypto recommendation tables: {create_error}")
+        
         db.close()
     except Exception as e:
         logger.warning(f"⚠️ Could not verify/create tables: {e}")
