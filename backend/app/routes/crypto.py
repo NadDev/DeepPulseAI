@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.db.database import get_db
@@ -951,10 +951,11 @@ async def get_coin_chart(symbol: str, period: str = "7d"):
 async def bootstrap_market_data(
     crypto_count: int = 200,
     days: int = 730,
-    timeframes: str = "1d,4h,1h"
+    timeframes: str = "1d,4h,1h",
+    background_tasks: BackgroundTasks = BackgroundTasks()
 ):
     """
-    Bootstrap historical market data from Binance.
+    Bootstrap historical market data from Binance (async, runs in background).
     
     Args:
         crypto_count: Number of top cryptos to fetch (default: 200)
@@ -962,7 +963,7 @@ async def bootstrap_market_data(
         timeframes: Comma-separated timeframes (default: 1d,4h,1h)
     
     Returns:
-        Task ID and status
+        Immediate response - task runs in background
     
     Example:
         POST /api/market-data/bootstrap?crypto_count=200&days=730
@@ -971,43 +972,44 @@ async def bootstrap_market_data(
     from app.services.market_data_bootstrapper import MarketDataBootstrapper
     from app.db.database import SessionLocal
     
-    try:
-        timeframes_list = [tf.strip() for tf in timeframes.split(",")]
-        
-        logger.info(f"🚀 Starting market data bootstrap...")
-        logger.info(f"   Cryptos: {crypto_count} | Days: {days} | Timeframes: {timeframes_list}")
-        
-        # Create bootstrapper instance
-        async with MarketDataBootstrapper(SessionLocal) as bootstrapper:
-            # Run bootstrap
-            await bootstrapper.run(
-                crypto_count=crypto_count,
-                days=days,
-                timeframes=timeframes_list
-            )
-        
-        return {
-            "status": "success",
-            "message": "Market data bootstrap completed",
-            "total_inserted": bootstrapper.total_inserted,
-            "config": {
-                "crypto_count": crypto_count,
-                "days": days,
-                "timeframes": timeframes_list
-            }
-        }
+    timeframes_list = [tf.strip() for tf in timeframes.split(",")]
     
-    except Exception as e:
-        logger.error(f"❌ Bootstrap failed: {e}", exc_info=True)
-        return {
-            "status": "error",
-            "message": str(e),
-            "config": {
-                "crypto_count": crypto_count,
-                "days": days,
-                "timeframes": timeframes.split(",")
-            }
-        }
+    logger.info(f"🚀 [BOOTSTRAP] Task queued - Cryptos: {crypto_count} | Days: {days} | Timeframes: {timeframes_list}")
+    
+    # Schedule background task
+    async def _run_bootstrap():
+        """Run bootstrap in background"""
+        try:
+            logger.info(f"🚀 [BOOTSTRAP] Starting background data load...")
+            
+            # Create bootstrapper instance
+            async with MarketDataBootstrapper(SessionLocal) as bootstrapper:
+                # Run bootstrap
+                await bootstrapper.run(
+                    crypto_count=crypto_count,
+                    days=days,
+                    timeframes=timeframes_list
+                )
+            
+            logger.info(f"✅ [BOOTSTRAP] Complete! Total inserted: {bootstrapper.total_inserted:,} candles")
+        
+        except Exception as e:
+            logger.error(f"❌ [BOOTSTRAP] Background task failed: {e}", exc_info=True)
+    
+    # Add to background tasks
+    background_tasks.add_task(_run_bootstrap)
+    
+    return {
+        "status": "queued",
+        "message": "Bootstrap task queued and running in background",
+        "config": {
+            "crypto_count": crypto_count,
+            "days": days,
+            "timeframes": timeframes_list
+        },
+        "note": "Use GET /api/market-data/status to check progress"
+    }
+
 
 
 @router.get("/market-data/status")
