@@ -166,7 +166,8 @@ class WatchlistRecommendationEngine:
         # Fetch daily candles for last 35 days (need buffer for calculations)
         candles = self._get_daily_candles(db, symbol, days=35)
         
-        if len(candles) < 30:
+        # Require minimum 5 days of data (flexible for sparse datasets)
+        if len(candles) < 5:
             return None
         
         # Calculate components
