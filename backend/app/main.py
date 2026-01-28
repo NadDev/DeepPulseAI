@@ -410,7 +410,9 @@ async def lifespan(app: FastAPI):
             try:
                 from app.services.market_data_updater import MarketDataUpdater
                 market_data_updater = MarketDataUpdater(db_session_factory=SessionLocal)
-                asyncio.create_task(market_data_updater.start())
+                # Start in background without blocking startup
+                import asyncio as asyncio_module
+                asyncio_module.create_task(market_data_updater.start())
                 app.state.market_data_updater = market_data_updater
                 logger.info("✅ Market Data Updater started (updates every 4 hours)")
             except Exception as e:
@@ -424,7 +426,9 @@ async def lifespan(app: FastAPI):
                     db_session_factory=SessionLocal,
                     scheduled_time=recommendation_time  # e.g., "08:00"
                 )
-                asyncio.create_task(scheduler.start())
+                # Start in background without blocking startup
+                import asyncio as asyncio_module
+                asyncio_module.create_task(scheduler.start())
                 app.state.recommendation_scheduler = scheduler
                 logger.info(f"✅ Daily Recommendation Scheduler started (daily at {recommendation_time} UTC)")
             except Exception as e:
