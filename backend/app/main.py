@@ -343,16 +343,20 @@ async def lifespan(app: FastAPI):
         
         # Check if crypto_market_data volume column has increased precision (migration 014)
         try:
-            # Try to insert a large volume number to test the column precision
-            result = db.execute(text("SELECT data_type FROM information_schema.columns WHERE table_name='crypto_market_data' AND column_name='volume'"))
+            # Check numeric_precision of volume column (should be 35, not 20)
+            result = db.execute(text("""
+                SELECT numeric_precision, numeric_scale 
+                FROM information_schema.columns 
+                WHERE table_name='crypto_market_data' AND column_name='volume'
+            """))
             row = result.fetchone()
-            if row and row[0]:
-                column_type = row[0]
-                if "35" in column_type or "30" in column_type or "numeric" in column_type:
-                    logger.info("[OK] crypto_market_data volume column has sufficient precision")
+            if row:
+                precision, scale = row[0], row[1]
+                if precision and precision >= 35:
+                    logger.info(f"[OK] crypto_market_data volume column has sufficient precision (DECIMAL({precision},{scale}))")
                 else:
-                    # Need to upgrade precision
-                    logger.info(f"⚙️ Upgrading volume column precision (current: {column_type})...")
+                    # Need to upgrade precision from DECIMAL(20,8) to DECIMAL(35,8)
+                    logger.info(f"⚙️ Upgrading volume column precision from DECIMAL({precision},{scale}) to DECIMAL(35,8)...")
                     migration_paths = [
                         "/app/database/migrations/014_increase_volume_precision.sql",
                         "database/migrations/014_increase_volume_precision.sql",
@@ -376,6 +380,7 @@ async def lifespan(app: FastAPI):
                         logger.warning(f"⚠️ Could not find volume precision migration file")
         except Exception as precision_error:
             logger.warning(f"⚠️ Volume column precision check failed: {precision_error}")
+
         
         db.close()
     except Exception as e:

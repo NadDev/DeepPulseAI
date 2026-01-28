@@ -760,3 +760,53 @@ async def get_recommendation_history(
     except Exception as e:
         logger.error(f"[RECOMMENDATION] Error fetching history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================
+# Manual Trigger Endpoint (For Testing)
+# ============================================
+
+@router.post("/recommendations/generate-now")
+async def generate_recommendations_now(
+    current_user: UserResponse = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Manually trigger recommendation generation for the current user
+    Useful for testing without waiting for scheduled time (21:15 UTC)
+    
+    Returns the number of recommendations generated
+    """
+    try:
+        user_uuid = get_user_uuid(current_user.id)
+        logger.info(f"📊 [TRIGGER] Manual recommendation generation requested by {user_uuid}")
+        
+        # Import here to avoid circular imports
+        from app.services.watchlist_recommendation_engine import WatchlistRecommendationEngine
+        
+        # Generate recommendations for this user
+        engine = WatchlistRecommendationEngine(db)
+        recommendations = engine.generate_recommendations(user_id=str(user_uuid))
+        
+        logger.info(f"✅ [TRIGGER] Generated {len(recommendations)} recommendations for user {user_uuid}")
+        
+        return {
+            "status": "success",
+            "user_id": str(user_uuid),
+            "count": len(recommendations),
+            "recommendations": [
+                {
+                    "id": str(r.id),
+                    "symbol": r.symbol,
+                    "score": r.score,
+                    "action": r.action,
+                    "reasoning": r.reasoning[:200] if r.reasoning else None
+                }
+                for r in recommendations
+            ],
+            "message": f"Generated {len(recommendations)} recommendations"
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ [TRIGGER] Error generating recommendations: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error generating recommendations: {str(e)}")
