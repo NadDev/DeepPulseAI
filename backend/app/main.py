@@ -418,7 +418,7 @@ async def lifespan(app: FastAPI):
             
             # Start Daily Recommendation Scheduler (APScheduler - runs at 08:00 UTC daily)
             try:
-                from app.services.daily_recommendation_scheduler import DailyRecommendationScheduler
+                from app.services.recommendation_scheduler import DailyRecommendationScheduler
                 recommendation_time = os.getenv("RECOMMENDATION_DAILY_TIME", "08:00")
                 scheduler = DailyRecommendationScheduler(
                     db_session_factory=SessionLocal,
