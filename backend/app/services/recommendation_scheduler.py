@@ -156,28 +156,28 @@ class DailyRecommendationScheduler:
     def _get_active_users(self) -> List[str]:
         """
         Get list of active user IDs.
-        Active = has at least one watchlist item or one bot.
+        Active = has at least one watchlist item or one bot with RUNNING status.
         """
         db = self.db_session_factory()
         
         try:
-            # Get users with watchlist items OR active bots
+            # Get users with watchlist items OR running bots
             result = db.execute(text("""
                 SELECT DISTINCT user_id FROM (
                     SELECT user_id FROM watchlist_items
                     UNION
-                    SELECT user_id FROM bots WHERE status = 'ACTIVE'
+                    SELECT user_id FROM bots WHERE status = 'RUNNING'
                     UNION
                     SELECT user_id FROM portfolios
                 ) active_users
             """))
             
             users = [str(row[0]) for row in result.fetchall()]
-            logger.info(f"[SCHEDULER] _get_active_users() found {len(users)} users: {users[:3]}...")
+            logger.info(f"[SCHEDULER] _get_active_users() found {len(users)} users: {users[:3] if users else 'none'}...")
             
-            # Fallback: get ALL users with auth data if none found
+            # Fallback: get ALL users with bots if none found
             if not users:
-                logger.warning("[SCHEDULER] No active users found via watchlist/bots/portfolios. Getting all auth users...")
+                logger.warning("[SCHEDULER] No active users found via watchlist/bots/portfolios. Getting all users with bots...")
                 result = db.execute(text("""
                     SELECT DISTINCT user_id FROM bots
                     LIMIT 5
@@ -188,7 +188,7 @@ class DailyRecommendationScheduler:
             return users
             
         except Exception as e:
-            logger.error(f"[SCHEDULER] Error getting active users: {e}")
+            logger.error(f"[SCHEDULER] Error getting active users: {e}", exc_info=True)
             return []
         finally:
             db.close()
