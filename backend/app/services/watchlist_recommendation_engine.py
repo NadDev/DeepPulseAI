@@ -128,8 +128,11 @@ class WatchlistRecommendationEngine:
             # Return top N
             top_recommendations = recommendations[:top_n]
             
-            logger.info(f"[RECOMMENDATION] Generated {len(top_recommendations)} recommendations "
-                       f"(scores: {top_recommendations[0].score:.1f} - {top_recommendations[-1].score:.1f})")
+            if top_recommendations:
+                logger.info(f"[RECOMMENDATION] Generated {len(top_recommendations)} recommendations "
+                           f"(scores: {top_recommendations[0].score:.1f} - {top_recommendations[-1].score:.1f})")
+            else:
+                logger.warning(f"[RECOMMENDATION] No recommendations generated (analyzed {len(symbols)} symbols, got {len(recommendations)} candidates)")
             
             return top_recommendations
             
@@ -137,20 +140,22 @@ class WatchlistRecommendationEngine:
             db.close()
     
     def _get_available_symbols(self, db: Session) -> List[str]:
-        """Get symbols that have sufficient historical data (at least 30 days)."""
-        thirty_days_ago = int((datetime.now() - timedelta(days=30)).timestamp() * 1000)
-        
+        """Get symbols that have sufficient historical data."""
+        # Get symbols with ANY data (don't restrict by timeframe or timestamp)
         result = db.execute(text("""
             SELECT DISTINCT symbol
             FROM crypto_market_data
-            WHERE timeframe = '1d'
-            AND timestamp >= :min_timestamp
-            GROUP BY symbol
-            HAVING COUNT(*) >= 25
             ORDER BY symbol
-        """), {"min_timestamp": thirty_days_ago})
+        """))
         
-        return [row[0] for row in result.fetchall()]
+        symbols = [row[0] for row in result.fetchall()]
+        logger.info(f"[RECOMMENDATION] _get_available_symbols() found {len(symbols)} symbols")
+        
+        # If no symbols, that's a problem
+        if not symbols:
+            logger.warning("[RECOMMENDATION] ⚠️ No symbols found in crypto_market_data table!")
+        
+        return symbols
     
     def _analyze_symbol(self, db: Session, symbol: str) -> Optional[Recommendation]:
         """

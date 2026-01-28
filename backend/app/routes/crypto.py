@@ -945,6 +945,135 @@ async def get_coin_chart(symbol: str, period: str = "7d"):
         
     return {"prices": prices}
 
+
+@router.post("/market-data/bootstrap")
+async def bootstrap_market_data(
+    crypto_count: int = 200,
+    days: int = 730,
+    timeframes: str = "1d,4h,1h"
+):
+    """
+    Bootstrap historical market data from Binance.
+    
+    Args:
+        crypto_count: Number of top cryptos to fetch (default: 200)
+        days: Days of history to fetch (default: 730 = 2 years)
+        timeframes: Comma-separated timeframes (default: 1d,4h,1h)
+    
+    Returns:
+        Task ID and status
+    
+    Example:
+        POST /api/market-data/bootstrap?crypto_count=200&days=730
+    """
+    import asyncio
+    from app.services.market_data_bootstrapper import MarketDataBootstrapper
+    from app.db.database import SessionLocal
+    
+    try:
+        timeframes_list = [tf.strip() for tf in timeframes.split(",")]
+        
+        logger.info(f"🚀 Starting market data bootstrap...")
+        logger.info(f"   Cryptos: {crypto_count} | Days: {days} | Timeframes: {timeframes_list}")
+        
+        # Create bootstrapper instance
+        async with MarketDataBootstrapper(SessionLocal) as bootstrapper:
+            # Run bootstrap
+            await bootstrapper.run(
+                crypto_count=crypto_count,
+                days=days,
+                timeframes=timeframes_list
+            )
+        
+        return {
+            "status": "success",
+            "message": "Market data bootstrap completed",
+            "total_inserted": bootstrapper.total_inserted,
+            "config": {
+                "crypto_count": crypto_count,
+                "days": days,
+                "timeframes": timeframes_list
+            }
+        }
+    
+    except Exception as e:
+        logger.error(f"❌ Bootstrap failed: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "message": str(e),
+            "config": {
+                "crypto_count": crypto_count,
+                "days": days,
+                "timeframes": timeframes.split(",")
+            }
+        }
+
+
+@router.get("/market-data/status")
+async def get_market_data_status(db: Session = Depends(get_db)):
+    """
+    Get statistics about loaded market data.
+    
+    Returns count of candles, unique symbols, timeframes, and date range.
+    """
+    try:
+        from sqlalchemy import func
+        from app.models.database_models import CryptoMarketData
+        
+        # Get statistics
+        result = db.execute(text("""
+            SELECT 
+                COUNT(*) as total_candles,
+                COUNT(DISTINCT symbol) as unique_symbols,
+                COUNT(DISTINCT timeframe) as unique_timeframes,
+                MIN(timestamp) as earliest_timestamp,
+                MAX(timestamp) as latest_timestamp
+            FROM crypto_market_data
+        """)).fetchone()
+        
+        if result:
+            total_candles, unique_symbols, unique_timeframes, earliest_ts, latest_ts = result
+            
+            # Get list of symbols
+            symbols_result = db.execute(text("""
+                SELECT DISTINCT symbol 
+                FROM crypto_market_data 
+                ORDER BY symbol
+            """)).fetchall()
+            symbols = [s[0] for s in symbols_result] if symbols_result else []
+            
+            return {
+                "status": "success",
+                "statistics": {
+                    "total_candles": total_candles or 0,
+                    "unique_symbols": unique_symbols or 0,
+                    "unique_timeframes": unique_timeframes or 0,
+                    "earliest_timestamp": earliest_ts,
+                    "latest_timestamp": latest_ts,
+                    "symbols": symbols
+                }
+            }
+        else:
+            return {
+                "status": "success",
+                "statistics": {
+                    "total_candles": 0,
+                    "unique_symbols": 0,
+                    "unique_timeframes": 0,
+                    "earliest_timestamp": None,
+                    "latest_timestamp": None,
+                    "symbols": []
+                }
+            }
+    
+    except Exception as e:
+        logger.error(f"❌ Failed to get market data status: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
 @router.get("/crypto/markets")
 async def get_crypto_markets():
     """Get top cryptos with details for dashboard"""
