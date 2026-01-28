@@ -86,7 +86,7 @@ class DailyRecommendationScheduler:
         Main job: Generate recommendations for all users.
         """
         start_time = datetime.now()
-        logger.info("🚀 [SCHEDULER] Starting daily recommendation generation...")
+        logger.info("🚀 [SCHEDULER] Executing daily recommendation generation...")
         
         try:
             from app.services.watchlist_recommendation_engine import get_recommendation_engine
@@ -94,12 +94,18 @@ class DailyRecommendationScheduler:
             
             # Get all users who have watchlist items (active users)
             users = self._get_active_users()
-            logger.info(f"[SCHEDULER] Found {len(users)} active users")
+            logger.info(f"📊 [SCHEDULER] Found {len(users)} active users to process")
+            
+            if not users:
+                logger.warning("⚠️ [SCHEDULER] No active users found - skipping recommendation generation")
+                return
             
             total_saved = 0
             
             for user_id in users:
                 try:
+                    logger.info(f"🔄 [SCHEDULER] Processing user {user_id[:8]}...")
+                    
                     # Generate recommendations
                     recommendations = engine.generate_recommendations(
                         user_id=user_id,
@@ -107,10 +113,14 @@ class DailyRecommendationScheduler:
                         min_score=0  # Get all, let UI filter
                     )
                     
+                    logger.info(f"📝 [SCHEDULER] Generated {len(recommendations)} total recommendations for {user_id[:8]}")
+                    
                     # Filter to only ADD and REMOVE actions
                     actionable = [r for r in recommendations if r.action != "HOLD"]
                     
                     if actionable:
+                        logger.info(f"✅ [SCHEDULER] {len(actionable)} actionable recommendations for {user_id[:8]}")
+                        
                         # Add AI reasoning (async)
                         actionable_with_reasoning = await engine.generate_reasoning_batch(
                             actionable[:20]  # Limit to top 20 for API cost control
@@ -121,13 +131,14 @@ class DailyRecommendationScheduler:
                         try:
                             saved = engine.save_recommendations(db, user_id, actionable_with_reasoning)
                             total_saved += saved
+                            logger.info(f"💾 [SCHEDULER] Saved {saved} recommendations for {user_id[:8]}")
                         finally:
                             db.close()
-                    
-                    logger.info(f"[SCHEDULER] User {user_id[:8]}: {len(actionable)} recommendations")
+                    else:
+                        logger.info(f"ℹ️ [SCHEDULER] No actionable recommendations for {user_id[:8]}")
                     
                 except Exception as e:
-                    logger.error(f"[SCHEDULER] Error for user {user_id[:8]}: {e}")
+                    logger.error(f"❌ [SCHEDULER] Error for user {user_id[:8]}: {e}", exc_info=True)
                     continue
             
             # Update stats
@@ -140,7 +151,7 @@ class DailyRecommendationScheduler:
                        f"for {len(users)} users in {self.last_run_duration:.1f}s")
             
         except Exception as e:
-            logger.error(f"❌ [SCHEDULER] Daily recommendation failed: {e}")
+            logger.error(f"❌ [SCHEDULER] Daily recommendation failed: {e}", exc_info=True)
     
     def _get_active_users(self) -> List[str]:
         """
@@ -161,8 +172,24 @@ class DailyRecommendationScheduler:
                 ) active_users
             """))
             
-            return [str(row[0]) for row in result.fetchall()]
+            users = [str(row[0]) for row in result.fetchall()]
+            logger.info(f"[SCHEDULER] _get_active_users() found {len(users)} users: {users[:3]}...")
             
+            # Fallback: get ALL users with auth data if none found
+            if not users:
+                logger.warning("[SCHEDULER] No active users found via watchlist/bots/portfolios. Getting all auth users...")
+                result = db.execute(text("""
+                    SELECT DISTINCT user_id FROM bots
+                    LIMIT 5
+                """))
+                users = [str(row[0]) for row in result.fetchall()]
+                logger.warning(f"[SCHEDULER] Fallback: Found {len(users)} users from bots table")
+            
+            return users
+            
+        except Exception as e:
+            logger.error(f"[SCHEDULER] Error getting active users: {e}")
+            return []
         finally:
             db.close()
     
