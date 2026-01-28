@@ -341,6 +341,42 @@ async def lifespan(app: FastAPI):
             except Exception as create_error:
                 logger.error(f"❌ Failed to create crypto recommendation tables: {create_error}")
         
+        # Check if crypto_market_data volume column has increased precision (migration 014)
+        try:
+            # Try to insert a large volume number to test the column precision
+            result = db.execute(text("SELECT data_type FROM information_schema.columns WHERE table_name='crypto_market_data' AND column_name='volume'"))
+            row = result.fetchone()
+            if row and row[0]:
+                column_type = row[0]
+                if "35" in column_type or "30" in column_type or "numeric" in column_type:
+                    logger.info("[OK] crypto_market_data volume column has sufficient precision")
+                else:
+                    # Need to upgrade precision
+                    logger.info(f"⚙️ Upgrading volume column precision (current: {column_type})...")
+                    migration_paths = [
+                        "/app/database/migrations/014_increase_volume_precision.sql",
+                        "database/migrations/014_increase_volume_precision.sql",
+                        pathlib.Path(__file__).parent.parent.parent / "database/migrations/014_increase_volume_precision.sql"
+                    ]
+                    
+                    migration_sql = None
+                    for path in migration_paths:
+                        try:
+                            migration_sql = open(path).read()
+                            logger.info(f"✅ Found migration at: {path}")
+                            break
+                        except:
+                            continue
+                    
+                    if migration_sql:
+                        db.execute(text(migration_sql))
+                        db.commit()
+                        logger.info("✅ Volume column precision upgraded to DECIMAL(35,8)")
+                    else:
+                        logger.warning(f"⚠️ Could not find volume precision migration file")
+        except Exception as precision_error:
+            logger.warning(f"⚠️ Volume column precision check failed: {precision_error}")
+        
         db.close()
     except Exception as e:
         logger.warning(f"⚠️ Could not verify/create tables: {e}")
