@@ -389,7 +389,52 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"[ERROR] Failed to start GlobalTradeMonitor: {e}")
     
-    # Initialize AI Agent if enabled
+    # ===== START RECOMMENDATION CRYPTO SYSTEM =====
+    recommendation_enabled = os.getenv("RECOMMENDATION_ENABLE", "true").lower() == "true"
+    if recommendation_enabled:
+        try:
+            # Check if crypto_market_data has data (needs bootstrap)
+            db_check = SessionLocal()
+            result = db_check.execute(text("SELECT COUNT(*) FROM crypto_market_data"))
+            market_data_count = result.scalar()
+            db_check.close()
+            
+            if market_data_count == 0:
+                logger.warning("⚠️  Crypto market data is EMPTY - bootstrap needed!")
+                logger.warning("   Run: python -c 'from app.services.market_data_bootstrapper import bootstrap_market_data; bootstrap_market_data()'")
+            else:
+                logger.info(f"✅ Crypto market data ready: {market_data_count:,} candles loaded")
+            
+            # Start Market Data Updater (async background job - updates every 4 hours)
+            try:
+                from app.services.market_data_updater import MarketDataUpdater
+                market_data_updater = MarketDataUpdater(db_session_factory=SessionLocal)
+                asyncio.create_task(market_data_updater.start())
+                app.state.market_data_updater = market_data_updater
+                logger.info("✅ Market Data Updater started (updates every 4 hours)")
+            except Exception as e:
+                logger.error(f"❌ Failed to start Market Data Updater: {e}")
+            
+            # Start Daily Recommendation Scheduler (APScheduler - runs at 08:00 UTC daily)
+            try:
+                from app.services.daily_recommendation_scheduler import DailyRecommendationScheduler
+                recommendation_time = os.getenv("RECOMMENDATION_DAILY_TIME", "08:00")
+                scheduler = DailyRecommendationScheduler(
+                    db_session_factory=SessionLocal,
+                    scheduled_time=recommendation_time  # e.g., "08:00"
+                )
+                asyncio.create_task(scheduler.start())
+                app.state.recommendation_scheduler = scheduler
+                logger.info(f"✅ Daily Recommendation Scheduler started (daily at {recommendation_time} UTC)")
+            except Exception as e:
+                logger.error(f"❌ Failed to start Daily Recommendation Scheduler: {e}")
+            
+            logger.info("✓ Recommendation system initialized")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Recommendation system: {e}")
+    else:
+        logger.info("[SKIP] Recommendation system disabled (set RECOMMENDATION_ENABLE=true to enable)")
+    
     if os.getenv("AI_AGENT_ENABLED", "true").lower() == "true":
         try:
             api_key = os.getenv("DEEPSEEK_API_KEY")
@@ -492,6 +537,22 @@ async def lifespan(app: FastAPI):
         logger.info("[OK] Portfolio Sync Service stopped")
     except Exception as e:
         logger.debug(f"Error stopping portfolio sync service: {e}")
+    
+    # Stop recommendation scheduler
+    try:
+        if hasattr(app.state, 'recommendation_scheduler') and app.state.recommendation_scheduler:
+            await app.state.recommendation_scheduler.stop()
+            logger.info("[OK] Recommendation Scheduler stopped")
+    except Exception as e:
+        logger.debug(f"Error stopping recommendation scheduler: {e}")
+    
+    # Stop market data updater
+    try:
+        if hasattr(app.state, 'market_data_updater') and app.state.market_data_updater:
+            await app.state.market_data_updater.stop()
+            logger.info("[OK] Market Data Updater stopped")
+    except Exception as e:
+        logger.debug(f"Error stopping market data updater: {e}")
     
     # Stop all per-user AI Agents and Controllers
     from app.services.ai_agent_manager import ai_agent_manager
