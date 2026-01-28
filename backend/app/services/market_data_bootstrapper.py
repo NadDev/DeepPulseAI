@@ -215,29 +215,6 @@ class MarketDataBootstrapper:
         self, 
         symbol: str, 
         days: int = 730,
-        timeframes: List[str] = None
-    ) -> Tuple[int, int]:
-        """
-        Bootstrap historical data for a single symbol.
-        
-        Args:
-            symbol: Trading pair
-            days: Number of days of history to fetch
-            timeframes: List of timeframes to fetch
-            
-        Returns:
-            Tuple of (inserted_count, skipped_count)
-        """
-        timeframes = timeframes or self.TIMEFRAMES
-        inserted = 0
-        skipped = 0
-        
-        db = self.db_session_factory()
-        
-async def bootstrap_symbol(
-        self, 
-        symbol: str, 
-        days: int = 730,
         timeframes: List[str] = None,
         force_full: bool = False
     ) -> Tuple[int, int]:
