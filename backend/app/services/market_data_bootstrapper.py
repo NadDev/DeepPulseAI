@@ -356,4 +356,10 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(asctime)s | %(levelname)s | %(message)s"
     )
+    
+    # Fix for Windows async DNS issue
+    import sys
+    if sys.platform == 'win32':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    
     asyncio.run(main())
