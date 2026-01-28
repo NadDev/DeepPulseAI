@@ -423,12 +423,11 @@ async def lifespan(app: FastAPI):
                 from app.services.recommendation_scheduler import DailyRecommendationScheduler
                 recommendation_time = os.getenv("RECOMMENDATION_DAILY_TIME", "08:00")
                 scheduler = DailyRecommendationScheduler(
-                    db_session_factory=SessionLocal,
-                    scheduled_time=recommendation_time  # e.g., "08:00"
+                    db_session_factory=SessionLocal
                 )
                 # Start in background without blocking startup
                 import asyncio as asyncio_module
-                asyncio_module.create_task(scheduler.start())
+                asyncio_module.create_task(scheduler.start(run_time=recommendation_time))
                 app.state.recommendation_scheduler = scheduler
                 logger.info(f"✅ Daily Recommendation Scheduler started (daily at {recommendation_time} UTC)")
             except Exception as e:
