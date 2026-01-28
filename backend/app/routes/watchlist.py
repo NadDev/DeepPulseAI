@@ -773,7 +773,7 @@ async def generate_recommendations_now(
 ):
     """
     Manually trigger recommendation generation for the current user
-    Useful for testing without waiting for scheduled time (21:15 UTC)
+    Useful for testing without waiting for scheduled time
     
     Returns the number of recommendations generated
     """
@@ -782,10 +782,13 @@ async def generate_recommendations_now(
         logger.info(f"📊 [TRIGGER] Manual recommendation generation requested by {user_uuid}")
         
         # Import here to avoid circular imports
-        from app.services.watchlist_recommendation_engine import WatchlistRecommendationEngine
+        from app.services.watchlist_recommendation_engine import get_recommendation_engine
+        from app.db.database import SessionLocal
+        
+        # Get the engine with proper session factory
+        engine = get_recommendation_engine(SessionLocal)
         
         # Generate recommendations for this user
-        engine = WatchlistRecommendationEngine(db)
         recommendations = engine.generate_recommendations(user_id=str(user_uuid))
         
         logger.info(f"✅ [TRIGGER] Generated {len(recommendations)} recommendations for user {user_uuid}")
