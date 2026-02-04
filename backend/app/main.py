@@ -249,6 +249,38 @@ async def lifespan(app: FastAPI):
         except Exception as fk_error:
             logger.warning(f"⚠️ FK constraint check/removal failed (may be normal): {fk_error}")
         
+        # Fix users table for local auth - ensure username and password_hash columns exist (migration 015)
+        try:
+            db.execute(text("SELECT username, password_hash FROM users LIMIT 1"))
+            logger.info("[OK] users table has username and password_hash columns")
+        except Exception as check_error:
+            try:
+                logger.info(f"⚙️ Adding missing columns to users table for local authentication...")
+                
+                migration_paths = [
+                    "/app/database/migrations/015_fix_users_table_for_local_auth.sql",
+                    "database/migrations/015_fix_users_table_for_local_auth.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/015_fix_users_table_for_local_auth.sql"
+                ]
+                
+                migration_sql = None
+                for path in migration_paths:
+                    try:
+                        migration_sql = open(path).read()
+                        logger.info(f"✅ Found migration at: {path}")
+                        break
+                    except:
+                        continue
+                
+                if migration_sql:
+                    db.execute(text(migration_sql))
+                    db.commit()
+                    logger.info("✅ users table columns fixed successfully")
+                else:
+                    logger.error(f"❌ Could not find users table migration file")
+            except Exception as create_error:
+                logger.error(f"❌ Failed to fix users table columns: {create_error}")
+        
         # Check if user_trading_settings table exists, if not create it
         try:
             db.execute(text("SELECT 1 FROM user_trading_settings LIMIT 1"))

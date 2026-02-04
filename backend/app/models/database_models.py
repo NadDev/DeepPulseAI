@@ -14,8 +14,8 @@ class User(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     email = Column(String(255), unique=True, index=True, nullable=False)
-    username = Column(String(255), unique=True, index=True, nullable=False)
-    password_hash = Column(String(255), nullable=False)  # bcrypt hashed password
+    username = Column(String(255), unique=True, index=True, nullable=True)  # Nullable for existing users
+    password_hash = Column(String(255), nullable=True)  # bcrypt hashed password - nullable for existing users
     created_at = Column(DateTime, server_default=func.now(), index=True)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     
