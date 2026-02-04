@@ -37,6 +37,11 @@ class UserLogin(BaseModel):
     password: str
 
 
+class PasswordReset(BaseModel):
+    email: EmailStr
+    new_password: str
+
+
 class UserResponse(BaseModel):
     id: str
     email: str
@@ -203,8 +208,24 @@ async def login_user(data: UserLogin, db: Session) -> AuthResponse:
         # Find user by email
         user = db.query(User).filter(User.email == data.email).first()
         
-        if not user or not PasswordHasher.verify_password(data.password, user.password_hash):
-            logger.warning(f"⚠️ [AUTH] Failed login attempt for email: {data.email}")
+        if not user:
+            logger.warning(f"⚠️ [AUTH] Failed login attempt for email: {data.email} - user not found")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password"
+            )
+        
+        # Check if user has a password_hash (new users have it, existing users might not)
+        if not user.password_hash:
+            logger.warning(f"⚠️ [AUTH] Login attempt for user without password_hash: {data.email}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Password not set. Please use 'Forgot password' to create a new password."
+            )
+        
+        # Verify password
+        if not PasswordHasher.verify_password(data.password, user.password_hash):
+            logger.warning(f"⚠️ [AUTH] Failed login attempt for email: {data.email} - invalid password")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password"
@@ -280,6 +301,43 @@ async def refresh_token(data: TokenRefresh, db: Session) -> AuthResponse:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token refresh failed"
+        )
+
+
+async def reset_password(data: PasswordReset, db: Session) -> dict:
+    """Reset password for users without one or forgot password"""
+    try:
+        # Find user by email
+        user = db.query(User).filter(User.email == data.email).first()
+        
+        if not user:
+            logger.warning(f"⚠️ [AUTH] Password reset attempted for non-existent user: {data.email}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Hash and update password
+        password_hash = PasswordHasher.hash_password(data.new_password)
+        user.password_hash = password_hash
+        db.commit()
+        
+        logger.info(f"✅ [AUTH] Password reset for user: {user.email}")
+        
+        return {
+            "success": True,
+            "message": "Password has been set successfully. You can now log in.",
+            "user_id": str(user.id),
+            "email": user.email
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ [AUTH] Password reset error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to reset password"
         )
 
 

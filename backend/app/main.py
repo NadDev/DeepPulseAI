@@ -281,6 +281,34 @@ async def lifespan(app: FastAPI):
             except Exception as create_error:
                 logger.error(f"❌ Failed to fix users table columns: {create_error}")
         
+        # Populate defaults for existing users (migration 016)
+        try:
+            logger.info("⚙️ Populating username defaults for existing users...")
+            
+            migration_paths = [
+                "/app/database/migrations/016_populate_users_defaults.sql",
+                "database/migrations/016_populate_users_defaults.sql",
+                pathlib.Path(__file__).parent.parent.parent / "database/migrations/016_populate_users_defaults.sql"
+            ]
+            
+            migration_sql = None
+            for path in migration_paths:
+                try:
+                    migration_sql = open(path).read()
+                    logger.info(f"✅ Found migration at: {path}")
+                    break
+                except:
+                    continue
+            
+            if migration_sql:
+                db.execute(text(migration_sql))
+                db.commit()
+                logger.info("✅ User defaults populated successfully")
+            else:
+                logger.warning(f"⚠️ Could not find users defaults migration file")
+        except Exception as populate_error:
+            logger.warning(f"⚠️ Failed to populate user defaults: {populate_error}")
+        
         # Check if user_trading_settings table exists, if not create it
         try:
             db.execute(text("SELECT 1 FROM user_trading_settings LIMIT 1"))

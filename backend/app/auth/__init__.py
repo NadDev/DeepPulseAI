@@ -7,11 +7,13 @@ from app.auth.local_auth import (
     register_user,
     login_user,
     refresh_token,
+    reset_password,
     UserRegister,
     UserLogin,
     UserResponse,
     AuthResponse,
-    TokenRefresh
+    TokenRefresh,
+    PasswordReset
 )
 
 __all__ = [
@@ -19,9 +21,11 @@ __all__ = [
     "register_user",
     "login_user",
     "refresh_token",
+    "reset_password",
     "UserRegister",
     "UserLogin",
     "UserResponse",
     "AuthResponse",
-    "TokenRefresh"
+    "TokenRefresh",
+    "PasswordReset"
 ]

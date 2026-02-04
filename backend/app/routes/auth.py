@@ -8,11 +8,13 @@ from app.auth import (
     register_user,
     login_user,
     refresh_token,
+    reset_password,
     get_current_user,
     UserRegister,
     UserLogin,
     UserResponse,
     AuthResponse,
+    PasswordReset,
     TokenRefresh
 )
 from app.db.database import get_db
@@ -86,3 +88,17 @@ async def verify_token(current_user: UserResponse = Depends(get_current_user)):
         "user_id": current_user.id,
         "email": current_user.email
     }
+
+
+@router.post("/password-reset")
+async def password_reset(
+    data: PasswordReset,
+    db: Session = Depends(get_db)
+):
+    """
+    Reset password for users without one (existing users) or forgot password.
+    
+    - **email**: User email address
+    - **new_password**: New password (min 6 characters)
+    """
+    return await reset_password(data, db)
