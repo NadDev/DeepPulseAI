@@ -4,7 +4,8 @@
  * Communicates with backend /api/auth endpoints for authentication
  * Uses JWT tokens stored in localStorage
  * 
- * Version: 1.0.1 - Updated with password reset support
+ * Version: 1.0.2 - Fixed password reset endpoint URL
+ * Last updated: 2026-02-04
  */
 
 import { config } from '../config';

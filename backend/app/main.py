@@ -249,10 +249,10 @@ async def lifespan(app: FastAPI):
         except Exception as fk_error:
             logger.warning(f"⚠️ FK constraint check/removal failed (may be normal): {fk_error}")
         
-        # Fix users table for local auth - ensure username and password_hash columns exist (migration 015)
+        # Fix users table for local auth - ensure username, password_hash, and updated_at columns exist (migration 015)
         try:
-            db.execute(text("SELECT username, password_hash FROM users LIMIT 1"))
-            logger.info("[OK] users table has username and password_hash columns")
+            db.execute(text("SELECT username, password_hash, updated_at FROM users LIMIT 1"))
+            logger.info("[OK] users table has username, password_hash, and updated_at columns")
         except Exception as check_error:
             try:
                 logger.info(f"⚙️ Adding missing columns to users table for local authentication...")
