@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Loader2, TrendingUp } from 'lucide-react';
-import { supabase } from '../services/supabaseClient';
 import '../styles/RecommendationStatsWidget.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -9,13 +8,13 @@ const RecommendationStatsWidget = ({ onViewMore }) => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Get auth headers
-  const getAuthHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) return null;
+  // Get auth headers from localStorage
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return null;
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.access_token}`,
+      'Authorization': `Bearer ${token}`,
     };
   };
 
@@ -26,7 +25,7 @@ const RecommendationStatsWidget = ({ onViewMore }) => {
   const loadStats = async () => {
     try {
       setLoading(true);
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       if (!headers) {
         setLoading(false);
         return;

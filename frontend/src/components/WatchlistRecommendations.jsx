@@ -7,7 +7,6 @@ import {
   TrendingUp,
   Loader2
 } from 'lucide-react';
-import { supabase } from '../services/supabaseClient';
 import '../styles/WatchlistRecommendations.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -19,13 +18,13 @@ const WatchlistRecommendations = ({ onRecommendationAccepted }) => {
   const [processing, setProcessing] = useState(null);
   const [dismissedIds, setDismissedIds] = useState(new Set());
 
-  // Get auth headers
-  const getAuthHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error('Not authenticated');
+  // Get auth headers from localStorage
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) throw new Error('Not authenticated');
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.access_token}`,
+      'Authorization': `Bearer ${token}`,
     };
   };
 
@@ -34,7 +33,7 @@ const WatchlistRecommendations = ({ onRecommendationAccepted }) => {
     try {
       setLoading(true);
       setError(null);
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       
       const response = await fetch(
         `${API_URL}/api/watchlist/recommendations/pending?limit=50`,
@@ -65,7 +64,7 @@ const WatchlistRecommendations = ({ onRecommendationAccepted }) => {
   const handleAccept = async (recommendationId, symbol) => {
     try {
       setProcessing(recommendationId);
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
 
       const response = await fetch(
         `${API_URL}/api/watchlist/recommendations/${recommendationId}/accept`,
@@ -98,7 +97,7 @@ const WatchlistRecommendations = ({ onRecommendationAccepted }) => {
   const handleReject = async (recommendationId) => {
     try {
       setProcessing(recommendationId);
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
 
       const response = await fetch(
         `${API_URL}/api/watchlist/recommendations/${recommendationId}/reject`,

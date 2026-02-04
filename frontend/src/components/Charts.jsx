@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { cryptoAPI } from '../services/api';
 import { watchlistAPI } from '../services/watchlistAPI';
-import { supabase } from '../services/supabaseClient';
 import MLPredictions from './MLPredictions';
 import AdvancedAnalysis from './AdvancedAnalysis';
 import { calculateElliottWaves } from '../utils/technicalAnalysis';
@@ -64,14 +63,14 @@ function Charts() {
       console.log('🔄 [WATCHLIST] Starting load...');
       
       // First check if user is authenticated
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        console.warn('⚠️ [WATCHLIST] No session found - user not authenticated - using defaults');
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        console.warn('⚠️ [WATCHLIST] No token found - user not authenticated - using defaults');
         setCoins(DEFAULT_COINS);
         setSelectedCoin('BTC');
         return;
       }
-      console.log('✅ [WATCHLIST] User authenticated:', session.user.email);
+      console.log('✅ [WATCHLIST] User authenticated (token exists)');
       
       const watchlistData = await watchlistAPI.getWatchlist();
       console.log('📋 [WATCHLIST] RAW DATA:', watchlistData);
