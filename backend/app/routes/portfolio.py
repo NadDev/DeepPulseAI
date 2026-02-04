@@ -4,7 +4,7 @@ from app.db.database import get_db
 from app.models.database_models import Portfolio, Trade, Bot
 from app.services.risk_calculator import RiskCalculator
 from app.services.market_data import MarketDataCollector
-from app.auth.supabase_auth import get_current_user, get_optional_user, UserResponse
+from app.auth.local_auth import get_current_user, get_optional_user, UserResponse
 from sqlalchemy import desc
 from datetime import datetime, timedelta
 from pydantic import BaseModel

@@ -4,7 +4,7 @@ from sqlalchemy import desc
 from app.services.ml_engine import ml_engine
 from app.models.database_models import MLPrediction, WatchlistItem
 from app.db.database import get_db
-from app.auth.supabase_auth import get_current_user, UserResponse
+from app.auth.local_auth import get_current_user, UserResponse
 from typing import Dict, Optional, List
 from datetime import datetime, timedelta
 

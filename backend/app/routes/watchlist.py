@@ -9,7 +9,7 @@ from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
 from app.db.database import get_db
-from app.auth.supabase_auth import get_current_user, UserResponse
+from app.auth.local_auth import get_current_user, UserResponse
 from app.models.database_models import WatchlistItem
 from app.services import ai_bot_controller as ai_bot_controller_module
 import logging

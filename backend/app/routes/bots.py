@@ -6,7 +6,7 @@ from app.db.database import get_db
 from app.models.database_models import Bot, Trade, StrategyPerformance, Portfolio
 from app.services.strategies import StrategyRegistry
 from app.services import bot_engine as bot_engine_module
-from app.auth.supabase_auth import get_current_user, get_optional_user, UserResponse
+from app.auth.local_auth import get_current_user, get_optional_user, UserResponse
 from sqlalchemy import desc
 from datetime import datetime
 import json

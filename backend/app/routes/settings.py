@@ -18,7 +18,7 @@ from uuid import UUID
 import logging
 
 from app.db.database import get_db
-from app.auth.supabase_auth import get_current_user, UserResponse
+from app.auth.local_auth import get_current_user, UserResponse
 from app.models.database_models import (
     UserTradingSettings, 
     SLTPProfilePreset,

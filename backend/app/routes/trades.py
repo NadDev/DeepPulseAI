@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from app.db.database import get_db
 from app.models.database_models import Trade, Bot
-from app.auth.supabase_auth import get_current_user, get_optional_user, UserResponse
+from app.auth.local_auth import get_current_user, get_optional_user, UserResponse
 from pydantic import BaseModel
 from typing import Optional, List
 

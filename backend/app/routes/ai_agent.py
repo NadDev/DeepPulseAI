@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 from app.db.database import get_db
-from app.auth.supabase_auth import get_current_user, UserResponse
+from app.auth.local_auth import get_current_user, UserResponse
 from app.services import ai_agent as ai_agent_module
 from app.services.ai_agent_manager import ai_agent_manager
 from app.services.ai_bot_controller import get_ai_bot_controller

@@ -392,3 +392,41 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication failed"
         )
+
+
+async def get_optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: Session = Depends(get_db)
+) -> Optional[UserResponse]:
+    """
+    Optional dependency - returns user if authenticated, None if not
+    Used for endpoints that work both with and without authentication
+    """
+    if not credentials:
+        return None
+    
+    token = credentials.credentials
+    
+    try:
+        payload = TokenManager.verify_token(token)
+        user_id = payload.get("sub")
+        
+        if not user_id:
+            return None
+        
+        # Fetch user from database
+        user = db.query(User).filter(User.id == user_id).first()
+        
+        if not user:
+            return None
+        
+        return UserResponse(
+            id=str(user.id),
+            email=user.email,
+            username=user.username,
+            created_at=user.created_at.isoformat() if user.created_at else None
+        )
+        
+    except Exception as e:
+        logger.debug(f"Optional user authentication failed (this is OK): {e}")
+        return None

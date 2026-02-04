@@ -8,7 +8,7 @@ from pydantic import BaseModel, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from app.db.database import get_db
-from app.auth.supabase_auth import get_current_user, UserResponse
+from app.auth.local_auth import get_current_user, UserResponse
 from app.models.database_models import ExchangeConfig
 from app.services.crypto_service import get_crypto_service
 import logging
