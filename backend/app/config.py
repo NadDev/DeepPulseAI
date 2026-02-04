@@ -65,10 +65,7 @@ class Settings:
         ]
     else:  # production
         ALLOWED_ORIGINS = [
-            "https://deep-pulse-ai.vercel.app",
-            "https://*.vercel.app",
-            "https://yourapp.com",
-            "https://www.yourapp.com",
+            "https://deep-pulse-ai.vercel.app",  # Production domain (stable)
         ]
     
     # ========== RATE LIMITING ==========
