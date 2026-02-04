@@ -52,4 +52,4 @@ croniter>=2.0.1
 ccxt>=4.0.0
 
 # Security & Encryption
-cryptography>=41.0.0
+cryptography>=41.0.0bcrypt>=4.1.0  # Password hashing for local authentication

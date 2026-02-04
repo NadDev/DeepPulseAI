@@ -4,15 +4,14 @@
  */
 
 import { config } from '../config';
-import { supabase } from './supabaseClient';
 
 const API_BASE_URL = config.API_URL;
 
-// Helper to get auth headers
-const getAuthHeaders = async () => {
-  const { data: { session } } = await supabase.auth.getSession();
+// Helper to get auth headers from localStorage JWT token
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('access_token');
   return {
-    'Authorization': session?.access_token ? `Bearer ${session.access_token}` : '',
+    'Authorization': token ? `Bearer ${token}` : '',
     'Content-Type': 'application/json'
   };
 };
@@ -23,7 +22,7 @@ export const exchangeAPI = {
    */
   getSupportedExchanges: async () => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/exchange/supported`, { headers });
       if (!response.ok) throw new Error('Failed to fetch supported exchanges');
       return response.json();
@@ -38,7 +37,7 @@ export const exchangeAPI = {
    */
   getConfigs: async () => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/exchange/configs`, { headers });
       if (!response.ok) throw new Error('Failed to fetch exchange configs');
       return response.json();
@@ -53,7 +52,7 @@ export const exchangeAPI = {
    */
   createConfig: async (configData) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/exchange/configs`, {
         method: 'POST',
         headers,
@@ -75,7 +74,7 @@ export const exchangeAPI = {
    */
   updateConfig: async (configId, configData) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/exchange/configs/${configId}`, {
         method: 'PUT',
         headers,
@@ -97,7 +96,7 @@ export const exchangeAPI = {
    */
   deleteConfig: async (configId) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/exchange/configs/${configId}`, {
         method: 'DELETE',
         headers
@@ -115,7 +114,7 @@ export const exchangeAPI = {
    */
   testConnection: async (testData) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/exchange/test-connection`, {
         method: 'POST',
         headers,
@@ -134,7 +133,7 @@ export const exchangeAPI = {
    */
   toggleActive: async (configId) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/exchange/configs/${configId}/toggle`, {
         method: 'POST',
         headers

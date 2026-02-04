@@ -4,15 +4,14 @@
  */
 
 import { config } from '../config';
-import { supabase } from './supabaseClient';
 
 const API_BASE_URL = config.API_URL;
 
-// Helper to get auth headers
-const getAuthHeaders = async () => {
-  const { data: { session } } = await supabase.auth.getSession();
+// Helper to get auth headers from localStorage JWT token
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('access_token');
   return {
-    'Authorization': session?.access_token ? `Bearer ${session.access_token}` : '',
+    'Authorization': token ? `Bearer ${token}` : '',
     'Content-Type': 'application/json'
   };
 };
@@ -21,7 +20,7 @@ export const aiAPI = {
   // Status and General Info
   getStatus: async () => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/status`, { headers });
       if (!response.ok) throw new Error('Failed to fetch AI status');
       return response.json();
@@ -34,7 +33,7 @@ export const aiAPI = {
   // Analysis
   analyzeMarket: async (symbol) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/analyze`, {
         method: 'POST',
         headers,
@@ -51,7 +50,7 @@ export const aiAPI = {
   // Chat Interface
   chat: async (message) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/chat`, {
         method: 'POST',
         headers,
@@ -68,7 +67,7 @@ export const aiAPI = {
   // Get Recommendations (Market Analysis)
   getRecommendations: async (minConfidence = 50, limit = 10) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(
         `${API_BASE_URL}/ai-agent/analyze-watchlist?min_confidence=${minConfidence}&limit=${limit}`, 
         { 
@@ -88,7 +87,7 @@ export const aiAPI = {
   // Analyze Watchlist - NEW ENDPOINT
   analyzeWatchlist: async (limit = 10, minConfidence = 50) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(
         `${API_BASE_URL}/ai-agent/analyze-watchlist?limit=${limit}&min_confidence=${minConfidence}`, 
         { 
@@ -107,7 +106,7 @@ export const aiAPI = {
   // Get Decision History
   getDecisionHistory: async (filters = {}) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const params = new URLSearchParams();
       if (filters.symbol) params.append('symbol', filters.symbol);
       if (filters.action) params.append('action', filters.action);
@@ -126,7 +125,7 @@ export const aiAPI = {
   // Get Decision Statistics
   getDecisionStats: async () => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/decisions/stats`, { headers });
       if (!response.ok) throw new Error('Failed to fetch decision stats');
       return response.json();
@@ -139,7 +138,7 @@ export const aiAPI = {
   // Get AI-managed Bots
   getActiveBots: async () => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/bots`, { headers });
       if (!response.ok) throw new Error('Failed to fetch active bots');
       return response.json();
@@ -152,7 +151,7 @@ export const aiAPI = {
   // Toggle AI Mode
   toggleMode: async (mode) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/toggle`, {
         method: 'POST',
         headers,
@@ -169,7 +168,7 @@ export const aiAPI = {
   // Get Configuration
   getConfig: async () => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/config`, { headers });
       if (!response.ok) throw new Error('Failed to fetch configuration');
       return response.json();
@@ -182,7 +181,7 @@ export const aiAPI = {
   // Update Configuration
   updateConfig: async (configUpdates) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/config`, {
         method: 'POST',
         headers,
@@ -199,7 +198,7 @@ export const aiAPI = {
   // Control AI Agent (Start/Stop/Toggle)
   startAgent: async () => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/start`, {
         method: 'POST',
         headers
@@ -214,7 +213,7 @@ export const aiAPI = {
 
   stopAgent: async () => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/stop`, {
         method: 'POST',
         headers
@@ -229,7 +228,7 @@ export const aiAPI = {
 
   toggleAgent: async () => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/toggle`, {
         method: 'POST',
         headers
@@ -245,7 +244,7 @@ export const aiAPI = {
   // AI Bot Controller Control
   startController: async () => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/controller/start`, {
         method: 'POST',
         headers
@@ -260,7 +259,7 @@ export const aiAPI = {
 
   stopController: async () => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/controller/stop`, {
         method: 'POST',
         headers
@@ -275,7 +274,7 @@ export const aiAPI = {
 
   toggleController: async () => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/controller/toggle`, {
         method: 'POST',
         headers
@@ -295,7 +294,7 @@ export const aiAPI = {
   // Toggle Autonomous Mode (AI executes trades directly)
   toggleAutonomousMode: async (enabled) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/autonomous/toggle`, {
         method: 'POST',
         headers,
@@ -312,7 +311,7 @@ export const aiAPI = {
   // Get Autonomous Mode Configuration
   getAutonomousConfig: async () => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/autonomous/config`, { headers });
       if (!response.ok) throw new Error('Failed to fetch autonomous config');
       return response.json();
@@ -325,7 +324,7 @@ export const aiAPI = {
   // Update Autonomous Mode Configuration
   updateAutonomousConfig: async (configUpdates) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/autonomous/config`, {
         method: 'PUT',
         headers,
@@ -342,7 +341,7 @@ export const aiAPI = {
   // Get Autonomous Trading Statistics
   getAutonomousStats: async () => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/ai-agent/autonomous/stats`, { headers });
       if (!response.ok) throw new Error('Failed to fetch autonomous stats');
       return response.json();

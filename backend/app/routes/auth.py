@@ -3,10 +3,10 @@ Authentication Routes
 Handles user registration, login, logout, and token refresh
 """
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 from app.auth import (
     register_user,
     login_user,
-    logout_user,
     refresh_token,
     get_current_user,
     UserRegister,
@@ -15,12 +15,16 @@ from app.auth import (
     AuthResponse,
     TokenRefresh
 )
+from app.db.database import get_db
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
 
 @router.post("/register", response_model=AuthResponse)
-async def register(data: UserRegister):
+async def register(
+    data: UserRegister,
+    db: Session = Depends(get_db)
+):
     """
     Register a new user account.
     
@@ -28,39 +32,40 @@ async def register(data: UserRegister):
     - **password**: Password (min 6 characters)
     - **username**: Optional display name
     """
-    return await register_user(data)
+    return await register_user(data, db)
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(data: UserLogin):
+async def login(
+    data: UserLogin,
+    db: Session = Depends(get_db)
+):
     """
     Login with email and password.
-    
+
     Returns access token and refresh token.
     """
-    return await login_user(data)
+    return await login_user(data, db)
 
 
 @router.post("/logout")
 async def logout(current_user: UserResponse = Depends(get_current_user)):
     """
     Logout current user and invalidate session.
+    Note: Token-based logout - just clear token on client side
     """
-    success = await logout_user("")
-    return {"message": "Logged out successfully", "success": success}
+    return {"message": "Logged out successfully", "success": True}
 
 
 @router.post("/refresh", response_model=AuthResponse)
-async def refresh(data: TokenRefresh):
+async def refresh(
+    data: TokenRefresh,
+    db: Session = Depends(get_db)
+):
     """
     Refresh access token using refresh token.
     """
-    return await refresh_token(data)
-
-
-@router.get("/me", response_model=UserResponse)
-async def get_me(current_user: UserResponse = Depends(get_current_user)):
-    """
+    return await refresh_token(data, db)
     Get current authenticated user profile.
     """
     return current_user

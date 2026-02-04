@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { config } from '../config';
-import { supabase } from './supabaseClient';
 
 const API_BASE_URL = config.API_URL;
 
@@ -9,15 +8,15 @@ const apiClient = axios.create({
   baseURL: API_BASE_URL,
 });
 
-// Add JWT token to all requests
-apiClient.interceptors.request.use(async (req) => {
+// Add JWT token from localStorage to all requests
+apiClient.interceptors.request.use((req) => {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      req.headers.Authorization = `Bearer ${session.access_token}`;
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      req.headers.Authorization = `Bearer ${token}`;
     }
   } catch (error) {
-    console.error('Error getting session:', error);
+    console.error('Error getting auth token:', error);
   }
   return req;
 });

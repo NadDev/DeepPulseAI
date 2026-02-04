@@ -5,7 +5,10 @@
  * Uses JWT tokens stored in localStorage
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { config } from '../config';
+
+// Use base URL without /api since endpoints are /api/auth/...
+const API_BASE_URL = config.API_URL.replace('/api', '');
 
 /**
  * Register a new user

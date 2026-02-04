@@ -1,12 +1,11 @@
 """
 Auth module initialization
+Imports from local_auth (JWT + bcrypt-based authentication)
 """
-from app.auth.supabase_auth import (
+from app.auth.local_auth import (
     get_current_user,
-    get_optional_user,
     register_user,
     login_user,
-    logout_user,
     refresh_token,
     UserRegister,
     UserLogin,
@@ -17,10 +16,8 @@ from app.auth.supabase_auth import (
 
 __all__ = [
     "get_current_user",
-    "get_optional_user", 
     "register_user",
     "login_user",
-    "logout_user",
     "refresh_token",
     "UserRegister",
     "UserLogin",

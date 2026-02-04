@@ -9,7 +9,6 @@ import {
   TrendingUp,
   TrendingDown
 } from 'lucide-react';
-import { supabase } from '../services/supabaseClient';
 import '../styles/RecommendationHistory.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -38,13 +37,13 @@ const RecommendationHistory = () => {
     avgScore: 0
   });
 
-  // Get auth headers
-  const getAuthHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error('Not authenticated');
+  // Get auth headers from localStorage JWT token
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) throw new Error('Not authenticated');
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.access_token}`,
+      'Authorization': `Bearer ${token}`,
     };
   };
 
@@ -53,7 +52,7 @@ const RecommendationHistory = () => {
     try {
       setLoading(true);
       setError(null);
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       
       const offset = page * pageSize;
       const response = await fetch(

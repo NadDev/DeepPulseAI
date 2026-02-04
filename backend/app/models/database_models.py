@@ -4,6 +4,25 @@ from sqlalchemy.sql import func
 import uuid
 from app.db.database import Base
 
+
+class User(Base):
+    """
+    User model for local authentication
+    Stores user credentials and profile information
+    """
+    __tablename__ = "users"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    username = Column(String(255), unique=True, index=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)  # bcrypt hashed password
+    created_at = Column(DateTime, server_default=func.now(), index=True)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    
+    def __repr__(self):
+        return f"<User id={self.id} email={self.email} username={self.username}>"
+
+
 class Portfolio(Base):
     __tablename__ = "portfolios"
     

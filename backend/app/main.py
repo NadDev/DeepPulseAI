@@ -177,6 +177,78 @@ async def lifespan(app: FastAPI):
             except Exception as create_error:
                 logger.error(f"❌ Failed to create AI system user: {create_error}")
         
+        # Check if users table has password_hash column (migration 012 - local auth support)
+        try:
+            db.execute(text("SELECT password_hash FROM users LIMIT 1"))
+            logger.info("[OK] users table has password_hash column")
+        except Exception as check_error:
+            try:
+                logger.info(f"⚙️ Adding password_hash column to users table for local authentication...")
+                
+                migration_paths = [
+                    "/app/database/migrations/012_add_password_hash_to_users.sql",
+                    "database/migrations/012_add_password_hash_to_users.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/012_add_password_hash_to_users.sql"
+                ]
+                
+                migration_sql = None
+                for path in migration_paths:
+                    try:
+                        migration_sql = open(path).read()
+                        logger.info(f"✅ Found migration at: {path}")
+                        break
+                    except:
+                        continue
+                
+                if migration_sql:
+                    db.execute(text(migration_sql))
+                    db.commit()
+                    logger.info("✅ password_hash column added to users table")
+                else:
+                    logger.error(f"❌ Could not find password_hash migration file")
+            except Exception as create_error:
+                logger.error(f"❌ Failed to add password_hash column: {create_error}")
+        
+        # Drop Supabase auth.users FK constraints (migration 013)
+        try:
+            # Check if FK constraints exist by looking for constraint names
+            result = db.execute(text("""
+                SELECT constraint_name FROM information_schema.table_constraints 
+                WHERE table_name IN ('bots', 'trades', 'portfolios', 'sentiment_data', 'risk_events', 'strategy_performance', 'broker_connections')
+                AND constraint_type = 'FOREIGN KEY'
+                AND constraint_name LIKE '%user%'
+            """))
+            fk_constraints = [row[0] for row in result.fetchall()]
+            
+            if fk_constraints:
+                logger.info(f"⚙️ Found {len(fk_constraints)} auth.users FK constraints - removing...")
+                
+                migration_paths = [
+                    "/app/database/migrations/013_drop_auth_users_fk.sql",
+                    "database/migrations/013_drop_auth_users_fk.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/013_drop_auth_users_fk.sql"
+                ]
+                
+                migration_sql = None
+                for path in migration_paths:
+                    try:
+                        migration_sql = open(path).read()
+                        logger.info(f"✅ Found migration at: {path}")
+                        break
+                    except:
+                        continue
+                
+                if migration_sql:
+                    db.execute(text(migration_sql))
+                    db.commit()
+                    logger.info("✅ Supabase auth.users FK constraints removed successfully")
+                else:
+                    logger.warning(f"⚠️ Could not find FK constraint migration file")
+            else:
+                logger.info("[OK] No Supabase auth.users FK constraints found")
+        except Exception as fk_error:
+            logger.warning(f"⚠️ FK constraint check/removal failed (may be normal): {fk_error}")
+        
         # Check if user_trading_settings table exists, if not create it
         try:
             db.execute(text("SELECT 1 FROM user_trading_settings LIMIT 1"))
