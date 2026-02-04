@@ -66,6 +66,11 @@ async def refresh(
     Refresh access token using refresh token.
     """
     return await refresh_token(data, db)
+
+
+@router.get("/me", response_model=UserResponse)
+async def get_current_user_profile(current_user: UserResponse = Depends(get_current_user)):
+    """
     Get current authenticated user profile.
     """
     return current_user
