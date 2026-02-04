@@ -574,8 +574,18 @@ async def lifespan(app: FastAPI):
             db_check.close()
             
             if market_data_count == 0:
-                logger.warning("⚠️  Crypto market data is EMPTY - bootstrap needed!")
-                logger.warning("   Run: python -c 'from app.services.market_data_bootstrapper import bootstrap_market_data; bootstrap_market_data()'")
+                logger.warning("⚠️  Crypto market data is EMPTY - bootstrapping now!")
+                try:
+                    from app.services.market_data_bootstrapper import MarketDataBootstrapper
+                    bootstrapper = MarketDataBootstrapper(db_session_factory=SessionLocal)
+                    logger.info("🚀 Starting bootstrap (fetching 200 top cryptos with 2 years historical data)...")
+                    import asyncio as asyncio_module
+                    # Run bootstrap synchronously during startup
+                    asyncio_module.run(bootstrapper.bootstrap(num_cryptos=200, days=730))
+                    logger.info("✅ Bootstrap completed successfully!")
+                except Exception as e:
+                    logger.error(f"❌ Bootstrap failed: {e}")
+                    logger.warning("   Recommendations system will work but with limited data")
             else:
                 logger.info(f"✅ Crypto market data ready: {market_data_count:,} candles loaded")
             
