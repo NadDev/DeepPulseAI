@@ -11,7 +11,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow info/warnings
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimization to reduce warnings
 
 # Import routes
-from app.routes import health, portfolio, crypto, bots, reports, risk, trades, translations, ml, auth, ai_agent, exchange, watchlist, settings as settings_routes
+from app.routes import health, portfolio, crypto, bots, reports, risk, trades, translations, ml, auth, ai_agent, exchange, watchlist, settings as settings_routes, admin
 from app.config import settings
 from app.db.database import Base, engine, SessionLocal
 from app.services import bot_engine as bot_engine_module
@@ -581,7 +581,7 @@ async def lifespan(app: FastAPI):
                     logger.info("🚀 Starting bootstrap (fetching 200 top cryptos with 2 years historical data)...")
                     import asyncio as asyncio_module
                     # Run bootstrap synchronously during startup
-                    asyncio_module.run(bootstrapper.bootstrap(num_cryptos=200, days=730))
+                    asyncio_module.run(bootstrapper.run(crypto_count=200, days=730))
                     logger.info("✅ Bootstrap completed successfully!")
                 except Exception as e:
                     logger.error(f"❌ Bootstrap failed: {e}")
@@ -792,6 +792,7 @@ app.include_router(ai_agent.router)  # AI Agent routes
 app.include_router(exchange.router)  # Exchange configuration routes
 app.include_router(watchlist.router)  # Watchlist management routes
 app.include_router(settings_routes.router)  # Trading settings routes
+app.include_router(admin.router)  # Admin management routes
 
 @app.get("/")
 async def root():

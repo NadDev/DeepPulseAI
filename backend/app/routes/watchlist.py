@@ -791,12 +791,17 @@ async def generate_recommendations_now(
         # Generate recommendations for this user
         recommendations = engine.generate_recommendations(user_id=str(user_uuid))
         
+        # Save to database
+        saved_count = engine.save_recommendations(db, str(user_uuid), recommendations)
+        
         logger.info(f"✅ [TRIGGER] Generated {len(recommendations)} recommendations for user {user_uuid}")
+        logger.info(f"💾 [TRIGGER] Saved {saved_count} recommendations to database")
         
         return {
             "status": "success",
             "user_id": str(user_uuid),
             "count": len(recommendations),
+            "saved": saved_count,
             "recommendations": [
                 {
                     "symbol": r.symbol,
@@ -808,7 +813,7 @@ async def generate_recommendations_now(
                 }
                 for r in recommendations
             ],
-            "message": f"Generated {len(recommendations)} recommendations"
+            "message": f"Generated {len(recommendations)} recommendations ({saved_count} saved to DB)"
         }
         
     except Exception as e:
