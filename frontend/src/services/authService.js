@@ -240,7 +240,10 @@ export const getAuthHeader = () => {
   const token = localStorage.getItem('access_token');
   const tokenType = localStorage.getItem('token_type') || 'bearer';
 
+  console.log('🔍 [AuthService] getAuthHeader() - token present:', !!token, 'tokenType:', tokenType);
+  
   if (!token) {
+    console.warn('⚠️ [AuthService] No access_token in localStorage');
     return null;
   }
 

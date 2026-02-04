@@ -12,9 +12,13 @@ const API_BASE_URL = config.API_URL;
 // Get auth headers with local JWT token
 const getAuthHeaders = () => {
   const authHeader = getAuthHeader();
+  console.log('🔍 [WatchlistAPI] getAuthHeaders() - authHeader:', authHeader);
+  
   if (!authHeader) {
+    console.error('❌ [WatchlistAPI] No auth header - token missing or not authenticated');
     throw new Error('Not authenticated');
   }
+  
   return {
     'Content-Type': 'application/json',
     ...authHeader
