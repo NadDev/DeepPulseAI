@@ -202,16 +202,19 @@ export const refreshAccessToken = async () => {
 };
 
 /**
- * Reset password request
+ * Reset password - set a new password for existing users or forgot password
  */
-export const resetPassword = async (email) => {
+export const resetPassword = async (email, newPassword) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+    const response = await fetch(`${API_BASE_URL}/api/auth/password-reset`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ 
+        email,
+        new_password: newPassword
+      }),
     });
 
     const data = await response.json();

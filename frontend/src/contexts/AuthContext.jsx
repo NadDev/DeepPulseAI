@@ -87,9 +87,9 @@ export const AuthProvider = ({ children }) => {
         return { error };
       }
     },
-    resetPassword: async (email) => {
+    resetPassword: async (email, newPassword) => {
       try {
-        await resetPassword(email);
+        await resetPassword(email, newPassword);
         return { error: null };
       } catch (error) {
         console.error('Reset password error:', error);
