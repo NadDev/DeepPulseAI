@@ -350,17 +350,21 @@ async def get_current_user(
     Used in route handlers: @app.get("/protected", dependencies=[Depends(get_current_user)])
     """
     if not credentials:
+        logger.error("❌ [AUTH] No credentials provided in request")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing authorization credentials"
         )
     
     token = credentials.credentials
+    logger.debug(f"🔍 [AUTH] Received token (first 20 chars): {token[:20]}...")
     
     try:
         payload = TokenManager.verify_token(token)
         user_id = payload.get("sub")
         email = payload.get("email")
+        
+        logger.debug(f"✅ [AUTH] Token verified - user_id: {user_id}")
         
         if not user_id:
             raise HTTPException(
@@ -372,10 +376,13 @@ async def get_current_user(
         user = db.query(User).filter(User.id == user_id).first()
         
         if not user:
+            logger.error(f"❌ [AUTH] User not found in DB: {user_id}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found"
             )
+        
+        logger.info(f"✅ [AUTH] User authenticated: {user.email}")
         
         return UserResponse(
             id=str(user.id),
