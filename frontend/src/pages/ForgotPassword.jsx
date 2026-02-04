@@ -46,12 +46,12 @@ const ForgotPassword = () => {
       <div className="forgot-container">
         <div className="forgot-card">
           <div className="success-message">
-            <div className="success-icon">✅</div>
+            <div className="success-icon-small">✓</div>
             <h2>Password Reset Successful!</h2>
             <p>Your password has been updated for:</p>
-            <p style={{ fontWeight: 600, color: '#10b981' }}>{email}</p>
-            <p>You can now log in with your new password.</p>
-            <Link to="/login" className="btn-primary">
+            <p style={{ fontWeight: 600, color: 'var(--primary)' }}>{email}</p>
+            <p style={{ marginTop: '0.5rem', color: 'var(--text-secondary)' }}>You can now log in with your new password.</p>
+            <Link to="/login" className="btn-primary" style={{ marginTop: '1.5rem' }}>
               Go to Login
             </Link>
           </div>

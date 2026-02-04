@@ -81,11 +81,7 @@ const Login = () => {
             />
           </div>
 
-          <div className="form-actions">
-            <Link to="/forgot-password" className="forgot-link">
-              Forgot password?
-            </Link>
-          </div>
+          {/* Forgot password temporarily disabled - TODO: implement email-based reset */}
 
           <button type="submit" className="btn-primary" disabled={loading}>
             {loading ? 'Signing in...' : 'Sign In'}
