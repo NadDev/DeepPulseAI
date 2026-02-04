@@ -799,10 +799,11 @@ async def generate_recommendations_now(
             "count": len(recommendations),
             "recommendations": [
                 {
-                    "id": str(r.id),
                     "symbol": r.symbol,
                     "score": r.score,
                     "action": r.action,
+                    "current_price": r.current_price,
+                    "price_change_7d": r.price_change_7d,
                     "reasoning": r.reasoning[:200] if r.reasoning else None
                 }
                 for r in recommendations
