@@ -1,23 +1,23 @@
 /**
  * Watchlist API Service
  * Manages persistent watchlist in Railway PostgreSQL database
- * Uses Supabase JWT for authentication
+ * Uses local JWT for authentication
  */
 
-import { supabase } from './supabaseClient';
 import { config } from '../config';
+import { getAuthHeader } from './authService';
 
 const API_BASE_URL = config.API_URL;
 
-// Get auth headers with Supabase JWT token
-const getAuthHeaders = async () => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+// Get auth headers with local JWT token
+const getAuthHeaders = () => {
+  const authHeader = getAuthHeader();
+  if (!authHeader) {
     throw new Error('Not authenticated');
   }
   return {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${session.access_token}`
+    ...authHeader
   };
 };
 
@@ -25,7 +25,7 @@ export const watchlistAPI = {
   // Get user's watchlist
   getWatchlist: async (activeOnly = false) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(
         `${API_BASE_URL}/watchlist?active_only=${activeOnly}`,
         { headers }
@@ -41,7 +41,7 @@ export const watchlistAPI = {
   // Add single symbol to watchlist
   addSymbol: async (symbol, notes = null, priority = 0) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(
         `${API_BASE_URL}/watchlist`,
         {
@@ -64,7 +64,7 @@ export const watchlistAPI = {
   // Add multiple symbols at once
   bulkAdd: async (symbols) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(
         `${API_BASE_URL}/watchlist/bulk`,
         {
@@ -84,7 +84,7 @@ export const watchlistAPI = {
   // Remove symbol from watchlist
   removeSymbol: async (itemId) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(
         `${API_BASE_URL}/watchlist/${itemId}`,
         {
@@ -103,7 +103,7 @@ export const watchlistAPI = {
   // Update watchlist item
   updateItem: async (itemId, updates) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(
         `${API_BASE_URL}/watchlist/${itemId}`,
         {
@@ -123,7 +123,7 @@ export const watchlistAPI = {
   // Toggle item active status
   toggleItem: async (itemId) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(
         `${API_BASE_URL}/watchlist/${itemId}/toggle`,
         {
@@ -142,7 +142,7 @@ export const watchlistAPI = {
   // Get popular symbols
   getPopular: async () => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(
         `${API_BASE_URL}/watchlist/popular`,
         { headers }
