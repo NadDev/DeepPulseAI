@@ -53,4 +53,5 @@ ccxt>=4.0.0
 
 # Security & Encryption
 cryptography>=41.0.0
+python-jose>=3.3.0
 bcrypt>=4.1.0  # Password hashing for local authentication
