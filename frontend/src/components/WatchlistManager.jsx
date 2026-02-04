@@ -75,12 +75,12 @@ const WatchlistManager = () => {
   const [sortOrder, setSortOrder] = useState('asc');
   const [filterPriority, setFilterPriority] = useState('all');
 
-  // Get auth token
-  const getAuthHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+  // Get auth token from localStorage
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('access_token');
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session?.access_token || ''}`
+      'Authorization': `Bearer ${token || ''}`
     };
   };
 
@@ -88,7 +88,7 @@ const WatchlistManager = () => {
   const fetchWatchlists = useCallback(async () => {
     try {
       setLoading(true);
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_URL}/api/watchlist`, { headers });
       
       if (!response.ok) throw new Error('Failed to fetch watchlists');
@@ -134,7 +134,7 @@ const WatchlistManager = () => {
     }
     
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_URL}/api/watchlist/add`, {
         method: 'POST',
         headers,
@@ -223,7 +223,7 @@ const WatchlistManager = () => {
   // Remove symbol from watchlist
   const handleRemoveSymbol = async (itemId) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_URL}/api/watchlist/${itemId}`, {
         method: 'DELETE',
         headers
@@ -246,7 +246,7 @@ const WatchlistManager = () => {
   // Toggle alerts for item
   const handleToggleAlerts = async (item) => {
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const response = await fetch(`${API_URL}/api/watchlist/${item.id}/alerts`, {
         method: 'PUT',
         headers,
@@ -270,7 +270,7 @@ const WatchlistManager = () => {
   const handleSyncWithAI = async () => {
     try {
       setSyncing(true);
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       
       const symbols = items.map(item => item.symbol);
       
