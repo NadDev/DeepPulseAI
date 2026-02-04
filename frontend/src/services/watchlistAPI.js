@@ -5,23 +5,21 @@
  */
 
 import { config } from '../config';
-import { getAuthHeader } from './authService';
 
 const API_BASE_URL = config.API_URL;
 
-// Get auth headers with local JWT token
+// Get auth headers with local JWT token (same pattern as aiAPI.js)
 const getAuthHeaders = () => {
-  const authHeader = getAuthHeader();
-  console.log('🔍 [WatchlistAPI] getAuthHeaders() - authHeader:', authHeader);
+  const token = localStorage.getItem('access_token');
+  console.log('🔍 [WatchlistAPI] getAuthHeaders() - token exists:', !!token);
   
-  if (!authHeader) {
-    console.error('❌ [WatchlistAPI] No auth header - token missing or not authenticated');
-    throw new Error('Not authenticated');
+  if (!token) {
+    console.error('❌ [WatchlistAPI] No token in localStorage');
   }
   
   return {
-    'Content-Type': 'application/json',
-    ...authHeader
+    'Authorization': token ? `Bearer ${token}` : '',
+    'Content-Type': 'application/json'
   };
 };
 
