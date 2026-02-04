@@ -3,24 +3,54 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--bg-dark) 0%, #0f172a 100%);
   padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Animated background elements */
+.register-container::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.1) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.register-container::after {
+  content: '';
+  position: absolute;
+  bottom: -30%;
+  left: -10%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.08) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
 }
 
 .register-card {
-  background: white;
+  background: var(--bg-card);
   border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 60px rgba(16, 185, 129, 0.1);
   padding: 40px;
   width: 100%;
   max-width: 480px;
-  animation: slideUp 0.3s ease-out;
+  animation: slideUp 0.5s ease-out;
+  position: relative;
+  z-index: 1;
 }
 
 @keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(30px);
   }
   to {
     opacity: 1;
@@ -36,17 +66,21 @@
 .register-header h1 {
   font-size: 48px;
   margin: 0 0 16px 0;
-  color: #667eea;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--info) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .register-header h2 {
   font-size: 28px;
   margin: 0 0 8px 0;
-  color: #1a202c;
+  color: var(--text-primary);
+  font-weight: 700;
 }
 
 .register-header p {
-  color: #718096;
+  color: var(--text-secondary);
   font-size: 14px;
   margin: 0;
 }
@@ -65,34 +99,42 @@
 
 .form-group label {
   font-weight: 600;
-  color: #2d3748;
+  color: var(--text-primary);
   font-size: 14px;
+  text-transform: capitalize;
 }
 
 .form-group input {
   padding: 12px 16px;
-  border: 2px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 16px;
   transition: all 0.2s;
+  background: rgba(15, 23, 42, 0.5);
+  color: var(--text-primary);
+}
+
+.form-group input::placeholder {
+  color: var(--text-secondary);
 }
 
 .form-group input:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+  background: rgba(15, 23, 42, 0.8);
 }
 
 .form-hint {
-  color: #718096;
+  color: var(--text-secondary);
   font-size: 12px;
   margin-top: -4px;
 }
 
 .error-message {
-  background: #fee;
-  border: 1px solid #fcc;
-  color: #c33;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
   padding: 12px 16px;
   border-radius: 8px;
   font-size: 14px;
@@ -102,7 +144,7 @@
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--info) 100%);
   color: white;
   border: none;
   padding: 14px 24px;
@@ -111,12 +153,13 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
   margin-top: 8px;
 }
 
 .btn-primary:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
 }
 
 .btn-primary:disabled {
@@ -126,17 +169,19 @@
 
 .login-link {
   text-align: center;
-  color: #718096;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
 .login-link a {
-  color: #667eea;
+  color: var(--primary);
   text-decoration: none;
   font-weight: 600;
+  transition: color 0.2s;
 }
 
 .login-link a:hover {
+  color: var(--info);
   text-decoration: underline;
 }
 
@@ -164,12 +209,12 @@
 }
 
 .success-message h2 {
-  color: #1a202c;
+  color: var(--text-primary);
   margin: 0 0 16px 0;
 }
 
 .success-message p {
-  color: #718096;
+  color: var(--text-secondary);
   margin: 8px 0;
 }
 
