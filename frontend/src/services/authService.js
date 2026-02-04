@@ -3,6 +3,8 @@
  * ========================================
  * Communicates with backend /api/auth endpoints for authentication
  * Uses JWT tokens stored in localStorage
+ * 
+ * Version: 1.0.1 - Updated with password reset support
  */
 
 import { config } from '../config';
