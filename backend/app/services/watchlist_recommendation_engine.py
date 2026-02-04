@@ -102,14 +102,26 @@ class WatchlistRecommendationEngine:
             min_score: Minimum score threshold
             
         Returns:
-            List of Recommendation objects sorted by score
+            List of Recommendation objects sorted by score (excludes symbols already in user's watchlist)
         """
         db = self.db_session_factory()
         
         try:
             # Get all symbols with sufficient data
-            symbols = self._get_available_symbols(db)
-            logger.info(f"[RECOMMENDATION] Analyzing {len(symbols)} symbols for user {user_id[:8]}...")
+            all_symbols = self._get_available_symbols(db)
+            
+            # Get symbols already in user's watchlist
+            result = db.execute(text("""
+                SELECT symbol FROM watchlist_items
+                WHERE user_id = :user_id AND is_active = true
+            """), {"user_id": user_id})
+            
+            existing_symbols = {row[0] for row in result.fetchall()}
+            
+            # Filter out symbols already in watchlist
+            symbols = [s for s in all_symbols if s not in existing_symbols]
+            
+            logger.info(f"[RECOMMENDATION] Analyzing {len(symbols)} symbols for user {user_id[:8]} (excluded {len(existing_symbols)} already in watchlist)...")
             
             recommendations = []
             
