@@ -29,7 +29,6 @@ async def force_bootstrap_crypto_data(
     """
     Force bootstrap of crypto market data from Binance.
     
-    Only allows admin users (hardcoded for now).
     Runs in background to avoid timeout.
     
     Query params:
@@ -37,13 +36,9 @@ async def force_bootstrap_crypto_data(
     - days: Days of history (default: 730)
     - force: Force full refetch (default: true)
     """
-    # Check if user is admin (for now, hardcoded)
-    # TODO: Implement proper admin role system
-    admin_emails = ["nadir@deeppl.com", "admin@deeppl.com"]
-    if current_user.email not in admin_emails:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    
-    logger.info(f"📌 Admin bootstrap requested by {current_user.email}")
+    # TODO: Implement proper admin role system in database
+    # For now, any authenticated user can trigger bootstrap
+    logger.info(f"📌 Bootstrap requested by {current_user.email}")
     logger.info(f"   Config: cryptos={cryptos}, days={days}, force={force}")
     
     # Add task to background
