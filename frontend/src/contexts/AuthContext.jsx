@@ -5,7 +5,14 @@
  */
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase, signIn, signUp, signOut, resetPassword } from '../services/supabaseClient';
+import {
+  login,
+  register,
+  logout,
+  getCurrentUser,
+  resetPassword,
+  isAuthenticated,
+} from '../services/authService';
 
 const AuthContext = createContext({});
 
@@ -23,23 +30,24 @@ export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    // Get initial user from backend
+    const loadUser = async () => {
+      try {
+        if (isAuthenticated()) {
+          const currentUser = await getCurrentUser();
+          setUser(currentUser);
+          setSession(currentUser ? { user: currentUser } : null);
+        }
+      } catch (error) {
+        console.error('Failed to load user:', error);
+        setUser(null);
+        setSession(null);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    loadUser();
   }, []);
 
   const value = {
@@ -48,25 +56,34 @@ export const AuthProvider = ({ children }) => {
     loading,
     signUp: async (email, password, username) => {
       try {
-        const data = await signUp(email, password, username);
+        const data = await register(email, password, username);
+        setUser(data.user);
+        setSession({ user: data.user });
         return { data, error: null };
       } catch (error) {
+        console.error('Sign up error:', error);
         return { data: null, error };
       }
     },
     signIn: async (email, password) => {
       try {
-        const data = await signIn(email, password);
+        const data = await login(email, password);
+        setUser(data.user);
+        setSession({ user: data.user });
         return { data, error: null };
       } catch (error) {
+        console.error('Sign in error:', error);
         return { data: null, error };
       }
     },
     signOut: async () => {
       try {
-        await signOut();
+        await logout();
+        setUser(null);
+        setSession(null);
         return { error: null };
       } catch (error) {
+        console.error('Sign out error:', error);
         return { error };
       }
     },
@@ -75,6 +92,7 @@ export const AuthProvider = ({ children }) => {
         await resetPassword(email);
         return { error: null };
       } catch (error) {
+        console.error('Reset password error:', error);
         return { error };
       }
     },
