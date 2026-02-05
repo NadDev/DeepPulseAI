@@ -60,11 +60,23 @@ export default function TradingSettings() {
     }
   }, [selectedProfile]);
 
+  // Helper to get auth token from localStorage
+  const getAuthToken = () => {
+    return localStorage.getItem('access_token');
+  };
+
   const fetchSettings = async () => {
     try {
+      const token = getAuthToken();
+      if (!token) {
+        setMessage({ type: 'error', text: 'Non authentifié - veuillez vous reconnecter' });
+        setLoading(false);
+        return;
+      }
+
       const response = await fetch(`${API_URL}/api/settings/trading`, {
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -73,6 +85,8 @@ export default function TradingSettings() {
         const data = await response.json();
         setSettings(data);
         setSelectedProfile(data.sl_tp_profile || 'BALANCED');
+      } else if (response.status === 401) {
+        setMessage({ type: 'error', text: 'Session expirée - veuillez vous reconnecter' });
       }
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -84,9 +98,12 @@ export default function TradingSettings() {
 
   const fetchProfiles = async () => {
     try {
+      const token = getAuthToken();
+      if (!token) return;
+
       const response = await fetch(`${API_URL}/api/settings/trading/profiles`, {
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -102,9 +119,12 @@ export default function TradingSettings() {
 
   const fetchProfileDetails = async (profileName) => {
     try {
+      const token = getAuthToken();
+      if (!token) return;
+
       const response = await fetch(`${API_URL}/api/settings/trading/profile/${profileName}`, {
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -123,10 +143,17 @@ export default function TradingSettings() {
     setMessage({ type: '', text: '' });
 
     try {
+      const token = getAuthToken();
+      if (!token) {
+        setMessage({ type: 'error', text: 'Non authentifié - veuillez vous reconnecter' });
+        setSaving(false);
+        return;
+      }
+
       const response = await fetch(`${API_URL}/api/settings/trading`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -156,10 +183,17 @@ export default function TradingSettings() {
     setMessage({ type: '', text: '' });
 
     try {
+      const token = getAuthToken();
+      if (!token) {
+        setMessage({ type: 'error', text: 'Non authentifié - veuillez vous reconnecter' });
+        setSaving(false);
+        return;
+      }
+
       const response = await fetch(`${API_URL}/api/settings/trading/reset`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
