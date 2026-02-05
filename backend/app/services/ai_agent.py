@@ -1544,7 +1544,11 @@ STEP 2: SELECT STRATEGY (check EXCLUSIONS first!)
    - If multiple strategies match = use PRIORITY ORDER (1=highest)
 
 STRATEGY DECISION FLOWCHART FOR SELL:
-   └─ RSI > 70? YES → mean_reversion (highest priority, stop here)
+   └─ RSI > 70? YES
+      └─ Check mean_reversion EXCLUSIONS first:
+         └─ MACD bearish crossover? YES → Skip to trend_following
+         └─ Multi-timeframe already bearish? YES → Skip to trend_following  
+         └─ No exclusions met? → mean_reversion ✓ (STOP HERE)
    └─ RSI > 70? NO → Check trend_following
       └─ Price below SMA50 + Multi-timeframe bearish? YES → trend_following
       └─ NO → Check momentum
@@ -1552,7 +1556,11 @@ STRATEGY DECISION FLOWCHART FOR SELL:
          └─ NO → Check rsi_divergence or breakout or HOLD
 
 STRATEGY DECISION FLOWCHART FOR BUY:
-   └─ RSI < 30? YES → mean_reversion (highest priority, stop here)
+   └─ RSI < 30? YES
+      └─ Check mean_reversion EXCLUSIONS first:
+         └─ MACD bullish crossover? YES → Skip to trend_following
+         └─ Multi-timeframe already bullish? YES → Skip to trend_following  
+         └─ No exclusions met? → mean_reversion ✓ (STOP HERE)
    └─ RSI < 30? NO → Check trend_following
       └─ Price above SMA50 + Multi-timeframe bullish? YES → trend_following
       └─ NO → Check momentum
@@ -1560,9 +1568,14 @@ STRATEGY DECISION FLOWCHART FOR BUY:
          └─ NO → Check rsi_divergence or breakout or HOLD
 
 STEP 3: VERIFY EXCLUSION RULES (CRITICAL!)
+   IMPORTANT: Check exclusions BEFORE confirming strategy selection!
+   If mean_reversion matched but has EXCLUSIONS → SKIP to next strategy
+   
    Examples of WRONG selections to AVOID:
    ❌ mean_reversion SELL when RSI = 41 (not overbought) → use trend_following instead
    ❌ mean_reversion BUY when RSI = 65 (not oversold) → use trend_following instead
+   ❌ mean_reversion BUY with RSI < 30 BUT MACD bullish → use trend_following instead
+   ❌ mean_reversion BUY with RSI < 30 BUT multi-timeframe already bullish → use trend_following instead
    ❌ momentum when MACD histogram negative (bearish, not bullish)
    ❌ trend_following when RSI < 30 with no trend yet → use mean_reversion instead
 
