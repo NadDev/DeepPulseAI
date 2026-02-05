@@ -24,29 +24,34 @@ export default function Markets() {
       setLoadingUpdates(true);
       setUpdateStatus(null);
       const headers = getAuthHeaders();
+      const url = `${API_URL}/api/admin/bootstrap?cryptos=50&days=730&force=false`;
 
-      const response = await fetch(
-        `${API_URL}/api/admin/bootstrap?cryptos=50&days=730&force=false`,
-        {
-          method: 'POST',
-          headers
-        }
-      );
+      console.log('🚀 Calling bootstrap:', url);
+      console.log('🔐 Headers:', headers);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers
+      });
+
+      console.log('📊 Response status:', response.status);
+      const data = await response.json();
+      console.log('📦 Response data:', data);
 
       if (!response.ok) {
-        throw new Error(`Failed to update recommendations: ${response.status}`);
+        throw new Error(`Failed to update recommendations: ${response.status} - ${data.detail || ''}`);
       }
 
-      const data = await response.json();
       setUpdateStatus({
         type: 'success',
         message: '✅ Recommendations update started'
       });
       setTimeout(() => setUpdateStatus(null), 5000);
     } catch (err) {
+      console.error('❌ Bootstrap error:', err);
       setUpdateStatus({
         type: 'error',
-        message: `❌ Erreur: ${err.message}`
+        message: `❌ Error: ${err.message}`
       });
       setTimeout(() => setUpdateStatus(null), 5000);
     } finally {
@@ -60,29 +65,34 @@ export default function Markets() {
       setLoadingUpdates(true);
       setUpdateStatus(null);
       const headers = getAuthHeaders();
+      const url = `${API_URL}/api/admin/bootstrap?cryptos=200&days=730&force=false`;
 
-      const response = await fetch(
-        `${API_URL}/api/admin/bootstrap?cryptos=200&days=730&force=false`,
-        {
-          method: 'POST',
-          headers
-        }
-      );
+      console.log('🚀 Calling market data update:', url);
+      console.log('🔐 Headers:', headers);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers
+      });
+
+      console.log('📊 Response status:', response.status);
+      const data = await response.json();
+      console.log('📦 Response data:', data);
 
       if (!response.ok) {
-        throw new Error(`Failed to update market data: ${response.status}`);
+        throw new Error(`Failed to update market data: ${response.status} - ${data.detail || ''}`);
       }
 
-      const data = await response.json();
       setUpdateStatus({
         type: 'success',
         message: '✅ Market data update started'
       });
       setTimeout(() => setUpdateStatus(null), 5000);
     } catch (err) {
+      console.error('❌ Market update error:', err);
       setUpdateStatus({
         type: 'error',
-        message: `❌ Erreur: ${err.message}`
+        message: `❌ Error: ${err.message}`
       });
       setTimeout(() => setUpdateStatus(null), 5000);
     } finally {
