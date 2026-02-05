@@ -603,9 +603,11 @@ class SLTPManager:
         """
         Calculate SL based on ATR (Average True Range).
         
+        DT-007: DYNAMIC ATR MULTIPLIER
         ATR adapts to volatility:
-        - High volatility → wider SL
-        - Low volatility → tighter SL
+        - Low volatility (ATR < 0.8x avg) → Tighter SL (1.0x multiplier)
+        - Normal volatility (0.8x-1.2x avg) → Standard SL (1.5x multiplier)
+        - High volatility (ATR > 1.2x avg) → Wider SL (2.0x multiplier)
         """
         # Get ATR from market data or calculate
         indicators = market_data.get("indicators", {})
@@ -622,13 +624,111 @@ class SLTPManager:
             # Fallback to fixed percentage if ATR is invalid
             return self._calculate_fixed_pct_sl(entry_price, side, settings)
         
-        # SL distance = ATR * multiplier
-        sl_distance = atr * settings.sl_atr_multiplier
+        # ===== DT-007: DYNAMIC ATR MULTIPLIER =====
+        # Calculate dynamic multiplier based on market volatility
+        dynamic_multiplier = self._calculate_dynamic_atr_multiplier(
+            atr=atr,
+            entry_price=entry_price,
+            market_data=market_data,
+            base_multiplier=settings.sl_atr_multiplier
+        )
+        # ===== END DYNAMIC ATR MULTIPLIER =====
+        
+        # SL distance = ATR * dynamic multiplier
+        sl_distance = atr * dynamic_multiplier
+        
+        # Log the adjustment
+        if dynamic_multiplier != settings.sl_atr_multiplier:
+            logger.info(f"📊 [ATR-DYNAMIC] Multiplier adjusted: {settings.sl_atr_multiplier:.1f}x → {dynamic_multiplier:.1f}x based on volatility")
         
         if side == "BUY":
             return entry_price - sl_distance
         else:  # SELL
             return entry_price + sl_distance
+    
+    def _calculate_dynamic_atr_multiplier(
+        self,
+        atr: float,
+        entry_price: float,
+        market_data: Dict[str, Any],
+        base_multiplier: float
+    ) -> float:
+        """
+        DT-007: Calculate dynamic ATR multiplier based on market volatility.
+        
+        Compares current ATR to average ATR to determine relative volatility:
+        - Volatility < 0.8x avg → Low vol → Tighter SL (1.0x)
+        - Volatility 0.8-1.2x avg → Normal → Standard SL (1.5x)
+        - Volatility > 1.2x avg → High vol → Wider SL (2.0x)
+        
+        Args:
+            atr: Current ATR value
+            entry_price: Current entry price
+            market_data: Dict with candles/indicators
+            base_multiplier: User's configured base multiplier
+            
+        Returns:
+            Adjusted ATR multiplier (1.0, 1.5, or 2.0)
+        """
+        try:
+            # Calculate ATR as percentage of price (normalized)
+            atr_pct = (atr / entry_price) * 100
+            
+            # Get historical ATR values to calculate average
+            candles = market_data.get("candles", [])
+            
+            if candles and len(candles) >= 50:
+                # Calculate average ATR over last 50 periods
+                atr_values = []
+                for i in range(max(0, len(candles) - 50), len(candles)):
+                    candle = candles[i]
+                    high = float(candle.get("high", 0))
+                    low = float(candle.get("low", 0))
+                    close = float(candle.get("close", 0))
+                    
+                    if high > 0 and low > 0 and close > 0:
+                        # True Range = max(high-low, |high-prev_close|, |low-prev_close|)
+                        if i > 0:
+                            prev_close = float(candles[i-1].get("close", close))
+                            tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+                        else:
+                            tr = high - low
+                        
+                        atr_values.append(tr)
+                
+                if atr_values:
+                    avg_atr = sum(atr_values) / len(atr_values)
+                    avg_atr_pct = (avg_atr / entry_price) * 100
+                    
+                    # Calculate volatility ratio (current ATR / average ATR)
+                    volatility_ratio = atr_pct / avg_atr_pct if avg_atr_pct > 0 else 1.0
+                    
+                    # Determine multiplier based on volatility
+                    if volatility_ratio < 0.8:
+                        # LOW VOLATILITY: Market is calm, use tighter SL
+                        multiplier = 1.0
+                        vol_label = "LOW"
+                    elif volatility_ratio > 1.2:
+                        # HIGH VOLATILITY: Market is volatile, use wider SL
+                        multiplier = 2.0
+                        vol_label = "HIGH"
+                    else:
+                        # NORMAL VOLATILITY: Use standard SL
+                        multiplier = 1.5
+                        vol_label = "NORMAL"
+                    
+                    logger.debug(f"📊 [ATR-VOL] Current: {atr_pct:.3f}% | Avg: {avg_atr_pct:.3f}% | "
+                               f"Ratio: {volatility_ratio:.2f}x | Multiplier: {multiplier}x ({vol_label})")
+                    
+                    return multiplier
+            
+            # Fallback: Not enough data, use base multiplier
+            logger.debug(f"⚠️ [ATR-VOL] Insufficient candles ({len(candles)}), using base multiplier {base_multiplier}x")
+            return base_multiplier
+            
+        except Exception as e:
+            logger.warning(f"⚠️ [ATR-VOL] Error calculating dynamic multiplier: {e}, using base {base_multiplier}x")
+            return base_multiplier
     
     def _calculate_structure_sl(
         self,
