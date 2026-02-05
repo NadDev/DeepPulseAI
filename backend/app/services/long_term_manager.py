@@ -24,7 +24,7 @@ from app.models.database_models import (
 )
 from app.services.market_data import MarketDataCollector
 from app.services.technical_analysis import TechnicalAnalysis
-from app.services.ml_engine import ML_Engine
+from app.services.ml_engine import MLEngine
 from app.services.coingecko_client import get_coingecko_client
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class LongTermManager:
         db_session: Session,
         market_data: MarketDataCollector,
         technical_analysis: TechnicalAnalysis,
-        ml_engine: Optional[ML_Engine] = None
+        ml_engine: Optional[MLEngine] = None
     ):
         self.db = db_session
         self.market_data = market_data
