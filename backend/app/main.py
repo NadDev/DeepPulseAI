@@ -11,7 +11,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow info/warnings
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimization to reduce warnings
 
 # Import routes
-from app.routes import health, portfolio, crypto, bots, reports, risk, trades, translations, ml, auth, ai_agent, exchange, watchlist, settings as settings_routes, admin
+from app.routes import health, portfolio, crypto, bots, reports, risk, trades, translations, ml, auth, ai_agent, exchange, watchlist, settings as settings_routes, admin, long_term
 from app.config import settings
 from app.db.database import Base, engine, SessionLocal
 from app.services import bot_engine as bot_engine_module
@@ -610,6 +610,102 @@ async def lifespan(app: FastAPI):
                     logger.error(f"❌ Could not find migration 018 file")
         except Exception as create_error:
             logger.error(f"❌ Failed to create Global System User: {create_error}")
+        
+        # Check if portfolio_allocations table exists, if not create it (migration 019)
+        try:
+            db.execute(text("SELECT 1 FROM portfolio_allocations LIMIT 1"))
+            logger.info("[OK] portfolio_allocations table exists")
+        except Exception as check_error:
+            try:
+                logger.info(f"⚙️ Creating portfolio_allocations table (migration 019)...")
+                
+                migration_paths = [
+                    "/app/database/migrations/019_create_portfolio_allocations.sql",
+                    "database/migrations/019_create_portfolio_allocations.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/019_create_portfolio_allocations.sql"
+                ]
+                
+                migration_sql = None
+                for path in migration_paths:
+                    try:
+                        migration_sql = open(path).read()
+                        logger.info(f"✅ Found migration at: {path}")
+                        break
+                    except:
+                        continue
+                
+                if migration_sql:
+                    db.execute(text(migration_sql))
+                    db.commit()
+                    logger.info("✅ portfolio_allocations table created (Day Trading vs Long Term allocations)")
+                else:
+                    logger.error(f"❌ Could not find migration 019 file")
+            except Exception as create_error:
+                logger.error(f"❌ Failed to create portfolio_allocations table: {create_error}")
+        
+        # Check if long_term_positions table exists, if not create it (migration 020)
+        try:
+            db.execute(text("SELECT 1 FROM long_term_positions LIMIT 1"))
+            logger.info("[OK] long_term_positions table exists")
+        except Exception as check_error:
+            try:
+                logger.info(f"⚙️ Creating long_term_positions table (migration 020)...")
+                
+                migration_paths = [
+                    "/app/database/migrations/020_create_long_term_positions.sql",
+                    "database/migrations/020_create_long_term_positions.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/020_create_long_term_positions.sql"
+                ]
+                
+                migration_sql = None
+                for path in migration_paths:
+                    try:
+                        migration_sql = open(path).read()
+                        logger.info(f"✅ Found migration at: {path}")
+                        break
+                    except:
+                        continue
+                
+                if migration_sql:
+                    db.execute(text(migration_sql))
+                    db.commit()
+                    logger.info("✅ long_term_positions table created (DCA accumulation tracking)")
+                else:
+                    logger.error(f"❌ Could not find migration 020 file")
+            except Exception as create_error:
+                logger.error(f"❌ Failed to create long_term_positions table: {create_error}")
+        
+        # Check if long_term_transactions table exists, if not create it (migration 021)
+        try:
+            db.execute(text("SELECT 1 FROM long_term_transactions LIMIT 1"))
+            logger.info("[OK] long_term_transactions table exists")
+        except Exception as check_error:
+            try:
+                logger.info(f"⚙️ Creating long_term_transactions table (migration 021)...")
+                
+                migration_paths = [
+                    "/app/database/migrations/021_create_long_term_transactions.sql",
+                    "database/migrations/021_create_long_term_transactions.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/021_create_long_term_transactions.sql"
+                ]
+                
+                migration_sql = None
+                for path in migration_paths:
+                    try:
+                        migration_sql = open(path).read()
+                        logger.info(f"✅ Found migration at: {path}")
+                        break
+                    except:
+                        continue
+                
+                if migration_sql:
+                    db.execute(text(migration_sql))
+                    db.commit()
+                    logger.info("✅ long_term_transactions table created (DCA/exit transaction history)")
+                else:
+                    logger.error(f"❌ Could not find migration 021 file")
+            except Exception as create_error:
+                logger.error(f"❌ Failed to create long_term_transactions table: {create_error}")
 
         db.close()
     except Exception as e:
@@ -889,6 +985,7 @@ app.include_router(ai_agent.router)  # AI Agent routes
 app.include_router(exchange.router)  # Exchange configuration routes
 app.include_router(watchlist.router)  # Watchlist management routes
 app.include_router(settings_routes.router)  # Trading settings routes
+app.include_router(long_term.router)  # Long-Term DCA strategy routes
 app.include_router(admin.router)  # Admin management routes
 
 @app.get("/")

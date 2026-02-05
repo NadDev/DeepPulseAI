@@ -1,15 +1,14 @@
 .positions-container {
   background: #1e293b;
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: 16px;
+  padding: 24px;
   border: 1px solid #334155;
-  margin-bottom: 30px;
 }
 
 .positions-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 20px;
 }
 
@@ -17,11 +16,13 @@
   margin: 0;
   color: #f8fafc;
   font-size: 1.25rem;
+  font-weight: 600;
 }
 
 .position-count {
   color: #94a3b8;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
+  font-weight: 400;
 }
 
 /* Filter Controls */
@@ -191,4 +192,53 @@
 .close-btn:hover {
   background: rgba(239, 68, 68, 0.2);
   color: #f87171;
+}
+
+.positions-empty {
+  background: transparent;
+  padding: 60px 20px;
+  text-align: center;
+  color: #94a3b8;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .positions-table th:nth-child(8),
+  .positions-table td:nth-child(8),
+  .positions-table th:nth-child(9),
+  .positions-table td:nth-child(9) {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .positions-container {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .positions-controls {
+    padding: 12px;
+  }
+
+  .filter-group {
+    grid-template-columns: 1fr;
+  }
+
+  .reset-btn {
+    width: 100%;
+  }
+
+  .table-responsive {
+    border-radius: 8px;
+    border: 1px solid #334155;
+  }
+
+  /* Hide less important columns on mobile */
+  .positions-table th:nth-child(4),
+  .positions-table td:nth-child(4),
+  .positions-table th:nth-child(6),
+  .positions-table td:nth-child(6) {
+    display: none;
+  }
 }

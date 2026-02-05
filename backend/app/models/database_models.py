@@ -518,3 +518,175 @@ SLTP_PROFILE_PRESETS = {
         "validation_threshold_pct": 0.75
     }
 }
+
+
+# ============================================
+# LONG TERM STRATEGY MODELS
+# ============================================
+
+class PortfolioAllocation(Base):
+    """
+    Portfolio allocation between Day Trading and Long Term pockets.
+    Long Term is OPT-IN only (disabled by default).
+    """
+    __tablename__ = "portfolio_allocations"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), unique=True, index=True, nullable=False)
+    
+    # Allocations (en %)
+    day_trading_pct = Column(Float, nullable=False, default=100.0)  # 100% par défaut
+    long_term_pct = Column(Float, nullable=False, default=0.0)  # 0% par défaut (OPT-IN)
+    long_term_max_pct = Column(Float, nullable=False, default=20.0)  # Plafond absolu
+    
+    # Settings Day Trading
+    dt_enabled = Column(Boolean, nullable=False, default=True)
+    
+    # Settings Long Terme (DÉSACTIVÉ par défaut)
+    lt_enabled = Column(Boolean, nullable=False, default=False)  # OPT-IN obligatoire
+    lt_assets = Column(JSON, default=["BTCUSDT", "ETHUSDT"])
+    lt_asset_weights = Column(JSON, default={"BTCUSDT": 70, "ETHUSDT": 30})
+    
+    # Critères de sélection STRICTS
+    lt_min_confidence_score = Column(Integer, nullable=False, default=80)  # Score minimum 80/100
+    lt_require_weekly_bullish = Column(Boolean, nullable=False, default=True)
+    lt_require_ml_7d_confidence = Column(Integer, nullable=False, default=70)  # ML 7d >70% BULLISH
+    lt_max_fear_greed_index = Column(Integer, nullable=False, default=30)  # Acheter dans la peur
+    
+    # DCA Configuration
+    lt_dca_frequency = Column(String(20), nullable=False, default='weekly')  # daily, weekly, monthly
+    lt_dca_day = Column(Integer, nullable=False, default=1)  # 0=Dimanche, 1=Lundi, etc.
+    lt_dca_amount_pct = Column(Float, nullable=False, default=10.0)  # % du LT pocket par DCA
+    lt_min_hold_days = Column(Integer, nullable=False, default=180)
+    lt_boost_in_extreme_fear = Column(Boolean, nullable=False, default=True)  # Boost si Fear < 20
+    
+    # Timestamps
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    
+    def __repr__(self):
+        return f"<PortfolioAllocation user_id={self.user_id} DT={self.day_trading_pct}% LT={self.long_term_pct}% enabled={self.lt_enabled}>"
+
+
+class LongTermPosition(Base):
+    """
+    Long term position with DCA accumulation tracking.
+    """
+    __tablename__ = "long_term_positions"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    
+    # Asset info
+    symbol = Column(String(20), index=True, nullable=False)
+    
+    # Accumulation tracking
+    total_quantity = Column(Float, nullable=False, default=0.0)
+    avg_entry_price = Column(Float, nullable=False, default=0.0)
+    total_invested = Column(Float, nullable=False, default=0.0)
+    dca_count = Column(Integer, nullable=False, default=0)  # Nombre de DCA effectués
+    last_dca_at = Column(DateTime, nullable=True)
+    next_dca_scheduled_at = Column(DateTime, nullable=True)
+    
+    # Market data at entry
+    market_cap_at_entry = Column(Float, nullable=True)
+    ath_price_at_entry = Column(Float, nullable=True)
+    ath_distance_pct_at_entry = Column(Float, nullable=True)  # Distance from ATH at first DCA
+    
+    # Current unrealized PnL
+    current_price = Column(Float, nullable=True)
+    unrealized_pnl = Column(Float, default=0.0)
+    unrealized_pnl_pct = Column(Float, default=0.0)
+    last_price_update = Column(DateTime, nullable=True)
+    
+    # Status
+    status = Column(String(20), nullable=False, default='ACCUMULATING', index=True)
+    # ACCUMULATING, HOLDING, PARTIAL_EXIT, CLOSED
+    
+    # Take Profit levels (optionnel)
+    tp1_price = Column(Float, nullable=True)
+    tp1_pct = Column(Float, default=20.0)
+    tp1_hit = Column(Boolean, default=False)
+    tp1_hit_at = Column(DateTime, nullable=True)
+    
+    tp2_price = Column(Float, nullable=True)
+    tp2_pct = Column(Float, default=30.0)
+    tp2_hit = Column(Boolean, default=False)
+    tp2_hit_at = Column(DateTime, nullable=True)
+    
+    tp3_price = Column(Float, nullable=True)
+    tp3_pct = Column(Float, default=30.0)
+    tp3_hit = Column(Boolean, default=False)
+    tp3_hit_at = Column(DateTime, nullable=True)
+    
+    # Runner (20% restant pour "moon")
+    runner_quantity = Column(Float, default=0.0)
+    
+    # Exit info
+    total_exit_value = Column(Float, default=0.0)
+    realized_pnl = Column(Float, default=0.0)
+    realized_pnl_pct = Column(Float, default=0.0)
+    
+    # Confidence scores history (JSONB array)
+    confidence_scores = Column(JSON, default=[])  # [{date, score, criteria}, ...]
+    
+    # Timestamps
+    opened_at = Column(DateTime, server_default=func.now())
+    closed_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    
+    def __repr__(self):
+        return f"<LongTermPosition {self.symbol} qty={self.total_quantity} status={self.status} pnl={self.unrealized_pnl_pct:.2f}%>"
+
+
+class LongTermTransaction(Base):
+    """
+    Transaction history for long term positions (DCA buys + exits).
+    """
+    __tablename__ = "long_term_transactions"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    position_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    
+    # Transaction info
+    symbol = Column(String(20), index=True, nullable=False)
+    side = Column(String(10), nullable=False)  # BUY or SELL
+    quantity = Column(Float, nullable=False)
+    price = Column(Float, nullable=False)
+    total_value = Column(Float, nullable=False)
+    
+    # Context
+    transaction_type = Column(String(20), nullable=False, index=True)
+    # DCA_REGULAR, DCA_BOOSTED, DCA_MANUAL, TP1_EXIT, TP2_EXIT, TP3_EXIT, MANUAL_EXIT
+    
+    market_context = Column(String(20), nullable=True)  # STRONG_BULLISH, BEARISH, etc.
+    fear_greed_index = Column(Integer, nullable=True)
+    market_cap = Column(Float, nullable=True)
+    ath_distance_pct = Column(Float, nullable=True)
+    
+    # Confidence score (pour les DCA)
+    confidence_score = Column(Integer, nullable=True)
+    confidence_criteria = Column(JSON, nullable=True)  # Détails des critères
+    
+    # ML predictions at time of transaction
+    ml_7d_prediction = Column(JSON, nullable=True)
+    ml_24h_prediction = Column(JSON, nullable=True)
+    
+    # PnL at exit (pour les SELL)
+    pnl_realized = Column(Float, nullable=True)
+    pnl_realized_pct = Column(Float, nullable=True)
+    
+    # Exchange info
+    exchange_order_id = Column(String(100), nullable=True)
+    exchange = Column(String(20), default='Binance')
+    
+    # Notes
+    notes = Column(Text, nullable=True)
+    
+    # Timestamps
+    executed_at = Column(DateTime, server_default=func.now(), index=True)
+    
+    def __repr__(self):
+        return f"<LongTermTransaction {self.symbol} {self.side} ${self.total_value:.2f} type={self.transaction_type}>"
+

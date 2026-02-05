@@ -1,31 +1,35 @@
 .portfolio-dashboard {
   padding: 20px;
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
+  width: 100%;
 }
 
 .portfolio-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 24px;
 }
 
 .portfolio-header h2 {
   color: #f8fafc;
   font-size: 1.8rem;
   margin: 0;
+  font-weight: 700;
 }
 
 .last-updated {
   color: #94a3b8;
   font-size: 0.875rem;
+  font-weight: 500;
 }
 
-.portfolio-content-grid {
-  display: grid;
-  grid-template-columns: 1fr 350px;
-  gap: 30px;
+/* New layout for tables */
+.portfolio-tables {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 .portfolio-loading {
@@ -37,13 +41,35 @@
   font-size: 1.2rem;
 }
 
-@media (max-width: 1024px) {
-  .portfolio-content-grid {
-    grid-template-columns: 1fr;
+/* Responsive breakpoints */
+@media (max-width: 1400px) {
+  .portfolio-dashboard {
+    max-width: 100%;
+    padding: 16px;
   }
-  
-  .side-column {
-    order: -1; /* Move order form to top on mobile */
+}
+
+@media (max-width: 768px) {
+  .portfolio-dashboard {
+    padding: 12px;
+  }
+
+  .portfolio-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .portfolio-header h2 {
+    font-size: 1.5rem;
+  }
+
+  .last-updated {
+    font-size: 0.75rem;
+  }
+
+  .portfolio-tables {
+    gap: 16px;
   }
 }
 

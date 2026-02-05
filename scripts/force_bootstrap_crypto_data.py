@@ -60,8 +60,8 @@ async def main():
     
     try:
         # Import here to avoid circular imports
-        from app.db.database import SessionLocal
-        from app.services.market_data_bootstrapper import MarketDataBootstrapper
+#        from app.db.database import SessionLocal
+#        from app.services.market_data_bootstrapper import MarketDataBootstrapper
         
         logger.info("=" * 60)
         logger.info("🚀 FORCE BOOTSTRAP CRYPTO MARKET DATA")

@@ -15,10 +15,11 @@ from typing import Optional, Dict, Any
 import logging
 from sqlalchemy.orm import Session
 from app.db.database import SessionLocal
-from app.models.database_models import Portfolio, ExchangeConfig, Trade
+from app.models.database_models import Portfolio, ExchangeConfig, Trade, LongTermPosition
 from app.services.market_data import MarketDataCollector
 from app.services.crypto_service import get_crypto_service
 from cryptography.fernet import Fernet
+from sqlalchemy import and_
 import os
 
 logger = logging.getLogger(__name__)
@@ -177,15 +178,24 @@ class PortfolioSyncService:
             # Store exchange values (source of truth)
             exchange_cash_balance = exchange_balances.get(quote_asset, {}).get("free", 0)
             
+            # Calculate Long-Term positions value
+            lt_positions_value = await self._calculate_lt_positions_value(user_id, db)
+            
+            # Total value = Exchange balance + LT positions (held separately)
+            total_portfolio_value = exchange_total_value + lt_positions_value
+            
             # Calculate difference
             old_exchange_value = portfolio.exchange_total_value or 0
-            balance_difference = abs(portfolio.local_total_value - exchange_total_value)
+            balance_difference = abs(portfolio.local_total_value - total_portfolio_value)
             
             # Update portfolio
             portfolio.exchange_cash_balance = exchange_cash_balance
             portfolio.exchange_total_value = exchange_total_value
             portfolio.balance_difference = balance_difference
             portfolio.last_synced_with_exchange = datetime.utcnow()
+            
+            # Update total_value to include LT positions
+            portfolio.total_value = total_portfolio_value
             
             # Check if synced
             if balance_difference > self.drift_threshold:
@@ -199,8 +209,9 @@ class PortfolioSyncService:
                 
                 # Auto-reconcile: use exchange as source of truth
                 logger.info(f"🔧 Auto-reconciling portfolio for {user_id}")
-                portfolio.local_total_value = exchange_total_value
+                portfolio.local_total_value = total_portfolio_value
                 portfolio.cash_balance = exchange_cash_balance
+                portfolio.total_value = total_portfolio_value
                 portfolio.is_synced = True
             else:
                 portfolio.is_synced = True
@@ -209,18 +220,71 @@ class PortfolioSyncService:
             
             logger.info(
                 f"✅ Synced {user_id}: "
-                f"Cash=${exchange_cash_balance:.2f}, "
-                f"Total=${exchange_total_value:.2f}, "
+                f"Cash=$ {exchange_cash_balance:.2f}, "
+                f"DT=${exchange_total_value:.2f}, "
+                f"LT=${lt_positions_value:.2f}, "
+                f"Total=${total_portfolio_value:.2f}, "
                 f"Sync={'✓' if portfolio.is_synced else '✗'}"
             )
             
             return True
         
         except Exception as e:
-            logger.error(f"❌ Sync failed for {user_id}: {str(e)}")
+            logger.error(f" ❌ Sync failed for {user_id}: {str(e)}")
             portfolio.is_synced = False
             db.commit()
             return False
+    
+    async def _calculate_lt_positions_value(self, user_id: str, db: Session) -> float:
+        """
+        Calculate total value of Long-Term positions.        Fetches all LT positions and multiplies quantity * current_price.
+        
+        Returns:
+            Total value in USDT
+        """
+        try:
+            positions = db.query(LongTermPosition).filter(
+                and_(
+                    LongTermPosition.user_id == user_id,
+                    LongTermPosition.status.in_(["ACCUMULATING", "HOLDING", "PARTIAL_EXIT"])
+                )
+            ).all()
+            
+            if not positions:
+                return 0.0
+            
+            total_value = 0.0
+            
+            for pos in positions:
+                try:
+                    # Get current price for symbol
+                    ticker = await self.market_collector.get_ticker(pos.symbol)
+                    current_price = float(ticker.get("close", 0))
+                    
+                    # Calculate position value
+                    position_value = pos.total_quantity * current_price
+                    total_value += position_value
+                    
+                    # Update unrealized PnL (opportunistic update)
+                    pos.unrealized_pnl = position_value - pos.total_invested
+                    pos.unrealized_pnl_pct = (pos.unrealized_pnl / pos.total_invested * 100) if pos.total_invested > 0 else 0
+                    
+                    logger.debug(f"  LT {pos.symbol}: {pos.total_quantity:.8f} @ ${current_price:.2f} = ${position_value:.2f}")
+                
+                except Exception as e:
+                    logger.warning(f"Could not get price for LT position {pos.symbol}: {str(e)}")
+                    # Fallback to avg entry price
+                    fallback_value = pos.total_quantity * pos.avg_entry_price
+                    total_value += fallback_value
+            
+            db.commit()  # Save PnL updates
+            
+            logger.debug(f"💰 Total LT positions value: ${total_value:.2f}")
+            return total_value
+        
+        except Exception as e:
+            logger.error(f"Error calculating LT positions value: {e}")
+            return 0.0
     
     async def reset_daily_counters(self):
         """

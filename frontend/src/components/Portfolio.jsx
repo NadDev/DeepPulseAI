@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { cryptoAPI as api } from '../services/api';
 import PortfolioSummary from './PortfolioSummary';
 import ActivePositions from './ActivePositions';
+import LongTermPositions from './LongTermPositions';
 import TradeHistory from './TradeHistory';
 import './Portfolio.css';
 
@@ -68,14 +69,15 @@ function Portfolio() {
 
       <PortfolioSummary data={summary} />
 
-      <div className="portfolio-content-grid">
-        <div className="main-column">
-          <ActivePositions 
-            positions={positions} 
-            onClosePosition={handleClosePosition} 
-          />
-          <TradeHistory refreshTrigger={refreshTrigger} />
-        </div>
+      <div className="portfolio-tables">
+        <ActivePositions 
+          positions={positions} 
+          onClosePosition={handleClosePosition} 
+        />
+        
+        <LongTermPositions />
+        
+        <TradeHistory refreshTrigger={refreshTrigger} />
       </div>
     </div>
   );
