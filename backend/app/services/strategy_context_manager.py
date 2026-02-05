@@ -305,72 +305,130 @@ class StrategyContextManager:
         """
         Determine which strategies should be active for this market context
         
+        SPOT TRADING ONLY - Cannot short, therefore bearish markets = SKIP
+        
         Returns:
-            Dict with strategy status: {strategy_name: {enabled, reason, parameters}}
+            Dict with strategy status: {strategy_name: {enabled, reason, parameters, position_size_multiplier}}
         """
         ctx = context.market_context
         
+        # ===== SPOT TRADING RULE: SKIP ALL IN BEARISH MARKETS =====
+        # Cannot profit from downtrends in spot trading (no shorting)
+        skip_all_bearish = ctx in [MarketContext.STRONG_BEARISH, MarketContext.WEAK_BEARISH]
+        
         return {
-            "gridtrading": {  # Note: matches GridTrading.__class__.__name__.lower()
-                "enabled": True,
-                "reason": "Works in all market contexts (62.5% win rate)",
+            # ===== META FLAG FOR BEARISH CONTEXTS =====
+            "_skip_all_trading": {
+                "enabled": skip_all_bearish,
+                "reason": "⛔ SPOT TRADING: Cannot profit from bearish trends (no shorting available)" if skip_all_bearish else "✅ Market allows trading"
+            },
+            
+            # ===== GRID TRADING =====
+            "gridtrading": {
+                "enabled": not skip_all_bearish,  # Skip in bearish
+                "reason": "✅ Works in ranging/oscillating markets" if not skip_all_bearish 
+                          else "⛔ SPOT: Too risky in bearish downtrend",
+                "position_size_multiplier": 1.0 if ctx == MarketContext.STRONG_BULLISH
+                                           else 0.75 if ctx == MarketContext.WEAK_BULLISH
+                                           else 0.5 if ctx == MarketContext.CHOPPY
+                                           else 0.3,  # Reduced in weak bearish (if somehow enabled)
                 "parameters": {
                     "grid_levels": 5,
                     "position_size": 5  # % per level
                 }
             },
-            "meanreversion": {  # Note: matches MeanReversion.__class__.__name__.lower()
-                "enabled": ctx in [MarketContext.WEAK_BULLISH, MarketContext.WEAK_BEARISH],
-                "reason": "✅ Works best in weak trends with pullbacks" if ctx in [MarketContext.WEAK_BULLISH, MarketContext.WEAK_BEARISH] else f"❌ Disabled in {ctx.value} market (SMA20 too aligned with SMA50)",
+            
+            # ===== MEAN REVERSION =====
+            "meanreversion": {
+                "enabled": ctx == MarketContext.WEAK_BULLISH,  # ONLY weak bullish
+                "reason": "✅ Pullbacks return to mean in weak uptrend" if ctx == MarketContext.WEAK_BULLISH
+                          else "❌ SPOT: Dips may continue falling in bearish" if skip_all_bearish
+                          else f"❌ Not suitable for {ctx.value} (needs pullbacks in uptrend)",
+                "position_size_multiplier": 0.75,  # Always conservative
                 "parameters": {
-                    "sl_percent": 2.5 if ctx == MarketContext.WEAK_BULLISH else 3.0,  # Wider SL in bearish
-                    "rsi_threshold": 35 if ctx == MarketContext.WEAK_BULLISH else 65
+                    "sl_percent": 2.0,
+                    "rsi_threshold": 35
                 }
             },
+            
+            # ===== TREND FOLLOWING =====
+            "trendfollowing": {
+                "enabled": ctx == MarketContext.STRONG_BULLISH,  # ONLY strong bullish
+                "reason": "✅ Ride the bullish trend" if ctx == MarketContext.STRONG_BULLISH
+                          else "❌ SPOT: Can only follow BULLISH trends (no shorting)",
+                "position_size_multiplier": 1.0,  # Full size in strong bull
+                "parameters": {
+                    "direction": "long",  # Always long in SPOT
+                    "min_alignment_score": 60
+                }
+            },
+            
+            # ===== MOMENTUM =====
+            "momentum": {
+                "enabled": (ctx in [MarketContext.STRONG_BULLISH, MarketContext.WEAK_BULLISH]) 
+                          and context.volume_ratio > 1.5 
+                          and context.confidence > 60,
+                "reason": "✅ Volume spike in bullish momentum" if (ctx in [MarketContext.STRONG_BULLISH, MarketContext.WEAK_BULLISH] and context.volume_ratio > 1.5)
+                          else "❌ SPOT: Momentum only useful in bullish markets" if skip_all_bearish
+                          else f"❌ Insufficient volume ({context.volume_ratio:.2f}x) or confidence",
+                "position_size_multiplier": 0.75,
+                "parameters": {
+                    "min_volume_ratio": 1.5,
+                    "min_confidence": 60
+                }
+            },
+            
+            # ===== BREAKOUT =====
+            "breakout": {
+                "enabled": ctx == MarketContext.STRONG_BULLISH and context.volatility_ratio > 1.0,
+                "reason": "✅ Catch bullish breakouts" if ctx == MarketContext.STRONG_BULLISH and context.volatility_ratio > 1.0
+                          else "❌ SPOT: Only trade BULLISH breakouts",
+                "position_size_multiplier": 1.0,
+                "parameters": {}
+            },
+            
+            # ===== SCALPING =====
             "scalping": {
-                "enabled": context.volatility_ratio > 1.5 and context.volume_ratio > 2.0,
-                "reason": f"Requires high volatility (>1.5x) and volume (>2x) | Current: {context.volatility_ratio:.2f}x volatility, {context.volume_ratio:.2f}x volume" if context.volatility_ratio > 1.5 and context.volume_ratio > 2.0 else f"Volatility too low ({context.volatility_ratio:.2f}x) or volume insufficient ({context.volume_ratio:.2f}x)",
+                "enabled": not skip_all_bearish 
+                          and context.volatility_ratio > 1.5 
+                          and context.volume_ratio > 2.0,
+                "reason": f"✅ High volatility ({context.volatility_ratio:.2f}x) + volume ({context.volume_ratio:.2f}x)" 
+                          if (not skip_all_bearish and context.volatility_ratio > 1.5 and context.volume_ratio > 2.0)
+                          else "❌ SPOT: Not in bearish" if skip_all_bearish
+                          else f"❌ Volatility ({context.volatility_ratio:.2f}x) or volume ({context.volume_ratio:.2f}x) too low",
+                "position_size_multiplier": 0.5,  # Small scalps
                 "parameters": {
                     "min_volatility_ratio": 1.5,
                     "min_volume_ratio": 2.0,
                     "tp_percent": 0.3
                 }
             },
-            "trendfollowing": {  # Note: matches TrendFollowing.__class__.__name__.lower()
-                "enabled": ctx in [MarketContext.STRONG_BULLISH, MarketContext.STRONG_BEARISH],
-                "reason": "Needs strong trend alignment" if ctx in [MarketContext.STRONG_BULLISH, MarketContext.STRONG_BEARISH] else f"Market too weak ({ctx.value})",
-                "parameters": {
-                    "direction": "long" if ctx == MarketContext.STRONG_BULLISH else "short",
-                    "min_alignment_score": 60
-                }
-            },
-            "momentum": {
-                "enabled": context.volume_ratio > 1.5 and context.confidence > 60,
-                "reason": f"Volume spike detected" if context.volume_ratio > 1.5 else "Insufficient volume for momentum trades",
-                "parameters": {
-                    "min_volume_ratio": 1.5,
-                    "min_confidence": 60
-                }
-            },
-            # Additional strategies (less commonly used)
-            "breakout": {
-                "enabled": ctx in [MarketContext.STRONG_BULLISH, MarketContext.STRONG_BEARISH] and context.volatility_ratio > 1.0,
-                "reason": "Enabled during strong trends with sufficient volatility",
-                "parameters": {}
-            },
+            
+            # ===== DCA (Long term accumulation) =====
             "dca": {
-                "enabled": True,  # DCA works in all conditions
-                "reason": "Dollar-Cost Averaging works in all market conditions",
+                "enabled": True,  # DCA works everywhere (long-term accumulation)
+                "reason": "✅ Long-term accumulation (6-12 months horizon)",
+                "position_size_multiplier": 0.2 if skip_all_bearish else 1.0,  # Reduced in bearish for day trading
                 "parameters": {}
             },
+            
+            # ===== MACD CROSSOVER =====
             "macdcrossover": {
-                "enabled": context.sma_alignment_score > 40,  # Some trend required
-                "reason": "Needs moderate trend alignment for MACD signals",
+                "enabled": not skip_all_bearish and context.sma_alignment_score > 40,
+                "reason": "✅ Moderate trend for MACD signals" if (not skip_all_bearish and context.sma_alignment_score > 40)
+                          else "❌ SPOT: Not in bearish" if skip_all_bearish
+                          else "❌ Insufficient trend alignment",
+                "position_size_multiplier": 0.75,
                 "parameters": {}
             },
+            
+            # ===== RSI DIVERGENCE =====
             "rsidivergence": {
-                "enabled": context.confidence > 50,
-                "reason": "Works when market context is moderately clear",
+                "enabled": not skip_all_bearish and context.confidence > 50,
+                "reason": "✅ Clear market context" if (not skip_all_bearish and context.confidence > 50)
+                          else "❌ SPOT: Not in bearish" if skip_all_bearish
+                          else "❌ Low confidence",
+                "position_size_multiplier": 0.5,
                 "parameters": {}
             }
         }
@@ -379,15 +437,28 @@ class StrategyContextManager:
         """Log which strategies are enabled/disabled and why"""
         strategies = self.get_strategy_status(context)
         
+        # Check global skip flag
+        skip_all = strategies.get("_skip_all_trading", {}).get("enabled", False)
+        
         logger.info(f"\n📊 ===== STRATEGY ACTIVATION FOR {symbol} =====")
         logger.info(f"Market Context: {context.market_context.value} (Confidence: {context.confidence:.0f}%)")
         logger.info(f"Price Position: {context.price_position}")
         logger.info(f"SMA Alignment: {context.sma_alignment_score:.0f}% | Volatility: {context.volatility_ratio:.2f}x | Volume: {context.volume_ratio:.2f}x")
+        
+        if skip_all:
+            logger.warning(f"\n⛔ GLOBAL SKIP: {strategies['_skip_all_trading']['reason']}")
+        
         logger.info(f"\n🤖 Strategy Decisions:")
         
         for strategy_name, status in strategies.items():
+            if strategy_name.startswith("_"):  # Skip meta flags
+                continue
+                
             enabled = "✅ ENABLED" if status["enabled"] else "❌ DISABLED"
-            logger.info(f"  {enabled:12} {strategy_name.upper():20} → {status['reason']}")
+            multiplier = status.get("position_size_multiplier", 1.0)
+            multiplier_str = f" (size: {multiplier*100:.0f}%)" if status["enabled"] else ""
+            
+            logger.info(f"  {enabled:12} {strategy_name.upper():20}{multiplier_str:15} → {status['reason']}")
         
         logger.info(f"{'='*60}\n")
     
