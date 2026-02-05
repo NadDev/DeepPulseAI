@@ -524,6 +524,30 @@ class BotEngine:
             take_profit = validation.take_profit
         
         # ================================================================
+        # 2.5. Risk:Reward Ratio Validation (DT-003)
+        # ================================================================
+        MINIMUM_RR_RATIO = 1.0  # Must have at least 1:1 R:R
+        
+        if final_stop_loss and take_profit:
+            risk = abs(current_price - final_stop_loss)
+            reward = abs(take_profit - current_price)
+            
+            if risk > 0:
+                rr_ratio = reward / risk
+                
+                if rr_ratio < MINIMUM_RR_RATIO:
+                    logger.warning(f"⛔ [RR-BLOCK] {symbol}: R:R ratio {rr_ratio:.2f} below minimum {MINIMUM_RR_RATIO}")
+                    logger.warning(f"   Entry: ${current_price:.4f}, SL: ${final_stop_loss:.4f}, TP: ${take_profit:.4f}")
+                    logger.warning(f"   Risk: ${risk:.4f}, Reward: ${reward:.4f}")
+                    return  # BLOCK trade with poor R:R
+                
+                logger.info(f"✅ [RR-CHECK] {symbol}: R:R ratio {rr_ratio:.2f} (Risk: ${risk:.4f}, Reward: ${reward:.4f})")
+            else:
+                logger.warning(f"⚠️ [RR-CHECK] {symbol}: Invalid risk calculation (risk={risk})")
+        else:
+            logger.warning(f"⚠️ [RR-CHECK] {symbol}: Missing SL or TP for R:R validation (SL={final_stop_loss}, TP={take_profit})")
+        
+        # ================================================================
         # 3. Execute the trade
         # ================================================================
         db = self.db_session_factory()
