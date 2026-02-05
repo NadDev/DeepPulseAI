@@ -390,15 +390,20 @@ async def test_exchange_connection(
     db: Session = Depends(get_db),
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """Test connection to an exchange"""
-    crypto = get_crypto_service()
+    """
+    Test connection to an exchange by calling get_account_balance() via broker.
     
-    api_key = None
-    api_secret = None
-    passphrase = None
-    exchange = None
-    use_testnet = request.use_testnet
+    This is a REAL connection test that validates:
+    1. API credentials are valid
+    2. Exchange API is accessible  
+    3. Account balance can be retrieved
+    """
+    from app.brokers import BrokerFactory
+    
+    crypto = get_crypto_service()
     config = None
+    
+    # === 1. LOAD CREDENTIALS ===
     
     # Either use existing config or provided credentials
     if request.exchange_id:
@@ -410,65 +415,86 @@ async def test_exchange_connection(
         if not config:
             raise HTTPException(status_code=404, detail="Exchange config not found")
         
+        # Create broker from config
         try:
-            api_key = crypto.decrypt(config.api_key_encrypted)
-            api_secret = crypto.decrypt(config.api_secret_encrypted)
-            if config.passphrase_encrypted:
-                passphrase = crypto.decrypt(config.passphrase_encrypted)
+            broker = BrokerFactory.create(config, db)
             exchange = config.exchange
             use_testnet = config.use_testnet
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to decrypt credentials: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to create broker: {e}")
     
     elif request.exchange and request.api_key and request.api_secret:
-        exchange = request.exchange.lower()
-        api_key = request.api_key
-        api_secret = request.api_secret
-        passphrase = request.passphrase
+        # Create temporary config for testing
+        from app.models.database_models import ExchangeConfig as ExchangeConfigModel
+        from uuid import uuid4
+        
+        temp_config = ExchangeConfigModel(
+            id=uuid4(),
+            user_id=current_user.id,
+            exchange=request.exchange.lower(),
+            api_key_encrypted=crypto.encrypt(request.api_key),
+            api_secret_encrypted=crypto.encrypt(request.api_secret),
+            passphrase_encrypted=crypto.encrypt(request.passphrase) if request.passphrase else None,
+            use_testnet=request.use_testnet,
+            paper_trading=False  # Test real connection
+        )
+        
+        try:
+            broker = BrokerFactory.create(temp_config, db)
+            exchange = temp_config.exchange
+            use_testnet = temp_config.use_testnet
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to create broker: {e}")
     
     else:
         raise HTTPException(status_code=400, detail="Provide exchange_id or full credentials")
     
-    # Test connection (simplified - in production would use ccxt or similar)
+    # === 2. TEST CONNECTION VIA BROKER ===
+    
     try:
-        # Simulate connection test
-        # In production: use ccxt library to actually test the API
+        logger.info(f"🔌 Testing {exchange} connection for user {current_user.id} (testnet={use_testnet})...")
+        
+        # REAL API CALL - get account balance
+        account_balance = await broker.get_account_balance()
+        
+        if not account_balance:
+            raise Exception("get_account_balance() returned None")
+        
+        # Connection successful!
         connection_success = True
-        connection_message = "Connection successful"
+        connection_message = f"Connection successful to {exchange}"
+        
         account_info = {
             "exchange": exchange,
+            "broker": broker.name,
             "testnet": use_testnet,
             "status": "connected",
-            "features": SUPPORTED_EXCHANGES.get(exchange, {}).get("supported_features", [])
+            "quote_asset": account_balance.quote_asset,
+            "free_balance": account_balance.free_balance,
+            "locked_balance": account_balance.locked_balance,
+            "total_value": account_balance.total_value,
+            "assets_count": len(account_balance.assets)
         }
         
-        # Validate key format (basic check)
-        if len(api_key) < 10 or len(api_secret) < 10:
-            connection_success = False
-            connection_message = "Invalid API key format"
+        logger.info(f"✅ Connection test SUCCESS: {exchange} - Balance=${account_balance.total_value:.2f}")
         
         # Update config status if testing existing config
         if config:
-            config.connection_status = "connected" if connection_success else "failed"
+            config.connection_status = "connected"
             config.last_connection_test = datetime.utcnow()
-            config.connection_error = None if connection_success else connection_message
+            config.connection_error = None
             db.commit()
         
-        if connection_success:
-            return {
-                "status": "success",
-                "message": connection_message,
-                "account": account_info
-            }
-        else:
-            return {
-                "status": "error",
-                "message": connection_message
-            }
+        return {
+            "status": "success",
+            "message": connection_message,
+            "account": account_info
+        }
         
     except Exception as e:
-        logger.error(f"Connection test failed: {e}")
+        logger.error(f"❌ Connection test FAILED: {e}")
         
+        # Update config status if testing existing config
         if config:
             config.connection_status = "failed"
             config.last_connection_test = datetime.utcnow()
@@ -477,7 +503,7 @@ async def test_exchange_connection(
         
         return {
             "status": "error",
-            "message": str(e)
+            "message": f"Connection failed: {str(e)}"
         }
 
 

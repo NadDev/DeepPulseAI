@@ -24,12 +24,15 @@ from .binance_broker import BinanceBroker
 from .paper_broker import PaperBroker
 from .factory import BrokerFactory
 from .data_sources import DataSource, LiveDataSource
+from .limits_guard import TradingLimitsGuard, TradingLimitViolation
 
 __all__ = [
     "BaseBroker",
     "BinanceBroker",
     "PaperBroker",
     "BrokerFactory",
+    "TradingLimitsGuard",
+    "TradingLimitViolation",
     "DataSource",
     "LiveDataSource",
     "OrderSide",

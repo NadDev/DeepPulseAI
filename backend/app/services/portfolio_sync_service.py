@@ -1,10 +1,10 @@
 """
 Portfolio Sync Service
-Synchronizes local Portfolio database with real Binance account balance
+Synchronizes local Portfolio database with exchange account balance via broker abstraction
 Runs periodically (every 60 seconds) to keep data in sync
 
 This is CRITICAL for production to ensure:
-1. Portfolio value matches actual Binance balance
+1. Portfolio value matches actual exchange balance
 2. Detect discrepancies (drift detection)
 3. Reconcile automatically if out of sync
 """
@@ -16,9 +16,7 @@ import logging
 from sqlalchemy.orm import Session
 from app.db.database import SessionLocal
 from app.models.database_models import Portfolio, ExchangeConfig, Trade, LongTermPosition
-from app.services.market_data import MarketDataCollector
-from app.services.crypto_service import get_crypto_service
-from cryptography.fernet import Fernet
+from app.brokers import BrokerFactory
 from sqlalchemy import and_
 import os
 
@@ -27,21 +25,18 @@ logger = logging.getLogger(__name__)
 
 class PortfolioSyncService:
     """
-    Synchronizes local Portfolio with real Binance balance
+    Synchronizes local Portfolio with exchange balance via broker abstraction
     Handles:
-    1. Fetching account balance from Binance
-    2. Converting all assets to quote currency (USDT)
-    3. Detecting drift (local vs exchange balance)
-    4. Automatic reconciliation
-    5. Daily reset of counters
+    1. Fetching account balance from exchange (via BrokerFactory)
+    2. Detecting drift (local vs exchange balance)
+    3. Automatic reconciliation
+    4. Daily reset of counters
     """
     
     def __init__(self):
-        self.market_collector = MarketDataCollector()
         self.running = False
         self.sync_interval = 60  # Sync every 60 seconds
         self.drift_threshold = 100.0  # Alert if diff > 100 USDT
-        self.encryption_key = os.getenv("PORTFOLIO_ENCRYPTION_KEY", "default-key-change-in-prod")
     
     async def start(self):
         """Start the portfolio sync loop"""
@@ -83,7 +78,7 @@ class PortfolioSyncService:
     
     async def sync_user_portfolio(self, user_id: str, db: Session) -> bool:
         """
-        Sync a single user's portfolio with their Binance account
+        Sync a single user's portfolio with their exchange account via broker abstraction
         
         Returns:
             True if synced successfully, False if error
@@ -114,81 +109,61 @@ class PortfolioSyncService:
             return False
         
         try:
-            # Decrypt credentials
-            cipher = Fernet(self.encryption_key.encode())
-            api_key = cipher.decrypt(exchange_config.api_key_encrypted.encode()).decode()
-            api_secret = cipher.decrypt(exchange_config.api_secret_encrypted.encode()).decode()
+            # === FETCH REAL DATA FROM EXCHANGE VIA BROKER ===
             
-            # Get Binance client
-            crypto_service = get_crypto_service()
-            binance_client = crypto_service.get_exchange_client(
-                exchange_config.exchange,
-                api_key,
-                api_secret,
-                testnet=exchange_config.use_testnet
-            )
+            # Create broker via factory
+            broker = BrokerFactory.from_user(user_id, db)
             
-            # === FETCH REAL DATA FROM BINANCE ===
+            logger.debug(f"Fetching account balance for {user_id} via {broker.name}...")
             
-            # 1. Get account balance
-            logger.debug(f"Fetching account balance for {user_id}...")
-            account = await binance_client.get_account()
+            # Get account balance (already returns total value in quote currency)
+            account_balance = await broker.get_account_balance()
             
-            if not account or "balances" not in account:
-                logger.error(f"Invalid account response for {user_id}")
+            if not account_balance:
+                logger.error(f"Invalid account balance for {user_id}")
                 return False
             
-            # 2. Calculate total value in quote asset (USDT)
-            quote_asset = "USDT"
-            exchange_balances = {}
-            exchange_total_value = 0
+            # === EXTRACT KEY METRICS ===
             
-            for balance in account["balances"]:
-                asset = balance["asset"]
-                free = float(balance.get("free", 0))
-                locked = float(balance.get("locked", 0))
-                total = free + locked
-                
-                if total == 0:
-                    continue
-                
-                exchange_balances[asset] = {
-                    "free": free,
-                    "locked": locked,
-                    "total": total
-                }
-                
-                if asset == quote_asset:
-                    exchange_total_value += total
-                else:
-                    # Convert to USDT
-                    try:
-                        ticker = await self.market_collector.get_ticker(f"{asset}{quote_asset}")
-                        price = float(ticker.get("close", 0))
-                        value_in_quote = total * price
-                        exchange_total_value += value_in_quote
-                        
-                        logger.debug(f"  {asset}: {total:.8f} @ ${price:.2f} = ${value_in_quote:.2f}")
-                    except Exception as e:
-                        logger.warning(f"Could not get price for {asset}: {str(e)}")
-                        continue
+            exchange_cash_balance = account_balance.free_balance  # Free USDT
+            exchange_total_value = account_balance.total_value  # All assets converted to USDT
+            
+            logger.debug(
+                f"  Exchange balance: Free=${exchange_cash_balance:.2f}, "
+                f"Total=${exchange_total_value:.2f}"
+            )
+            
+            # === CALCULATE LONG-TERM POSITIONS VALUE ===
+            
+            # LT positions are held separately (not on exchange yet)
+            lt_positions_value = await self._calculate_lt_positions_value(user_id, db, broker)
+            
+            # Total portfolio value = Exchange value + LT positions (accumulating)
+            total_portfolio_value = exchange_total_value + lt_positions_value
             
             # === UPDATE DATABASE ===
             
-            # Store exchange values (source of truth)
-            exchange_cash_balance = exchange_balances.get(quote_asset, {}).get("free", 0)
+            # Calculate difference (drift detection)
+            old_local_value = portfolio.cash_balance + portfolio.total_value
+            balance_difference = abs(old_local_value - total_portfolio_value)
             
-            # Calculate Long-Term positions value
-            lt_positions_value = await self._calculate_lt_positions_value(user_id, db)
+            # Store exchange values
+            portfolio.exchange = exchange_config.exchange
+            portfolio.exchange_config_id = exchange_config.id
+            portfolio.exchange_cash_balance = exchange_cash_balance
+            portfolio.exchange_total_value = exchange_total_value
+            portfolio.balance_difference = balance_difference
+            portfolio.last_synced_with_exchange = datetime.utcnow()
             
-            # Total value = Exchange balance + LT positions (held separately)
-            total_portfolio_value = exchange_total_value + lt_positions_value
+            # === UPDATE DATABASE ===
             
-            # Calculate difference
-            old_exchange_value = portfolio.exchange_total_value or 0
-            balance_difference = abs(portfolio.local_total_value - total_portfolio_value)
+            # Calculate difference (drift detection)
+            old_local_value = portfolio.cash_balance + portfolio.total_value
+            balance_difference = abs(old_local_value - total_portfolio_value)
             
-            # Update portfolio
+            # Store exchange values
+            portfolio.exchange = exchange_config.exchange
+            portfolio.exchange_config_id = exchange_config.id
             portfolio.exchange_cash_balance = exchange_cash_balance
             portfolio.exchange_total_value = exchange_total_value
             portfolio.balance_difference = balance_difference
@@ -197,7 +172,25 @@ class PortfolioSyncService:
             # Update total_value to include LT positions
             portfolio.total_value = total_portfolio_value
             
+            # === DRIFT DETECTION & AUTO-RECONCILIATION ===
+            
             # Check if synced
+            if balance_difference > self.drift_threshold:
+                portfolio.is_synced = False
+                logger.warning(
+                    f"⚠️  DRIFT DETECTED for {user_id}: "
+                    f"Local=${old_local_value:.2f}, "
+                    f"Exchange=${exchange_total_value:.2f}, "
+                    f"Diff=${balance_difference:.2f}"
+                )
+                
+                # Auto-reconcile: use exchange as source of truth
+                logger.info(f"🔧 Auto-reconciling portfolio for {user_id}")
+                portfolio.cash_balance = exchange_cash_balance
+                portfolio.total_value = total_portfolio_value
+                portfolio.is_synced = True
+            else:
+                portfolio.is_synced = True
             if balance_difference > self.drift_threshold:
                 portfolio.is_synced = False
                 logger.warning(
@@ -235,9 +228,15 @@ class PortfolioSyncService:
             db.commit()
             return False
     
-    async def _calculate_lt_positions_value(self, user_id: str, db: Session) -> float:
+    async def _calculate_lt_positions_value(self, user_id: str, db: Session, broker) -> float:
         """
-        Calculate total value of Long-Term positions.        Fetches all LT positions and multiplies quantity * current_price.
+        Calculate total value of Long-Term positions using broker for price data.
+        Fetches all LT positions and multiplies quantity * current_price.
+        
+        Args:
+            user_id: User ID
+            db: Database session
+            broker: Broker instance for price queries
         
         Returns:
             Total value in USDT
@@ -257,9 +256,8 @@ class PortfolioSyncService:
             
             for pos in positions:
                 try:
-                    # Get current price for symbol
-                    ticker = await self.market_collector.get_ticker(pos.symbol)
-                    current_price = float(ticker.get("close", 0))
+                    # Get current price via broker
+                    current_price = await broker.get_latest_price(pos.symbol)
                     
                     # Calculate position value
                     position_value = pos.total_quantity * current_price
