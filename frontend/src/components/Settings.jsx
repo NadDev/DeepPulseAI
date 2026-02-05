@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { Settings as SettingsIcon, Cpu, Lock, HelpCircle, Link2, Star, TrendingUp } from 'lucide-react';
+import { Settings as SettingsIcon, Cpu, Lock, HelpCircle, Link2, TrendingUp } from 'lucide-react';
 import AISettings from './AISettings';
 import ExchangeSettings from './ExchangeSettings';
-import WatchlistManager from './WatchlistManager';
 import TradingSettings from './TradingSettings';
 import '../styles/Settings.css';
 
@@ -27,12 +26,6 @@ export default function Settings() {
       label: 'Exchanges',
       icon: <Link2 size={18} />,
       component: <ExchangeSettings />
-    },
-    {
-      id: 'watchlist',
-      label: 'Watchlist',
-      icon: <Star size={18} />,
-      component: <WatchlistManager />
     },
     {
       id: 'security',

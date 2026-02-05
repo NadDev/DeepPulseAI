@@ -11,6 +11,7 @@ import Portfolio from './components/Portfolio';
 import BotManager from './components/BotManager';
 import AIAgent from './components/AIAgent';
 import Settings from './components/Settings';
+import Markets from './components/Markets';
 import Reports from './components/Reports';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -62,7 +63,7 @@ function App() {
                         <Route path="/" element={<Dashboard />} />
                         <Route path="/charts" element={<Charts />} />
                         <Route path="/portfolio" element={<Portfolio />} />
-                        <Route path="/markets" element={<Placeholder title="Market Analysis" />} />
+                        <Route path="/markets" element={<Markets />} />
                         <Route path="/bots" element={<BotManager />} />
                         <Route path="/ai-agent" element={<AIAgent />} />
                         <Route path="/reports" element={<Reports />} />
