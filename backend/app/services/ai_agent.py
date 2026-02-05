@@ -711,7 +711,10 @@ class AITradingAgent:
             quantity = cost / entry_price
             
             # Log trade creation with full details
-            logger.info(f"✅ [AI TRADE CREATE] {symbol} {side} | Entry: ${entry_price:.8f} | SL: ${stop_loss:.8f if stop_loss else 'None'} (offset: ${entry_price - stop_loss if stop_loss else 'N/A'}) | TP: ${take_profit:.8f if take_profit else 'None'} | Qty: {quantity:.8f} | Cost: ${cost:.2f}")
+            sl_str = f"${stop_loss:.8f}" if stop_loss else "None"
+            tp_str = f"${take_profit:.8f}" if take_profit else "None"
+            offset_str = f"${entry_price - stop_loss:.8f}" if stop_loss else "N/A"
+            logger.info(f"✅ [AI TRADE CREATE] {symbol} {side} | Entry: ${entry_price:.8f} | SL: {sl_str} (offset: {offset_str}) | TP: {tp_str} | Qty: {quantity:.8f} | Cost: ${cost:.2f}")
             
             # Deduct from cash balance
             portfolio.cash_balance = float(portfolio.cash_balance) - cost
