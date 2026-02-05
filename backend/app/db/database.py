@@ -26,8 +26,10 @@ kwargs = {
 # PostgreSQL-specific settings
 if "postgresql" in settings.DATABASE_URL:
     kwargs.update({
-        "pool_size": 5,
-        "max_overflow": 10,
+        "pool_size": 20,  # ✅ Augmenté de 5 à 20 pour supporter charge simultanée
+        "max_overflow": 30,  # ✅ Augmenté de 10 à 30 (débordement)
+        "pool_recycle": 3600,  # ✅ Nouvelle: Recycle connexions après 1h (évite stale connections)
+        "pool_pre_ping": True,  # ✅ Vérifie connexion avant utilisation
         "poolclass": QueuePool,
         "connect_args": {
             "connect_timeout": 10,
