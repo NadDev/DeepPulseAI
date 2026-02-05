@@ -280,25 +280,30 @@ class BotEngine:
                 if context_analysis:
                     self.strategy_context_manager.log_strategy_decisions(symbol, context_analysis)
                     
-                    # ===== DIAGNOSTIC MODE: BYPASS CONTEXT FILTERING =====
-                    # Temporarily disabled to diagnose if strategies generate signals
-                    # or if signals are blocked by context filtering
-                    # 
-                    # Original logic (commented out):
-                    # Check if this strategy should be active in current market context
-                    # Get strategy name from the strategy object class name
-                    # strategy_name = strategy.__class__.__name__.lower()
-                    # strategy_should_be_active = self.strategy_context_manager.should_activate_strategy(
-                    #     strategy_name, context_analysis
-                    # )
-                    # 
-                    # if not strategy_should_be_active and signal != "HOLD":
-                    #     logger.info(f"⏭️ [CONTEXT] {symbol}: {strategy_name.upper()} signal {signal} SKIPPED - "
-                    #                f"inactive in {context_analysis.market_context.value} market")
-                    #     # Still check open positions but don't execute new trades
-                    #     await self._check_open_positions(bot_state, strategy, symbol, market_data)
-                    #     continue
-                    # ===== END DIAGNOSTIC MODE =====
+                    # ===== CONTEXT ENFORCEMENT (DT-001): HARD BLOCK =====
+                    # Check if global skip flag is active (SPOT trading in bearish markets)
+                    strategy_status = self.strategy_context_manager.get_strategy_status(context_analysis)
+                    skip_all = strategy_status.get("_skip_all_trading", {}).get("enabled", False)
+                    
+                    if skip_all and signal in ["BUY", "SELL"]:
+                        logger.warning(f"⛔ [GLOBAL-SKIP] {symbol}: ALL TRADING BLOCKED - {strategy_status['_skip_all_trading']['reason']}")
+                        # Still check open positions for exit signals
+                        await self._check_open_positions(bot_state, strategy, symbol, market_data)
+                        continue
+                    
+                    # Check if this specific strategy should be active in current market context
+                    strategy_name = strategy.__class__.__name__.lower()
+                    strategy_should_be_active = self.strategy_context_manager.should_activate_strategy(
+                        strategy_name, context_analysis
+                    )
+                    
+                    if not strategy_should_be_active and signal in ["BUY", "SELL"]:
+                        logger.warning(f"⛔ [CONTEXT-BLOCK] {symbol}: {strategy_name.upper()} signal {signal} BLOCKED - "
+                                   f"not suitable for {context_analysis.market_context.value} market")
+                        # Still check open positions for exit signals
+                        await self._check_open_positions(bot_state, strategy, symbol, market_data)
+                        continue
+                    # ===== END CONTEXT ENFORCEMENT =====
                 
                 # === AI AGENT VALIDATION ===
                 ai_validation = None
