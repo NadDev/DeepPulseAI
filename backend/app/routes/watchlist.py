@@ -598,13 +598,18 @@ async def accept_recommendation(
     """
     try:
         user_uuid = get_user_uuid(current_user.id)
+        SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
         
-        # Get recommendation
+        # Get recommendation (allowing Global OR User-specific)
         from sqlalchemy import text
         result = db.execute(text("""
-            SELECT symbol, action FROM watchlist_recommendations
-            WHERE id = :id AND user_id = :user_id
-        """), {"id": recommendation_id, "user_id": str(user_uuid)})
+            SELECT symbol, action, user_id FROM watchlist_recommendations
+            WHERE id = :id AND (user_id = :user_id OR user_id = :system_user_id)
+        """), {
+            "id": recommendation_id, 
+            "user_id": str(user_uuid),
+            "system_user_id": SYSTEM_USER_ID
+        })
         
         rec = result.fetchone()
         
@@ -613,13 +618,16 @@ async def accept_recommendation(
         
         symbol = rec[0]
         action = rec[1]
+        rec_owner_id = str(rec[2])
         
-        # Mark as accepted
-        db.execute(text("""
-            UPDATE watchlist_recommendations
-            SET accepted = true, accepted_at = NOW()
-            WHERE id = :id
-        """), {"id": recommendation_id})
+        # Mark as accepted ONLY if owned by user
+        # (Global recs stay available for others)
+        if rec_owner_id == str(user_uuid):
+            db.execute(text("""
+                UPDATE watchlist_recommendations
+                SET accepted = true, accepted_at = NOW()
+                WHERE id = :id
+            """), {"id": recommendation_id})
         
         # Add to watchlist if requested and action is ADD
         if request.add_to_watchlist and action == "ADD":
