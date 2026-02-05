@@ -10,6 +10,7 @@ import uuid as uuid_module
 from typing import Dict, Any, Optional, List, Callable
 from datetime import datetime
 import httpx
+from app.brokers import BrokerFactory, BaseBroker
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class AITradingAgent:
     Analyzes market data and recommends trading actions
     """
     
-    def __init__(self, api_key: str, model: str = "deepseek-chat", db_session_factory: Callable = None, user_id: str = None):
+    def __init__(self, api_key: str, model: str = "deepseek-chat", db_session_factory: Callable = None, user_id: str = None, broker: Optional[BaseBroker] = None):
         """
         Initialize AI Trading Agent
         
@@ -29,6 +30,7 @@ class AITradingAgent:
             model: DeepSeek model to use
             db_session_factory: Factory for database sessions
             user_id: User ID this AI agent belongs to (for per-user AI)
+            broker: Optional broker instance (if None, will create default PaperBroker)
         """
         self.api_key = api_key
         self.model = model
@@ -39,6 +41,9 @@ class AITradingAgent:
         self._task: Optional[asyncio.Task] = None
         self.db_session_factory = db_session_factory
         self.user_id = user_id  # Store user_id for per-user AI
+        
+        # Broker abstraction (P4 injection) - lazy instantiation
+        self._broker = broker
         
         # Configuration
         self.check_interval = 300  # 5 minutes between analyses
@@ -57,6 +62,27 @@ class AITradingAgent:
         # Store decision history for learning
         self.decision_history: List[Dict[str, Any]] = []
         self.max_history = 100
+    
+    @property
+    def broker(self) -> BaseBroker:
+        """
+        Lazy-load broker via BrokerFactory if not provided.
+        Falls back to default PaperBroker if no user config found.
+        """
+        if self._broker is None:
+            if self.user_id and self.db_session_factory:
+                # Try to load user's exchange config
+                db = self.db_session_factory()
+                try:
+                    self._broker = BrokerFactory.from_user(self.user_id, db)
+                    logger.info(f"🏦 Broker instantiated via factory for AI Agent (user {self.user_id})")
+                finally:
+                    db.close()
+            else:
+                # No user_id provided - use default paper broker
+                self._broker = BrokerFactory.create_paper()
+                logger.info("🏦 AI Agent using default PaperBroker (no user_id provided)")
+        return self._broker
     
     def enable_autonomous_mode(self, enabled: bool = True):
         """

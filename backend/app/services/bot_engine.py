@@ -16,6 +16,7 @@ from app.services.technical_analysis import TechnicalAnalysis
 from app.services.risk_manager import RiskManager
 from app.services.sl_tp_manager import SLTPManager, TradeState, TradePhase, ExitReason
 from app.services.strategy_context_manager import StrategyContextManager, initialize_strategy_context_manager
+from app.brokers import BrokerFactory, BaseBroker
 import uuid
 import logging
 
@@ -30,15 +31,23 @@ class BotEngine:
     Integrates with SLTPManager for intelligent SL/TP management.
     """
     
-    def __init__(self, db_session_factory):
+    def __init__(self, db_session_factory, broker: Optional[BaseBroker] = None, user_id: Optional[str] = None):
         """
         Initialize BotEngine with a session factory for database operations.
         
         Args:
             db_session_factory: A callable that returns a new database session
+            broker: Optional broker instance (if None, will create default PaperBroker)
+            user_id: Optional user_id for broker instantiation via factory
         """
         self.db_session_factory = db_session_factory
         self.active_bots: Dict[str, Dict[str, Any]] = {}
+        self.user_id = user_id
+        
+        # Broker abstraction (P4 injection) - lazy instantiation
+        self._broker = broker
+        
+        # Legacy market data collector (still used, will be replaced by broker in refactoring)
         self.market_data = MarketDataCollector()
         self.technical_analysis = TechnicalAnalysis()
         self._running = False
@@ -62,6 +71,27 @@ class BotEngine:
         self.ai_enabled = False  # Enable/disable AI validation
         self.ai_mode = "advisory"  # advisory (suggest) or autonomous (auto-trade)
         self.ai_min_confidence = 60  # Minimum AI confidence to proceed
+    
+    @property
+    def broker(self) -> BaseBroker:
+        """
+        Lazy-load broker via BrokerFactory if not provided.
+        Falls back to default PaperBroker if no user config found.
+        """
+        if self._broker is None:
+            if self.user_id:
+                # Try to load user's exchange config
+                db = self.db_session_factory()
+                try:
+                    self._broker = BrokerFactory.from_user(self.user_id, db)
+                    logger.info(f"🏦 Broker instantiated via factory for user {self.user_id}")
+                finally:
+                    db.close()
+            else:
+                # No user_id provided - use default paper broker
+                self._broker = BrokerFactory.create_paper()
+                logger.info("🏦 Using default PaperBroker (no user_id provided)")
+        return self._broker
     
     def set_ai_agent(self, ai_agent):
         """
