@@ -22,12 +22,14 @@ from .base import (
 )
 from .binance_broker import BinanceBroker
 from .paper_broker import PaperBroker
+from .factory import BrokerFactory
 from .data_sources import DataSource, LiveDataSource
 
 __all__ = [
     "BaseBroker",
     "BinanceBroker",
     "PaperBroker",
+    "BrokerFactory",
     "DataSource",
     "LiveDataSource",
     "OrderSide",
