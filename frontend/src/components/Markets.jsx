@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, RefreshCw, AlertTriangle, Check, Loader2 } from 'lucide-react';
+import { Sparkles, AlertTriangle, Check, Loader2 } from 'lucide-react';
 import WatchlistManager from './WatchlistManager';
 import '../styles/Markets.css';
 
@@ -40,7 +40,7 @@ export default function Markets() {
       const data = await response.json();
       setUpdateStatus({
         type: 'success',
-        message: '✅ Mise à jour des recommandations lancée en arrière-plan'
+        message: '✅ Recommendations update started'
       });
       setTimeout(() => setUpdateStatus(null), 5000);
     } catch (err) {
@@ -76,7 +76,7 @@ export default function Markets() {
       const data = await response.json();
       setUpdateStatus({
         type: 'success',
-        message: '✅ Mise à jour des données de marché lancée en arrière-plan'
+        message: '✅ Market data update started'
       });
       setTimeout(() => setUpdateStatus(null), 5000);
     } catch (err) {
@@ -93,70 +93,53 @@ export default function Markets() {
   return (
     <div className="markets-page">
       <div className="markets-container">
-        {/* Header */}
-        <div className="markets-header">
-          <div className="header-content">
-            <TrendingUp size={32} />
-            <div>
-              <h1>Markets & Data</h1>
-              <p>Gérez votre watchlist et mettez à jour les données de marché</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Update Controls */}
-        <div className="update-controls">
-          <div className="controls-info">
-            <RefreshCw size={20} />
-            <div>
-              <h3>Mise à jour des données</h3>
-              <p>Lancez manuellement les mises à jour des recommandations et des données de marché</p>
-            </div>
-          </div>
+        {/* Watchlist Manager with inline update buttons */}
+        <div className="watchlist-wrapper">
+          <WatchlistManager />
           
-          <div className="controls-buttons">
+          {/* Update buttons aligned with Sync avec AI style */}
+          <div className="market-update-controls">
             <button
-              className="btn-primary"
+              className="btn-sync"
               onClick={handleUpdateRecommendations}
               disabled={loadingUpdates}
+              title="Update recommendations data (50 cryptos)"
             >
               {loadingUpdates ? (
                 <Loader2 size={16} className="spin" />
               ) : (
-                <RefreshCw size={16} />
+                <Sparkles size={16} />
               )}
-              Maj Recommandations
+              Update Recommendations
             </button>
             
             <button
-              className="btn-primary btn-secondary"
+              className="btn-sync"
               onClick={handleUpdateMarketData}
               disabled={loadingUpdates}
+              title="Refresh market data (200 cryptos)"
             >
               {loadingUpdates ? (
                 <Loader2 size={16} className="spin" />
               ) : (
-                <RefreshCw size={16} />
+                <Sparkles size={16} />
               )}
-              Mise à jour Marché
+              Refresh Market Data
             </button>
           </div>
+
+          {/* Status Messages */}
+          {updateStatus && (
+            <div className={`alert alert-${updateStatus.type}`}>
+              {updateStatus.type === 'success' ? (
+                <Check size={16} />
+              ) : (
+                <AlertTriangle size={16} />
+              )}
+              {updateStatus.message}
+            </div>
+          )}
         </div>
-
-        {/* Status Messages */}
-        {updateStatus && (
-          <div className={`alert alert-${updateStatus.type}`}>
-            {updateStatus.type === 'success' ? (
-              <Check size={16} />
-            ) : (
-              <AlertTriangle size={16} />
-            )}
-            {updateStatus.message}
-          </div>
-        )}
-
-        {/* Watchlist Manager */}
-        <WatchlistManager />
       </div>
     </div>
   );
