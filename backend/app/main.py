@@ -545,7 +545,39 @@ async def lifespan(app: FastAPI):
         except Exception as precision_error:
             logger.warning(f"⚠️ Volume column precision check failed: {precision_error}")
 
-        
+        # Check if Global System User exists (migration 018)
+        try:
+            result = db.execute(text("SELECT id FROM users WHERE id = '00000000-0000-0000-0000-000000000000'"))
+            user_exists = result.fetchone()
+            if user_exists:
+                logger.info("[OK] Global System User exists")
+            else:
+                logger.info(f"⚙️ Creating Global System User (00000000-0000-0000-0000-000000000000) (migration 018)...")
+                
+                migration_paths = [
+                    "/app/database/migrations/018_ensure_system_user.sql",
+                    "database/migrations/018_ensure_system_user.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/018_ensure_system_user.sql"
+                ]
+                
+                migration_sql = None
+                for path in migration_paths:
+                    try:
+                        migration_sql = open(path).read()
+                        logger.info(f"✅ Found migration at: {path}")
+                        break
+                    except:
+                        continue
+                
+                if migration_sql:
+                    db.execute(text(migration_sql))
+                    db.commit()
+                    logger.info("✅ Global System User created")
+                else:
+                    logger.error(f"❌ Could not find migration 018 file")
+        except Exception as create_error:
+            logger.error(f"❌ Failed to create Global System User: {create_error}")
+
         db.close()
     except Exception as e:
         logger.warning(f"⚠️ Could not verify/create tables: {e}")
