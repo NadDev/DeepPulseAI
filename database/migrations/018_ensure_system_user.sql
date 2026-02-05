@@ -14,13 +14,11 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- Ensure a portfolio entry exists for this user (to prevent FK errors if logic ever touches portfolios)
-INSERT INTO portfolios (id, user_id, cash_balance, total_value, created_at, updated_at)
+INSERT INTO portfolios (id, user_id, cash_balance, total_value)
 VALUES (
     '00000000-0000-0000-0000-000000000000'::uuid, -- Using same ID for simplicity
     '00000000-0000-0000-0000-000000000000'::uuid,
     0.0,
-    0.0,
-    NOW(), -- created_at
-    NOW()  -- updated_at
+    0.0
 )
 ON CONFLICT (user_id) DO NOTHING;
