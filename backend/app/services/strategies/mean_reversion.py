@@ -58,7 +58,7 @@ class MeanReversion(BaseStrategy):
             },
             'stop_loss_pct': {
                 'type': 'float',
-                'default': 3.0,
+                'default': 2.0,  # Changed from 3.0 to tighten risk
                 'min': 1.0,
                 'max': 10.0,
                 'description': 'Stop loss percentage beyond band'

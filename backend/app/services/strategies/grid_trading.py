@@ -39,14 +39,14 @@ class GridTrading(BaseStrategy):
             },
             'take_profit_pct': {
                 'type': 'float',
-                'default': 1.0,
+                'default': 2.5,  # Changed from 1.0 to improve R:R
                 'min': 0.5,
                 'max': 3.0,
                 'description': 'Take profit per grid trade (%)'
             },
             'stop_loss_pct': {
                 'type': 'float',
-                'default': 5.0,
+                'default': 2.0,  # Changed from 5.0 to improve R:R
                 'min': 2.0,
                 'max': 15.0,
                 'description': 'Overall stop loss (%)'
