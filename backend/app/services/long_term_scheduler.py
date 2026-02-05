@@ -25,7 +25,7 @@ from app.models.database_models import PortfolioAllocation, Portfolio
 from app.services.long_term_manager import LongTermManager
 from app.services.market_data import MarketDataCollector
 from app.services.technical_analysis import TechnicalAnalysis
-from app.services.ml_engine import ML_Engine
+from app.services.ml_engine import MLEngine
 
 logger = logging.getLogger(__name__)
 
