@@ -536,10 +536,10 @@ async def get_pending_recommendations(
         user_uuid = get_user_uuid(current_user.id)
         SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
         
-        # 1. Get user's existing watchlist symbols
+        # 1. Get user's existing watchlist symbols (BOTH active and inactive)
+        # We need inactive ones too to show REMOVE recommendations for items they've disabled
         existing_items = db.query(WatchlistItem.symbol).filter(
-            WatchlistItem.user_id == user_uuid,
-            WatchlistItem.is_active == True
+            WatchlistItem.user_id == user_uuid
         ).all()
         user_symbols = {item.symbol for item in existing_items}
         
@@ -630,52 +630,69 @@ async def accept_recommendation(
                 WHERE id = :id
             """), {"id": recommendation_id})
         
-        # Add to watchlist if requested and action is ADD
-        if request.add_to_watchlist and action == "ADD":
-            # Check if already exists
-            existing = db.query(WatchlistItem).filter(
-                WatchlistItem.user_id == user_uuid,
-                WatchlistItem.symbol == symbol
-            ).first()
+        # Handle action: ADD (add to watchlist) or REMOVE (deactivate from watchlist)
+        if request.add_to_watchlist:
+            if action == "ADD":
+                # Add to watchlist if requested and action is ADD
+                existing = db.query(WatchlistItem).filter(
+                    WatchlistItem.user_id == user_uuid,
+                    WatchlistItem.symbol == symbol
+                ).first()
+                
+                if not existing:
+                    # Normalize to Binance format (BTCUSDT, not BTC/USDT)
+                    normalized_symbol = symbol.upper().strip()
+                    normalized_symbol = normalized_symbol.replace('/', '')
+                    if not normalized_symbol.endswith('USDT'):
+                        normalized_symbol = f"{normalized_symbol}USDT"
+                    
+                    # Extract base currency from normalized symbol
+                    base_currency = normalized_symbol.replace('USDT', '').replace('/USDT', '').strip()
+                    
+                    try:
+                        new_item = WatchlistItem(
+                            user_id=user_uuid,
+                            symbol=normalized_symbol,
+                            base_currency=base_currency,
+                            quote_currency='USDT',
+                            is_active=True,
+                            priority=5,
+                            notes=f"Added from recommendation"
+                        )
+                        db.add(new_item)
+                        logger.info(f"[RECOMMENDATION] ✅ Added {normalized_symbol} to watchlist for user {user_uuid}")
+                    except Exception as e:
+                        logger.error(f"[RECOMMENDATION] ❌ Failed to add {symbol} to watchlist: {e}")
+                        db.rollback()
+                        raise
+                else:
+                    # Item exists but might be inactive, reactivate it
+                    if not existing.is_active:
+                        existing.is_active = True
+                        logger.info(f"[RECOMMENDATION] ✅ Reactivated {symbol} in watchlist for user {user_uuid}")
             
-            if not existing:
-                # Use same validation as the /add endpoint
-                # Normalize to Binance format (BTCUSDT, not BTC/USDT)
-                normalized_symbol = symbol.upper().strip()
-                normalized_symbol = normalized_symbol.replace('/', '')
-                if not normalized_symbol.endswith('USDT'):
-                    normalized_symbol = f"{normalized_symbol}USDT"
+            elif action == "REMOVE":
+                # Remove/deactivate from watchlist if action is REMOVE
+                existing = db.query(WatchlistItem).filter(
+                    WatchlistItem.user_id == user_uuid,
+                    WatchlistItem.symbol == symbol
+                ).first()
                 
-                # Extract base currency from normalized symbol
-                base_currency = normalized_symbol.replace('USDT', '').replace('/USDT', '').strip()
-                
-                try:
-                    new_item = WatchlistItem(
-                        user_id=user_uuid,
-                        symbol=normalized_symbol,
-                        base_currency=base_currency,
-                        quote_currency='USDT',
-                        is_active=True,
-                        priority=5,
-                        notes=f"Added from recommendation"
-                    )
-                    db.add(new_item)
-                    logger.info(f"[RECOMMENDATION] ✅ Added {normalized_symbol} to watchlist for user {user_uuid}")
-                except Exception as e:
-                    logger.error(f"[RECOMMENDATION] ❌ Failed to add {symbol} to watchlist: {e}")
-                    db.rollback()
-                    raise
+                if existing:
+                    existing.is_active = False  # Deactivate instead of delete
+                    logger.info(f"[RECOMMENDATION] ✅ Deactivated {symbol} from watchlist for user {user_uuid}")
         
         
         db.commit()
         
-        logger.info(f"[RECOMMENDATION] User {user_uuid} accepted {symbol}")
+        logger.info(f"[RECOMMENDATION] User {user_uuid} accepted {symbol} ({action})")
         
         return {
             "success": True,
             "message": f"Recommendation accepted",
             "symbol": symbol,
-            "added_to_watchlist": request.add_to_watchlist and action == "ADD"
+            "action": action,
+            "applied": request.add_to_watchlist
         }
         
     except HTTPException:
