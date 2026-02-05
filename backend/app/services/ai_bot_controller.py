@@ -636,6 +636,24 @@ class AIBotController:
         # Check if AI already recommended a strategy
         if "suggested_strategy" in recommendation and recommendation["suggested_strategy"]:
             strategy = recommendation["suggested_strategy"]
+            
+            # ===== DT-006B: VALIDATE AI-SUGGESTED STRATEGY AGAINST BEARISH =====
+            signals_summary = recommendation.get("signals_summary", {})
+            bullish_count = len(signals_summary.get("bullish", []))
+            bearish_count = len(signals_summary.get("bearish", []))
+            is_bearish = bearish_count > bullish_count
+            
+            # Blocked strategies in SPOT bearish markets
+            spot_bearish_blocked = ["mean_reversion", "grid_trading", "momentum", "breakout", 
+                                   "scalping", "macd_crossover", "rsi_divergence", "trend_following"]
+            
+            if is_bearish and strategy.lower() in spot_bearish_blocked:
+                logger.warning(f"⛔ [AI-STRATEGY] {recommendation.get('symbol')}: AI suggested {strategy} "
+                             f"but market is BEARISH ({bearish_count} bearish vs {bullish_count} bullish)")
+                logger.warning(f"⛔ [AI-STRATEGY] Overriding to DCA (SPOT can't profit from bearish)")
+                return "dca"  # Override to safe strategy
+            # ===== END VALIDATION =====
+            
             logger.info(f"🤖 Using AI-suggested strategy: {strategy}")
             return strategy
         
@@ -649,6 +667,18 @@ class AIBotController:
         # Count bullish and bearish signals
         bullish_count = len(signals_summary.get("bullish", []))
         bearish_count = len(signals_summary.get("bearish", []))
+        
+        # ===== DT-006B: SPOT BEARISH PROTECTION =====
+        # In SPOT trading, we CAN'T profit from bearish markets (no shorting)
+        # Block risky strategies when bearish signals dominate
+        is_bearish_dominant = bearish_count > bullish_count
+        
+        if is_bearish_dominant:
+            logger.warning(f"⛔ [AI-STRATEGY] {recommendation.get('symbol')}: BEARISH market detected "
+                         f"({bearish_count} bearish vs {bullish_count} bullish signals)")
+            logger.warning(f"⛔ [AI-STRATEGY] SPOT trading in bearish = only DCA allowed (no shorting)")
+            return "dca"  # Only safe strategy for bearish SPOT = long-term accumulation
+        # ===== END SPOT BEARISH PROTECTION =====
         
         # === STRATEGY MATRIX ===
         # Based on: timeframe + risk_level + signal alignment
@@ -672,27 +702,30 @@ class AIBotController:
         if risk_level == "HIGH":
             if bullish_count >= 4 and bearish_count == 0:
                 return "momentum"  # Fast momentum capture
-            elif bullish_count == 3:
+            elif bullish_count >= 3:
                 return "breakout"  # Breakout for high-conviction
             else:
-                return "grid_trading"  # Grid for volatile markets
+                # MODIFIED: Only grid_trading in BULLISH, not bearish
+                return "dca"  # Conservative in uncertain/bearish markets
         
         # Medium risk (default) = balanced strategies
         # Analyze the signals for medium risk
         signal_alignment = bullish_count + bearish_count
         
         if signal_alignment >= 6:  # Very aligned
-            # Check if mixed signals
+            # MODIFIED: Only grid_trading in BULLISH (we already blocked bearish above)
             if bullish_count >= bearish_count:
                 return "grid_trading"  # Work both sides in trending
             else:
-                return "mean_reversion"  # Reverting from extremes
+                # DON'T use mean_reversion in bearish (caught by check above anyway)
+                return "dca"  # Conservative accumulation
         
         elif signal_alignment >= 4:  # Moderately aligned
             if bullish_count > bearish_count:
                 return "macd_crossover"  # Trend confirmation
             else:
-                return "rsi_divergence"  # Catch reversals
+                # DON'T use rsi_divergence in bearish
+                return "dca"  # Catch reversals conservatively
         
         elif signal_alignment >= 2:  # Weakly aligned
             return "dca"  # Conservative accumulation
