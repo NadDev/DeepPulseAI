@@ -530,25 +530,53 @@ async def get_pending_recommendations(
     current_user: UserResponse = Depends(get_current_user)
 ):
     """
-    Get pending (not yet accepted/rejected) recommendations for today.
-    
-    Returns recommendations sorted by score (highest first).
+    Get global pending recommendations, filtered by what the user already has.
     """
     try:
         user_uuid = get_user_uuid(current_user.id)
+        SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
         
+        # 1. Get user's existing watchlist symbols
+        existing_items = db.query(WatchlistItem.symbol).filter(
+            WatchlistItem.user_id == user_uuid,
+            WatchlistItem.is_active == True
+        ).all()
+        user_symbols = {item.symbol for item in existing_items}
+        
+        # 2. Get GLOBAL recommendations (from System User)
         from app.services.watchlist_recommendation_engine import get_recommendation_engine
         engine = get_recommendation_engine()
         
-        recommendations = engine.get_user_pending_recommendations(
-            db, str(user_uuid), limit
+        # We fetch MORE than the limit to allow for filtering
+        raw_recommendations = engine.get_user_pending_recommendations(
+            db, SYSTEM_USER_ID, limit=limit * 2
         )
         
-        logger.info(f"[RECOMMENDATION] User {user_uuid}: {len(recommendations)} pending")
+        # 3. Filter out what user already has
+        # Also filter out REMOVE actions if the user doesn't have the symbol (doesn't make sense to recommend removing something they don't have)
+        filtered_recommendations = []
+        for rec in raw_recommendations:
+            symbol = rec['symbol']
+            action = rec['action']
+            
+            # If user has the symbol, we skip ADD recommendations (already added)
+            # If user does NOT have the symbol, we skip REMOVE recommendations (nothing to remove)
+            
+            if symbol in user_symbols:
+                if action == 'REMOVE':
+                    filtered_recommendations.append(rec)
+            else:
+                if action == 'ADD':
+                    filtered_recommendations.append(rec)
+        
+        # Apply limit after filtering
+        final_recommendations = filtered_recommendations[:limit]
+        
+        logger.info(f"[RECOMMENDATION] User {user_uuid}: {len(final_recommendations)} global recs (filtered from {len(raw_recommendations)})")
         
         return {
-            "recommendations": recommendations,
-            "count": len(recommendations),
+            "recommendations": final_recommendations,
+            "count": len(final_recommendations),
             "date": datetime.now().date().isoformat()
         }
         

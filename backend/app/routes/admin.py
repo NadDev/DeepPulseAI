@@ -178,81 +178,55 @@ async def generate_recommendations_now(
 
 
 async def _generate_recommendations_for_all_users():
-    """Background task to generate recommendations for all users."""
+    """Background task to generate GLOBAL recommendations (System User)."""
     try:
         from app.services.watchlist_recommendation_engine import get_recommendation_engine
         from app.db.database import SessionLocal
         
-        db = SessionLocal()
+        # System User ID for global recommendations
+        SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
+        
+        logger.info(f"📊 [GEN-REC] Starting GLOBAL recommendation generation for System User {SYSTEM_USER_ID}")
+        
+        engine = get_recommendation_engine(SessionLocal)
         
         try:
-            # Get all active users
-            result = db.execute(text("""
-                SELECT DISTINCT user_id FROM watchlist_items WHERE is_active = true
-                UNION
-                SELECT DISTINCT user_id FROM bots WHERE status IN ('RUNNING', 'PAUSED')
-            """))
+            # Generate recommendations
+            recommendations = engine.generate_recommendations(
+                user_id=SYSTEM_USER_ID,
+                top_n=50,
+                min_score=0
+            )
             
-            user_ids = [str(row[0]) for row in result.fetchall()]
-            logger.info(f"📊 [GEN-REC] Found {len(user_ids)} active users for recommendation generation")
+            logger.info(f"📝 [GEN-REC] Generated {len(recommendations)} GLOBAL recommendations")
             
-            if not user_ids:
-                logger.warning("⚠️ [GEN-REC] No active users found - skipping recommendation generation")
-                return
+            # Filter to only ADD and REMOVE actions
+            actionable = [r for r in recommendations if r.action != "HOLD"]
             
-            engine = get_recommendation_engine(SessionLocal)
-            total_saved = 0
-            
-            for user_id in user_ids:
+            if actionable:
+                logger.info(f"✅ [GEN-REC] {len(actionable)} actionable global recommendations")
+                
+                # Add AI reasoning
+                actionable_with_reasoning = await engine.generate_reasoning_batch(
+                    actionable[:20]  # Limit to top 20 for cost control
+                )
+                
+                # Save to database
+                user_db = SessionLocal()
                 try:
-                    logger.info(f"🔄 [GEN-REC] Processing user {user_id[:8]}...")
-                    
-                    # Generate recommendations
-                    recommendations = engine.generate_recommendations(
-                        user_id=user_id,
-                        top_n=50,
-                        min_score=0
-                    )
-                    
-                    logger.info(f"📝 [GEN-REC] Generated {len(recommendations)} recommendations for {user_id[:8]}")
-                    
-                    # Filter to only ADD and REMOVE actions
-                    actionable = [r for r in recommendations if r.action != "HOLD"]
-                    
-                    if actionable:
-                        logger.info(f"✅ [GEN-REC] {len(actionable)} actionable recommendations for {user_id[:8]}")
-                        
-                        # Add AI reasoning
-                        actionable_with_reasoning = await engine.generate_reasoning_batch(
-                            actionable[:20]  # Limit to top 20 for cost control
-                        )
-                        
-                        # Save to database
-                        user_db = SessionLocal()
-                        try:
-                            saved = engine.save_recommendations(user_db, user_id, actionable_with_reasoning)
-                            total_saved += saved
-                            user_db.commit()
-                            logger.info(f"💾 [GEN-REC] Saved {saved} recommendations for {user_id[:8]}")
-                        except Exception as save_err:
-                            user_db.rollback()
-                            logger.error(f"❌ [GEN-REC] Error saving recommendations: {save_err}")
-                        finally:
-                            user_db.close()
-                    else:
-                        logger.info(f"ℹ️ [GEN-REC] No actionable recommendations for {user_id[:8]}")
-                    
-                except Exception as e:
-                    logger.error(f"❌ [GEN-REC] Error for user {user_id[:8]}: {e}", exc_info=True)
-                    continue
+                    saved = engine.save_recommendations(user_db, SYSTEM_USER_ID, actionable_with_reasoning)
+                    user_db.commit()
+                    logger.info(f"💾 [GEN-REC] Saved {saved} GLOBAL recommendations")
+                except Exception as save_err:
+                    user_db.rollback()
+                    logger.error(f"❌ [GEN-REC] Error saving global recommendations: {save_err}")
+                finally:
+                    user_db.close()
+            else:
+                logger.info(f"ℹ️ [GEN-REC] No actionable global recommendations found")
             
-            logger.info("")
-            logger.info("=" * 60)
-            logger.info(f"✅ [GEN-REC] COMPLETE! Generated {total_saved} total recommendations for {len(user_ids)} users")
-            logger.info("=" * 60)
-            
-        finally:
-            db.close()
+        except Exception as e:
+            logger.error(f"❌ [GEN-REC] Error generating global recommendations: {e}", exc_info=True)
             
     except Exception as e:
-        logger.error(f"❌ [GEN-REC] Recommendation generation failed: {e}", exc_info=True)
+        logger.error(f"❌ [GEN-REC] Fatal error in recommendation task: {e}", exc_info=True)
