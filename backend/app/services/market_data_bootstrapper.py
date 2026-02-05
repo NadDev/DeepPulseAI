@@ -35,8 +35,11 @@ class MarketDataBootstrapper:
     BINANCE_API_URL = "https://api.binance.com/api/v3"
     
     # Rate limiting: Binance allows 1200 requests/minute
-    # We'll be conservative: 10 requests/second max
-    REQUEST_DELAY = 0.1  # 100ms between requests
+    # Bootstrap is less aggressive than updater - use longer delays
+    REQUEST_DELAY = 0.5  # 500ms between requests (was 100ms - too aggressive)
+    
+    # Request timeout (prevent hanging connections)
+    REQUEST_TIMEOUT = 30  # 30 seconds max per request
     
     # Batch insert size
     BATCH_SIZE = 1000
@@ -121,12 +124,24 @@ class MarketDataBootstrapper:
         }
         
         try:
-            async with self.session.get(url, params=params) as response:
+            # Create timeout object
+            import aiohttp
+            timeout = aiohttp.ClientTimeout(total=self.REQUEST_TIMEOUT, connect=10)
+            
+            async with self.session.get(url, params=params, timeout=timeout) as response:
                 if response.status == 429:
                     # Rate limited - wait and retry
-                    logger.warning(f"⚠️ Rate limited on {symbol}. Waiting 60s...")
-                    await asyncio.sleep(60)
+                    logger.warning(f"⚠️ Rate limited on {symbol}. Waiting 5s...")
+                    await asyncio.sleep(5)
+                    # Reduce rate further on retry
+                    await asyncio.sleep(0.5)
                     return await self.fetch_klines(symbol, timeframe, start_time, end_time)
+                
+                if response.status == 418:
+                    # IP banned - wait longer
+                    logger.warning(f"⚠️ IP blocked on {symbol}. Waiting 60s...")
+                    await asyncio.sleep(60)
+                    return []
                 
                 if response.status != 200:
                     logger.error(f"Failed to fetch {symbol} {timeframe}: {response.status}")
@@ -149,8 +164,14 @@ class MarketDataBootstrapper:
                     }
                     for k in klines
                 ]
+        except asyncio.TimeoutError:
+            logger.error(f"⏱️ Timeout fetching {symbol} {timeframe} - request took too long")
+            return []
+        except (aiohttp.ClientError, ConnectionError) as e:
+            logger.error(f"🔌 Connection error fetching {symbol} {timeframe}: {type(e).__name__}")
+            return []
         except Exception as e:
-            logger.error(f"Error fetching {symbol} {timeframe}: {e}")
+            logger.error(f"❌ Error fetching {symbol} {timeframe}: {e} ({type(e).__name__})")
             return []
     
     def get_last_timestamp(self, db: Session, symbol: str, timeframe: str) -> Optional[int]:
