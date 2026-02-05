@@ -282,9 +282,10 @@ class MarketDataBootstrapper:
                         logger.info(f"  📥 {symbol} {tf}: Initial fetch from {datetime.fromtimestamp(start_time/1000)}")
                 
                 # Fetch in chunks (max 1000 candles per request)
-                all_klines = []
                 current_start = start_time
                 chunk_count = 0
+                symbol_inserted_count = 0
+                pending_klines = []
                 
                 while current_start < end_time:
                     klines = await self.fetch_klines(
@@ -292,11 +293,19 @@ class MarketDataBootstrapper:
                     )
                     
                     if not klines:
-                        logger.debug(f"    No more data for {symbol} {tf}")
+                        logger.debug(f"    No more data for {symbol} {tf} at {current_start}")
                         break
                     
-                    all_klines.extend(klines)
+                    pending_klines.extend(klines)
                     chunk_count += 1
+                    
+                    # Incremental insert every 5 chunks (5000 records) to save memory/progress
+                    if len(pending_klines) >= 5000:
+                        count = self.batch_insert(db, pending_klines)
+                        symbol_inserted_count += count
+                        inserted += count
+                        pending_klines = []  # Clear memory
+                        logger.debug(f"    Saved batch of {count} candles for {symbol} {tf}")
                     
                     # Move to next chunk
                     current_start = klines[-1]["timestamp"] + self._get_interval_ms(tf)
@@ -304,13 +313,17 @@ class MarketDataBootstrapper:
                     # Rate limiting
                     await asyncio.sleep(self.REQUEST_DELAY)
                 
-                # Batch insert
-                if all_klines:
-                    count = self.batch_insert(db, all_klines)
+                # Insert remaining klines
+                if pending_klines:
+                    count = self.batch_insert(db, pending_klines)
+                    symbol_inserted_count += count
                     inserted += count
-                    logger.info(f"  ✅ {symbol} {tf}: Fetched {len(all_klines)} candles ({chunk_count} chunks), inserted {count}")
+                    logger.debug(f"    Saved final batch of {count} candles for {symbol} {tf}")
+                    
+                if symbol_inserted_count > 0:
+                    logger.info(f"  ✅ {symbol} {tf}: Fetched & inserted {symbol_inserted_count} candles total")
                 else:
-                    logger.warning(f"  ⚠️ {symbol} {tf}: No data fetched from Binance")
+                    logger.debug(f"  ⚠️ {symbol} {tf}: No new data needed (already up to date)")
                 
         finally:
             db.close()
