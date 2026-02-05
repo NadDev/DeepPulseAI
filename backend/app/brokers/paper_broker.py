@@ -61,7 +61,7 @@ class PaperBroker(BaseBroker):
         data_source: DataSource,
         initial_balance: float = 10000.0,
         slippage_pct: float = 0.05,
-        commission_pct: float = 0.1,
+        commission_pct: float = 0.1,  # Binance Standard: 0.1% (0.075% with BNB discount)
     ):
         """
         Initialize paper broker.
@@ -70,7 +70,7 @@ class PaperBroker(BaseBroker):
             data_source: Source for market data (LiveDataSource, FileDataSource, etc.)
             initial_balance: Starting USDT balance (default: 10,000)
             slippage_pct: Simulated slippage percentage (default: 0.05%)
-            commission_pct: Commission percentage per trade (default: 0.1%)
+            commission_pct: Commission percentage per trade (default: 0.1% = Binance Standard fees)
         """
         self.data_source = data_source
         self.slippage_pct = slippage_pct
