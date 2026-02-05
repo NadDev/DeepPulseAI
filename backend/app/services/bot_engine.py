@@ -192,6 +192,23 @@ class BotEngine:
         try:
             bot = db.query(Bot).filter(Bot.id == bot_id).first()
             if bot:
+                # ===== DT-006C: AUTO-CLEANUP AI BOTS ON DEACTIVATION =====
+                # If this is an AI bot with no open trades, delete it instead of setting to IDLE
+                if bot.name.startswith("AI-"):
+                    open_trades_count = db.query(Trade).filter(
+                        Trade.bot_id == bot_id,
+                        Trade.status == "OPEN"
+                    ).count()
+                    
+                    if open_trades_count == 0:
+                        logger.info(f"🗑️ [AUTO-CLEANUP] Deleting AI bot on deactivation: {bot.name}")
+                        db.delete(bot)
+                        db.commit()
+                        logger.info(f"✅ [AUTO-CLEANUP] Bot {bot.name} deleted (no open trades)")
+                        return  # Exit early, bot is deleted
+                # ===== END AUTO-CLEANUP =====
+                
+                # Manual bot or AI bot with open trades → Set to IDLE
                 bot.status = "IDLE"
                 db.commit()
             logger.info(f"🛑 Deactivated bot: {bot_state['name']}")
@@ -838,6 +855,11 @@ class BotEngine:
                 if should_exit:
                     reason = exit_reason if exit_reason else "Strategy Exit"
                     await self._close_position(db, bot_state, trade, current_price, reason)
+            
+            # ===== DT-006C: AUTO-CLEANUP AI BOTS =====
+            # After checking all trades, cleanup AI-created bot if it has no more OPEN trades
+            await self._auto_cleanup_ai_bot_if_empty(db, bot_state)
+            # ===== END AUTO-CLEANUP =====
         finally:
             db.close()
     
@@ -915,6 +937,50 @@ class BotEngine:
                     bot.win_rate = (winning / len(closed_trades)) * 100
         
         db.commit()
+    
+    async def _auto_cleanup_ai_bot_if_empty(self, db: Session, bot_state: Dict[str, Any]):
+        """
+        Auto-cleanup AI-created bots when they have no more open trades.
+        AI Agent bots are meant to be ephemeral: create → trade → cleanup.
+        Only manual bots persist forever.
+        """
+        bot_id = bot_state["bot_id"]
+        bot_name = bot_state["name"]
+        
+        # Only cleanup AI-created bots (identifiable by "AI-" prefix in name)
+        if not bot_name.startswith("AI-"):
+            return  # Manual bot, keep forever
+        
+        try:
+            # Count remaining OPEN trades for this bot
+            open_trades_count = db.query(Trade).filter(
+                Trade.bot_id == bot_id,
+                Trade.status == "OPEN"
+            ).count()
+            
+            if open_trades_count == 0:
+                # Bot has no more open trades → Safe to delete
+                bot = db.query(Bot).filter(Bot.id == bot_id).first()
+                if bot:
+                    logger.info(f"🗑️ [AUTO-CLEANUP] Deleting AI bot: {bot_name}")
+                    logger.info(f"   ├─ Bot ID: {bot_id}")
+                    logger.info(f"   ├─ Strategy: {bot.strategy}")
+                    logger.info(f"   └─ Reason: No more open trades")
+                    
+                    # Remove from active bots tracking
+                    if bot_id in self.active_bots:
+                        del self.active_bots[bot_id]
+                    
+                    # Delete from database
+                    db.delete(bot)
+                    db.commit()
+                    
+                    logger.info(f"✅ [AUTO-CLEANUP] Bot {bot_name} deleted successfully")
+            else:
+                logger.debug(f"📊 [AUTO-CLEANUP] {bot_name} still has {open_trades_count} open trade(s), keeping bot")
+        
+        except Exception as e:
+            logger.error(f"❌ [AUTO-CLEANUP] Error checking/deleting bot {bot_name}: {e}")
     
     async def _handle_bot_error(self, bot_id: str, error: str):
         """Handle bot execution error"""
