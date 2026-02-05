@@ -43,7 +43,7 @@ const POPULAR_CRYPTOS = [
   { symbol: 'XLM', name: 'Stellar' }
 ];
 
-const WatchlistManager = () => {
+const WatchlistManager = ({ updateButtons }) => {
   const [watchlists, setWatchlists] = useState([]);
   const [activeWatchlist, setActiveWatchlist] = useState(null);
   const [activeTab, setActiveTab] = useState('watchlist'); // 'watchlist' or 'recommendations'
@@ -381,6 +381,7 @@ const WatchlistManager = () => {
           <h2>Gestion des Watchlists</h2>
         </div>
         <div className="header-actions">
+          {updateButtons}
           <button 
             className="btn-sync"
             onClick={handleSyncWithAI}

@@ -9,14 +9,16 @@
   margin: 0 auto;
 }
 
-.watchlist-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+/* Title */
+.markets-container h2 {
+  font-size: 24px;
+  color: #e2e8f0;
+  font-weight: 600;
+  margin-bottom: 20px;
 }
 
-/* Market update controls - aligned with Sync avec AI button style */
-.market-update-controls {
+/* Market update buttons container - Group with Sync avec AI */
+.market-update-buttons {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
@@ -69,6 +71,7 @@
   border-radius: 8px;
   font-size: 14px;
   animation: slideDown 0.3s ease;
+  margin-top: 20px;
 }
 
 @keyframes slideDown {
@@ -106,8 +109,9 @@
 
 /* Responsive */
 @media (max-width: 768px) {
-  .market-update-controls {
+  .market-update-buttons {
     flex-direction: column;
+    width: 100%;
   }
 
   .btn-sync {

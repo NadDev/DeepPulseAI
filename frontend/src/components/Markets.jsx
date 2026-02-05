@@ -121,53 +121,56 @@ export default function Markets() {
   return (
     <div className="markets-page">
       <div className="markets-container">
-        {/* Watchlist Manager with inline update buttons */}
-        <div className="watchlist-wrapper">
-          <WatchlistManager />
-          
-          {/* Update buttons aligned with Sync avec AI style */}
-          <div className="market-update-controls">
-            <button
-              className="btn-sync"
-              onClick={handleUpdateRecommendations}
-              disabled={loadingUpdates}
-              title="Update recommendations data (50 cryptos)"
-            >
-              {loadingUpdates ? (
-                <Loader2 size={16} className="spin" />
-              ) : (
-                <Sparkles size={16} />
-              )}
-              Update Recommendations
-            </button>
-            
-            <button
-              className="btn-sync"
-              onClick={handleUpdateMarketData}
-              disabled={loadingUpdates}
-              title="Refresh market data (200 cryptos)"
-            >
-              {loadingUpdates ? (
-                <Loader2 size={16} className="spin" />
-              ) : (
-                <Sparkles size={16} />
-              )}
-              Refresh Market Data
-            </button>
-          </div>
-
-          {/* Status Messages */}
-          {updateStatus && (
-            <div className={`alert alert-${updateStatus.type}`}>
-              {updateStatus.type === 'success' ? (
-                <Check size={16} />
-              ) : (
-                <AlertTriangle size={16} />
-              )}
-              {updateStatus.message}
-            </div>
-          )}
+        <div style={{ marginBottom: '20px' }}>
+          <h2 style={{ color: '#e2e8f0', fontSize: '24px', margin: 0 }}>Markets & Data</h2>
         </div>
+
+        {/* Watchlist Manager with update buttons passed as props */}
+        <WatchlistManager 
+          updateButtons={
+            <div className="market-update-buttons">
+              <button
+                className="btn-sync"
+                onClick={handleUpdateRecommendations}
+                disabled={loadingUpdates}
+                title="Update recommendations data (50 cryptos)"
+              >
+                {loadingUpdates ? (
+                  <Loader2 size={16} className="spin" />
+                ) : (
+                  <Sparkles size={16} />
+                )}
+                Update Recommendations
+              </button>
+              
+              <button
+                className="btn-sync"
+                onClick={handleUpdateMarketData}
+                disabled={loadingUpdates}
+                title="Refresh market data (200 cryptos)"
+              >
+                {loadingUpdates ? (
+                  <Loader2 size={16} className="spin" />
+                ) : (
+                  <Sparkles size={16} />
+                )}
+                Refresh Market Data
+              </button>
+            </div>
+          }
+        />
+
+        {/* Status Messages */}
+        {updateStatus && (
+          <div className={`alert alert-${updateStatus.type}`}>
+            {updateStatus.type === 'success' ? (
+              <Check size={16} />
+            ) : (
+              <AlertTriangle size={16} />
+            )}
+            {updateStatus.message}
+          </div>
+        )}
       </div>
     </div>
   );
