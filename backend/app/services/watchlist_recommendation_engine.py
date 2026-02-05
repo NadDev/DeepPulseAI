@@ -475,14 +475,15 @@ class WatchlistRecommendationEngine:
                 
                 db.execute(text("""
                     INSERT INTO watchlist_recommendations 
-                    (id, user_id, symbol, score, action, reasoning, components, created_at)
+                    (id, user_id, symbol, score, action, reasoning, components, accepted, created_at)
                     VALUES (:id, :user_id, :symbol, :score, :action, :reasoning, 
-                            CAST(:components AS JSONB), NOW())
+                            CAST(:components AS JSONB), NULL, NOW())
                     ON CONFLICT (user_id, symbol, DATE(created_at)) DO UPDATE SET
                         score = EXCLUDED.score,
                         action = EXCLUDED.action,
                         reasoning = EXCLUDED.reasoning,
-                        components = EXCLUDED.components
+                        components = EXCLUDED.components,
+                        accepted = NULL
                 """), {
                     "id": rec_id,
                     "user_id": user_id,

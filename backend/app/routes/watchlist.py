@@ -545,7 +545,8 @@ async def get_pending_recommendations(
         
         # 2. Get GLOBAL recommendations (from System User)
         from app.services.watchlist_recommendation_engine import get_recommendation_engine
-        engine = get_recommendation_engine()
+        from app.db.database import SessionLocal
+        engine = get_recommendation_engine(SessionLocal)
         
         # We fetch MORE than the limit to allow for filtering
         raw_recommendations = engine.get_user_pending_recommendations(
