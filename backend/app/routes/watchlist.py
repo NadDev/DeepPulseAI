@@ -602,20 +602,33 @@ async def accept_recommendation(
             ).first()
             
             if not existing:
-                # Extract base currency from symbol
-                base_currency = symbol.replace('USDT', '').replace('/USDT', '').strip()
+                # Use same validation as the /add endpoint
+                # Normalize to Binance format (BTCUSDT, not BTC/USDT)
+                normalized_symbol = symbol.upper().strip()
+                normalized_symbol = normalized_symbol.replace('/', '')
+                if not normalized_symbol.endswith('USDT'):
+                    normalized_symbol = f"{normalized_symbol}USDT"
                 
-                new_item = WatchlistItem(
-                    user_id=user_uuid,
-                    symbol=symbol,
-                    base_currency=base_currency,
-                    quote_currency='USDT',
-                    is_active=True,
-                    priority=5,
-                    notes=f"Added from recommendation"
-                )
-                db.add(new_item)
-                logger.info(f"[RECOMMENDATION] Added {symbol} to watchlist for user {user_uuid}")
+                # Extract base currency from normalized symbol
+                base_currency = normalized_symbol.replace('USDT', '').replace('/USDT', '').strip()
+                
+                try:
+                    new_item = WatchlistItem(
+                        user_id=user_uuid,
+                        symbol=normalized_symbol,
+                        base_currency=base_currency,
+                        quote_currency='USDT',
+                        is_active=True,
+                        priority=5,
+                        notes=f"Added from recommendation"
+                    )
+                    db.add(new_item)
+                    logger.info(f"[RECOMMENDATION] ✅ Added {normalized_symbol} to watchlist for user {user_uuid}")
+                except Exception as e:
+                    logger.error(f"[RECOMMENDATION] ❌ Failed to add {symbol} to watchlist: {e}")
+                    db.rollback()
+                    raise
+        
         
         db.commit()
         
