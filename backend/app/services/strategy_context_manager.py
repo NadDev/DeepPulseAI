@@ -19,7 +19,6 @@ class MarketContext(str, Enum):
     WEAK_BULLISH = "WEAK_BULLISH"          # Price above 50 but not all aligned
     STRONG_BEARISH = "STRONG_BEARISH"      # All SMAs aligned downward (20<50<200)
     WEAK_BEARISH = "WEAK_BEARISH"          # Price below 50 but not all aligned
-    CHOPPY = "CHOPPY"                      # SMAs crossed/conflicting
 
 
 @dataclass
@@ -250,16 +249,11 @@ class StrategyContextManager:
             return MarketContext.WEAK_BEARISH, alignment
         
         # WEAK BEARISH: Price just below SMA50 (early decline, regardless of SMA200 position)
-        elif price < sma_50:
+        else:  # price < sma_50 (all other cases)
             offset = (sma_50 - price) / sma_50 * 100
             alignment = min(50, offset * 2)
             logger.debug(f"🎯 Context: WEAK_BEARISH (Price<{price:.2f} < SMA50<{sma_50:.2f}) | Alignment: {alignment:.0f}%")
             return MarketContext.WEAK_BEARISH, alignment
-        
-        # ===== CHOPPY/CONFLICTING (Price between SMAs with no clear trend) =====
-        else:
-            logger.debug(f"🎯 Context: CHOPPY (Price={price:.2f} between SMAs: 20={sma_20:.2f}, 50={sma_50:.2f}, 200={sma_200:.2f})")
-            return MarketContext.CHOPPY, 0
     
     def _determine_price_position(
         self,
@@ -329,9 +323,7 @@ class StrategyContextManager:
                 "reason": "✅ Works in ranging/oscillating markets" if not skip_all_bearish 
                           else "⛔ SPOT: Too risky in bearish downtrend",
                 "position_size_multiplier": 1.0 if ctx == MarketContext.STRONG_BULLISH
-                                           else 0.75 if ctx == MarketContext.WEAK_BULLISH
-                                           else 0.5 if ctx == MarketContext.CHOPPY
-                                           else 0.3,  # Reduced in weak bearish (if somehow enabled)
+                                           else 0.75,  # 75% in WEAK_BULLISH
                 "parameters": {
                     "grid_levels": 5,
                     "position_size": 5  # % per level
@@ -389,11 +381,11 @@ class StrategyContextManager:
             
             # ===== SCALPING =====
             "scalping": {
-                "enabled": not skip_all_bearish 
+                "enabled": ctx in [MarketContext.STRONG_BULLISH, MarketContext.WEAK_BULLISH]
                           and context.volatility_ratio > 1.5 
                           and context.volume_ratio > 2.0,
                 "reason": f"✅ High volatility ({context.volatility_ratio:.2f}x) + volume ({context.volume_ratio:.2f}x)" 
-                          if (not skip_all_bearish and context.volatility_ratio > 1.5 and context.volume_ratio > 2.0)
+                          if (ctx in [MarketContext.STRONG_BULLISH, MarketContext.WEAK_BULLISH] and context.volatility_ratio > 1.5 and context.volume_ratio > 2.0)
                           else "❌ SPOT: Not in bearish" if skip_all_bearish
                           else f"❌ Volatility ({context.volatility_ratio:.2f}x) or volume ({context.volume_ratio:.2f}x) too low",
                 "position_size_multiplier": 0.5,  # Small scalps
@@ -414,8 +406,8 @@ class StrategyContextManager:
             
             # ===== MACD CROSSOVER =====
             "macdcrossover": {
-                "enabled": not skip_all_bearish and context.sma_alignment_score > 40,
-                "reason": "✅ Moderate trend for MACD signals" if (not skip_all_bearish and context.sma_alignment_score > 40)
+                "enabled": ctx in [MarketContext.STRONG_BULLISH, MarketContext.WEAK_BULLISH] and context.sma_alignment_score > 40,
+                "reason": "✅ Moderate trend for MACD signals" if (ctx in [MarketContext.STRONG_BULLISH, MarketContext.WEAK_BULLISH] and context.sma_alignment_score > 40)
                           else "❌ SPOT: Not in bearish" if skip_all_bearish
                           else "❌ Insufficient trend alignment",
                 "position_size_multiplier": 0.75,
@@ -424,8 +416,8 @@ class StrategyContextManager:
             
             # ===== RSI DIVERGENCE =====
             "rsidivergence": {
-                "enabled": not skip_all_bearish and context.confidence > 50,
-                "reason": "✅ Clear market context" if (not skip_all_bearish and context.confidence > 50)
+                "enabled": ctx in [MarketContext.STRONG_BULLISH, MarketContext.WEAK_BULLISH] and context.confidence > 50,
+                "reason": "✅ Clear market context" if (ctx in [MarketContext.STRONG_BULLISH, MarketContext.WEAK_BULLISH] and context.confidence > 50)
                           else "❌ SPOT: Not in bearish" if skip_all_bearish
                           else "❌ Low confidence",
                 "position_size_multiplier": 0.5,
