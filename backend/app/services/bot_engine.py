@@ -314,6 +314,33 @@ class BotEngine:
                         logger.info(f"🤖 AI Analysis for {symbol}: {ai_validation.get('action')} "
                                    f"(confidence: {ai_validation.get('confidence', 0)}%)")
                         
+                        # ===== DT-006: ML DIVERGENCE GATE =====
+                        # Block trades when ML strongly predicts opposite direction
+                        ml_weighting = ai_validation.get("ml_weighting", {})
+                        if ml_weighting.get("ml_available", False):
+                            ml_direction = ml_weighting.get("ml_direction", "NEUTRAL")
+                            ml_confidence = ml_weighting.get("ml_avg_confidence", 0)
+                            
+                            # BUY signal + ML strongly bearish = DIVERGENCE
+                            if signal == "BUY" and ml_direction == "BEARISH" and ml_confidence > 60:
+                                logger.warning(f"⛔ [ML-DIVERGENCE] {symbol}: BUY signal but ML predicts "
+                                             f"{ml_confidence:.0f}% BEARISH - BLOCKING trade")
+                                continue  # Skip this trade
+                            
+                            # SELL signal + ML strongly bullish = DIVERGENCE
+                            if signal == "SELL" and ml_direction == "BULLISH" and ml_confidence > 60:
+                                logger.warning(f"⛔ [ML-DIVERGENCE] {symbol}: SELL signal but ML predicts "
+                                             f"{ml_confidence:.0f}% BULLISH - BLOCKING trade")
+                                continue  # Skip this trade
+                            
+                            # Log alignments for monitoring
+                            if ml_direction != "NEUTRAL":
+                                alignment = "ALIGNED" if (signal == "BUY" and ml_direction == "BULLISH") or \
+                                                        (signal == "SELL" and ml_direction == "BEARISH") else "DIVERGENT"
+                                logger.info(f"📊 [ML-GATE] {symbol}: Signal={signal}, ML={ml_direction} "
+                                          f"({ml_confidence:.0f}%) → {alignment}")
+                        # ===== END ML DIVERGENCE GATE =====
+                        
                         # In autonomous mode, AI can block trades
                         if self.ai_mode == "autonomous":
                             ai_confidence = ai_validation.get("confidence", 0)
