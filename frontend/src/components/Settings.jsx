@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Settings as SettingsIcon, Cpu, Lock, HelpCircle, Link2, TrendingUp } from 'lucide-react';
-import AISettings from './AISettings';
+import { Settings as SettingsIcon, Lock, HelpCircle, Link2, TrendingUp, Target } from 'lucide-react';
 import ExchangeSettings from './ExchangeSettings';
 import TradingSettings from './TradingSettings';
+import LongTermSettings from './LongTermSettings';
 import '../styles/Settings.css';
 
 export default function Settings() {
@@ -10,16 +10,16 @@ export default function Settings() {
 
   const tabs = [
     {
-      id: 'ai',
-      label: 'AI Agent',
-      icon: <Cpu size={18} />,
-      component: <AISettings />
-    },
-    {
       id: 'trading',
       label: 'Trading',
       icon: <TrendingUp size={18} />,
       component: <TradingSettings />
+    },
+    {
+      id: 'longterm',
+      label: 'Long-Term',
+      icon: <Target size={18} />,
+      component: <LongTermSettings />
     },
     {
       id: 'exchange',
