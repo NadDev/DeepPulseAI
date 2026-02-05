@@ -706,6 +706,38 @@ async def lifespan(app: FastAPI):
                     logger.error(f"❌ Could not find migration 021 file")
             except Exception as create_error:
                 logger.error(f"❌ Failed to create long_term_transactions table: {create_error}")
+        
+        # Check if trades table has broker fields, if not add them (migration 022)
+        try:
+            db.execute(text("SELECT exchange, exchange_order_id, commission_amount, commission_asset FROM trades LIMIT 1"))
+            logger.info("[OK] trades table has broker integration fields")
+        except Exception as check_error:
+            try:
+                logger.info(f"⚙️ Adding broker integration fields (migration 022)...")
+                
+                migration_paths = [
+                    "/app/database/migrations/022_add_broker_fields.sql",
+                    "database/migrations/022_add_broker_fields.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/022_add_broker_fields.sql"
+                ]
+                
+                migration_sql = None
+                for path in migration_paths:
+                    try:
+                        migration_sql = open(path).read()
+                        logger.info(f"✅ Found migration at: {path}")
+                        break
+                    except:
+                        continue
+                
+                if migration_sql:
+                    db.execute(text(migration_sql))
+                    db.commit()
+                    logger.info("✅ Broker fields added (trades: exchange/order_id/commission, portfolios: exchange_config, paper_market_data table)")
+                else:
+                    logger.error(f"❌ Could not find migration 022 file")
+            except Exception as create_error:
+                logger.error(f"❌ Failed to add broker fields: {create_error}")
 
         db.close()
     except Exception as e:
