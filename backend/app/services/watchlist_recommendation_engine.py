@@ -529,7 +529,7 @@ class WatchlistRecommendationEngine:
             FROM watchlist_recommendations
             WHERE user_id = :user_id
             AND accepted IS NULL
-            AND DATE(created_at) = CURRENT_DATE
+            AND created_at >= NOW() - INTERVAL '24 HOURS'
             ORDER BY score DESC
             LIMIT :limit
         """), {"user_id": user_id, "limit": limit})
