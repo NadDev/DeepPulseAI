@@ -544,6 +544,39 @@ async def lifespan(app: FastAPI):
                         logger.warning(f"⚠️ Could not find volume precision migration file")
         except Exception as precision_error:
             logger.warning(f"⚠️ Volume column precision check failed: {precision_error}")
+        
+        # Update BALANCED preset to sl_fixed_pct=2.0 (migration 016)
+        try:
+            result = db.execute(text("SELECT sl_fixed_pct FROM sl_tp_profile_presets WHERE profile_name = 'BALANCED'"))
+            row = result.fetchone()
+            if row and row[0] == 2.5:
+                logger.info(f"⚙️ Updating BALANCED preset: sl_fixed_pct 2.5% → 2.0% (Phase 1 tighter SL)...")
+                
+                migration_paths = [
+                    "/app/database/migrations/016_update_balanced_preset.sql",
+                    "database/migrations/016_update_balanced_preset.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/016_update_balanced_preset.sql"
+                ]
+                
+                migration_sql = None
+                for path in migration_paths:
+                    try:
+                        migration_sql = open(path).read()
+                        logger.info(f"✅ Found migration at: {path}")
+                        break
+                    except:
+                        continue
+                
+                if migration_sql:
+                    db.execute(text(migration_sql))
+                    db.commit()
+                    logger.info("✅ BALANCED preset updated to sl_fixed_pct=2.0%")
+                else:
+                    logger.warning(f"⚠️ Could not find BALANCED preset update migration file")
+            elif row:
+                logger.info(f"[OK] BALANCED preset already has sl_fixed_pct={row[0]}%")
+        except Exception as preset_error:
+            logger.warning(f"⚠️ BALANCED preset update check failed: {preset_error}")
 
         # Check if Global System User exists (migration 018)
         try:

@@ -143,7 +143,7 @@ class UserSLTPSettings:
     sl_tp_profile: str = "BALANCED"
     sl_method: str = "ATR"
     sl_atr_multiplier: float = 1.5
-    sl_fixed_pct: float = 2.5
+    sl_fixed_pct: float = 2.0  # Changed from 2.5 to 2.0 (tighter SL for better R:R)
     sl_min_distance: float = 0.01
     sl_max_pct: float = 5.0
     tp1_risk_reward: float = 1.5
