@@ -20,9 +20,11 @@ from .base import (
     AccountBalance,
     SymbolInfo,
 )
+from .binance_broker import BinanceBroker
 
 __all__ = [
     "BaseBroker",
+    "BinanceBroker",
     "OrderSide",
     "OrderType",
     "OrderStatus",
