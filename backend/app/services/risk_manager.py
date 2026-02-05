@@ -207,32 +207,33 @@ class RiskManager:
                 warnings.append(f"Approaching max drawdown ({drawdown:.1f}%)")
             
             # ================================================================
-            # 4. Calculate Position Size
+            # 4. Validate Max Position Limits (but don't calculate size yet)
             # ================================================================
+            # Note: Actual position size will be calculated by SLTPManager 
+            # based on SL distance (risk-first approach). Here we just validate
+            # that the user hasn't exceeded their position limits.
+            
+            # Maximum allowed position value as % of portfolio
             position_size_pct = self.ai_config.position_size_pct if source == "AI_AGENT" else self.limits.max_position_size_pct
             position_size_pct = min(position_size_pct, ABSOLUTE_MAX_POSITION_PCT)
             
-            position_value = total_value * (position_size_pct / 100)
+            max_position_value = total_value * (position_size_pct / 100)
             
-            # Add slippage buffer
-            slippage_buffer = position_value * (self.limits.slippage_buffer_pct / 100)
-            total_required = position_value + slippage_buffer
-            
-            # Check if enough cash
+            # Check cash availability (for informational warning only)
+            effective_min_buffer = max(self.limits.min_cash_buffer, ABSOLUTE_MIN_CASH_BUFFER)
             available_cash = cash_balance - effective_min_buffer
-            if total_required > available_cash:
-                # Adjust position size to fit
-                adjusted_value = available_cash * 0.95  # 95% of available
-                if adjusted_value < 10:  # Minimum $10 trade
-                    return RiskValidation(
-                        allowed=False,
-                        reason=f"Insufficient funds: need ${total_required:.2f}, have ${available_cash:.2f}"
-                    )
-                position_value = adjusted_value
-                warnings.append(f"Position reduced to ${position_value:.2f} due to balance")
+            
+            if available_cash < 10:  # Minimum $10 to trade
+                return RiskValidation(
+                    allowed=False,
+                    reason=f"Insufficient funds: only ${available_cash:.2f} available (after ${effective_min_buffer:.2f} buffer)"
+                )
+            
+            if available_cash < max_position_value * 0.5:  # Less than 50% of desired position
+                warnings.append(f"Low cash: ${available_cash:.2f} available for ${max_position_value:.2f} position - will be adjusted")
             
             # ================================================================
-            # 5. Calculate SL/TP (for AI trades)
+            # 5. Calculate SL/TP (for AI trades only - for validation)
             # ================================================================
             stop_loss = None
             take_profit = None
@@ -255,18 +256,17 @@ class RiskManager:
                             )
             
             # ================================================================
-            # 6. All checks passed
+            # 6. All checks passed - Position size will be calculated by SLTPManager
             # ================================================================
-            quantity = position_value / entry_price
-            
             logger.info(f"✅ [RISK] {source} {symbol} BUY validated: "
-                       f"${position_value:.2f} ({position_size_pct:.1f}%), "
+                       f"Max position: ${max_position_value:.2f} ({position_size_pct:.1f}%), "
+                       f"Available cash: ${available_cash:.2f}, "
                        f"SL: {stop_loss}, TP: {take_profit}")
             
             return RiskValidation(
                 allowed=True,
                 reason="All risk checks passed",
-                adjusted_amount=quantity,
+                adjusted_amount=None,  # Let SLTPManager calculate position size
                 warnings=warnings,
                 stop_loss=stop_loss,
                 take_profit=take_profit

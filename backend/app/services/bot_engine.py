@@ -558,22 +558,21 @@ class BotEngine:
                 logger.warning(f"❌ Portfolio not found for user {user_id}")
                 return
             
-            # Calculate position size using SLTPManager (risk-first approach)
+            # ================================================================
+            # CRITICAL: Use SLTPManager for risk-based position sizing
+            # Position size = risk_amount / SL_distance (risk-first approach)
+            # ================================================================
             portfolio_value = float(portfolio.total_value) if portfolio.total_value else float(portfolio.cash_balance)
             
-            if validation.adjusted_amount:
-                # Use RiskManager's calculated amount
-                cost = validation.adjusted_amount
-                quantity = cost / current_price
-            else:
-                # Use SLTPManager's position sizing (risk-first)
-                quantity, cost = self.sltp_manager.calculate_position_size_from_sl(
-                    portfolio_value=portfolio_value,
-                    entry_price=current_price,
-                    stop_loss=final_stop_loss,
-                    risk_percent=bot_state["risk_percent"],
-                    max_position_pct=ABSOLUTE_MAX_POSITION_PCT * 100
-                )
+            # Use SLTPManager's position sizing (risk-first)
+            # This calculates: "I want to risk 2%, what position size does that allow?"
+            quantity, cost = self.sltp_manager.calculate_position_size_from_sl(
+                portfolio_value=portfolio_value,
+                entry_price=current_price,
+                stop_loss=final_stop_loss,
+                risk_percent=bot_state["risk_percent"],
+                max_position_pct=ABSOLUTE_MAX_POSITION_PCT * 100
+            )
             
             # ================================================================
             # CRITICAL: Position Size Enforcement (FIX #3 & #4)

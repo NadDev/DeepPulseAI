@@ -629,7 +629,6 @@ class AITradingAgent:
                     entry_price=current_price,
                     stop_loss=validation.stop_loss,
                     take_profit=validation.take_profit,
-                    position_amount=validation.adjusted_amount,
                     confidence=confidence,
                     reasoning=analysis.get("reasoning", "AI Autonomous Trade")
                 )
@@ -659,7 +658,6 @@ class AITradingAgent:
         entry_price: float,
         stop_loss: Optional[float],
         take_profit: Optional[float],
-        position_amount: Optional[float],
         confidence: int,
         reasoning: str
     ) -> Optional[str]:
@@ -706,9 +704,42 @@ class AITradingAgent:
                 logger.warning(f"❌ Portfolio not found for user {self.user_id}")
                 return None
             
-            # Calculate quantity
-            cost = position_amount if position_amount else float(portfolio.cash_balance) * 0.05
-            quantity = cost / entry_price
+            # ================================================================
+            # CRITICAL: Use SLTPManager for risk-based position sizing
+            # Position size = risk_amount / SL_distance (risk-first approach)
+            # ================================================================
+            from app.services.sl_tp_manager import SLTPManager
+            
+            portfolio_value = float(portfolio.total_value) if portfolio.total_value else float(portfolio.cash_balance)
+            
+            # Default to 2% risk if not specified
+            risk_percent = self.autonomous_config.get("risk_percent", 2.0)
+            
+            if stop_loss:
+                # Calculate position size based on SL distance
+                sltp_manager = SLTPManager(db_session_factory=self.db_session_factory)
+                quantity, cost = sltp_manager.calculate_position_size_from_sl(
+                    portfolio_value=portfolio_value,
+                    entry_price=entry_price,
+                    stop_loss=stop_loss,
+                    risk_percent=risk_percent,
+                    max_position_pct=25.0  # Absolute maximum
+                )
+            else:
+                # Fallback if no SL provided (shouldn't happen with validation)
+                logger.warning(f"⚠️ [AI TRADE] No SL provided, using 5% position size fallback")
+                cost = portfolio_value * 0.05
+                quantity = cost / entry_price
+            
+            # Ensure we have enough cash
+            available_cash = float(portfolio.cash_balance)
+            if cost > available_cash:
+                logger.warning(f"⚠️ [CASH-LIMIT] Cost ${cost:.2f} exceeds available cash ${available_cash:.2f}, reducing")
+                cost = available_cash * 0.95  # Use 95% to leave buffer
+                quantity = cost / entry_price
+                if cost <= 0:
+                    logger.error(f"❌ [INSUFFICIENT-CASH] Cannot create AI trade, need ${cost:.2f} but only have ${available_cash:.2f}")
+                    return None
             
             # Log trade creation with full details
             sl_str = f"${stop_loss:.8f}" if stop_loss else "None"
