@@ -21,10 +21,15 @@ from .base import (
     SymbolInfo,
 )
 from .binance_broker import BinanceBroker
+from .paper_broker import PaperBroker
+from .data_sources import DataSource, LiveDataSource
 
 __all__ = [
     "BaseBroker",
     "BinanceBroker",
+    "PaperBroker",
+    "DataSource",
+    "LiveDataSource",
     "OrderSide",
     "OrderType",
     "OrderStatus",
