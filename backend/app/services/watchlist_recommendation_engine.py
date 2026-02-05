@@ -476,7 +476,8 @@ class WatchlistRecommendationEngine:
                 db.execute(text("""
                     INSERT INTO watchlist_recommendations 
                     (id, user_id, symbol, score, action, reasoning, components, created_at)
-                    VALUES (:id, :user_id, :symbol, :score, :action, :reasoning, %(components)s::jsonb, NOW())
+                    VALUES (%(id)s, %(user_id)s, %(symbol)s, %(score)s, %(action)s, %(reasoning)s, 
+                            %(components)s::jsonb, NOW())
                     ON CONFLICT (user_id, symbol, DATE(created_at)) DO UPDATE SET
                         score = EXCLUDED.score,
                         action = EXCLUDED.action,
@@ -497,7 +498,7 @@ class WatchlistRecommendationEngine:
                 db.execute(text("""
                     INSERT INTO recommendation_score_log
                     (id, symbol, score, components, timestamp)
-                    VALUES (:id, :symbol, :score, %(components)s::jsonb, NOW())
+                    VALUES (%(id)s, %(symbol)s, %(score)s, %(components)s::jsonb, NOW())
                 """), {
                     "id": log_id,
                     "symbol": rec.symbol,
