@@ -473,6 +473,38 @@ async def lifespan(app: FastAPI):
             except Exception as create_error:
                 logger.error(f"❌ Failed to create crypto recommendation tables: {create_error}")
         
+        # Check if watchlist_recommendations has components column (migration 017)
+        try:
+            db.execute(text("SELECT components FROM watchlist_recommendations LIMIT 1"))
+            logger.info("[OK] watchlist_recommendations has components column")
+        except Exception as check_error:
+            try:
+                logger.info(f"⚙️ Adding components column to watchlist_recommendations (migration 017)...")
+                
+                migration_paths = [
+                    "/app/database/migrations/017_add_components_to_recommendations.sql",
+                    "database/migrations/017_add_components_to_recommendations.sql",
+                    pathlib.Path(__file__).parent.parent.parent / "database/migrations/017_add_components_to_recommendations.sql"
+                ]
+                
+                migration_sql = None
+                for path in migration_paths:
+                    try:
+                        migration_sql = open(path).read()
+                        logger.info(f"✅ Found migration at: {path}")
+                        break
+                    except:
+                        continue
+                
+                if migration_sql:
+                    db.execute(text(migration_sql))
+                    db.commit()
+                    logger.info("✅ Components column added to watchlist_recommendations")
+                else:
+                    logger.error(f"❌ Could not find migration 017 file")
+            except Exception as create_error:
+                logger.error(f"❌ Failed to add components column: {create_error}")
+        
         # Check if crypto_market_data volume column has increased precision (migration 014)
         try:
             # Check numeric_precision of volume column (should be 35, not 20)

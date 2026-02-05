@@ -466,23 +466,30 @@ class WatchlistRecommendationEngine:
                 continue
             
             try:
+                import json
                 rec_id = str(uuid.uuid4())
+                
+                # Convert components to JSON
+                components_dict = rec.components.to_dict() if hasattr(rec.components, 'to_dict') else rec.components
+                components_json = json.dumps(components_dict)
                 
                 db.execute(text("""
                     INSERT INTO watchlist_recommendations 
-                    (id, user_id, symbol, score, action, reasoning, created_at)
-                    VALUES (:id, :user_id, :symbol, :score, :action, :reasoning, NOW())
+                    (id, user_id, symbol, score, action, reasoning, components, created_at)
+                    VALUES (:id, :user_id, :symbol, :score, :action, :reasoning, :components::jsonb, NOW())
                     ON CONFLICT (user_id, symbol, DATE(created_at)) DO UPDATE SET
                         score = EXCLUDED.score,
                         action = EXCLUDED.action,
-                        reasoning = EXCLUDED.reasoning
+                        reasoning = EXCLUDED.reasoning,
+                        components = EXCLUDED.components
                 """), {
                     "id": rec_id,
                     "user_id": user_id,
                     "symbol": rec.symbol,
                     "score": rec.score,
                     "action": rec.action,
-                    "reasoning": rec.reasoning
+                    "reasoning": rec.reasoning,
+                    "components": components_json
                 })
                 
                 # Also log score components
@@ -490,12 +497,12 @@ class WatchlistRecommendationEngine:
                 db.execute(text("""
                     INSERT INTO recommendation_score_log
                     (id, symbol, score, components, timestamp)
-                    VALUES (:id, :symbol, :score, :components, NOW())
+                    VALUES (:id, :symbol, :score, :components::jsonb, NOW())
                 """), {
                     "id": log_id,
                     "symbol": rec.symbol,
                     "score": rec.score,
-                    "components": str(rec.components.to_dict()).replace("'", '"')
+                    "components": components_json
                 })
                 
                 saved += 1
@@ -517,7 +524,7 @@ class WatchlistRecommendationEngine:
     ) -> List[Dict]:
         """Get pending (not yet accepted/rejected) recommendations for a user."""
         result = db.execute(text("""
-            SELECT id, symbol, score, action, reasoning, created_at
+            SELECT id, symbol, score, action, reasoning, components, created_at
             FROM watchlist_recommendations
             WHERE user_id = :user_id
             AND accepted IS NULL
@@ -533,7 +540,8 @@ class WatchlistRecommendationEngine:
                 "score": row[2],
                 "action": row[3],
                 "reasoning": row[4],
-                "created_at": row[5].isoformat() if row[5] else None
+                "components": row[5] or {"momentum": 0, "volume": 0, "volatility": 0, "rsi": 0},
+                "created_at": row[6].isoformat() if row[6] else None
             }
             for row in result.fetchall()
         ]

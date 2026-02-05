@@ -1,7 +1,7 @@
 .recommendations-container {
   width: 100%;
   padding: 20px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  background: #1a1f36;
   border-radius: 12px;
   margin-bottom: 20px;
 }
@@ -12,14 +12,14 @@
   justify-content: space-between;
   margin-bottom: 20px;
   padding-bottom: 15px;
-  border-bottom: 2px solid #e0e0e0;
+  border-bottom: 2px solid #2d3748;
 }
 
 .recommendations-header h2 {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #333;
+  color: #e2e8f0;
   font-size: 20px;
   margin: 0;
 }
@@ -41,10 +41,10 @@
 }
 
 .recommendation-card {
-  background: white;
+  background: #252d3d;
   border-radius: 10px;
   padding: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   position: relative;
   border-left: 4px solid #667eea;
   transition: all 0.3s ease;
@@ -53,16 +53,16 @@
 
 .recommendation-card.add {
   border-left-color: #10b981;
-  background: linear-gradient(to right, rgba(16, 185, 129, 0.02), transparent);
+  background: linear-gradient(to right, rgba(16, 185, 129, 0.1), rgba(37, 45, 61, 0.5));
 }
 
 .recommendation-card.remove {
   border-left-color: #ef4444;
-  background: linear-gradient(to right, rgba(239, 68, 68, 0.02), transparent);
+  background: linear-gradient(to right, rgba(239, 68, 68, 0.1), rgba(37, 45, 61, 0.5));
 }
 
 .recommendation-card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
   transform: translateY(-2px);
 }
 
@@ -85,12 +85,12 @@
   position: absolute;
   top: 8px;
   right: 8px;
-  background: #f3f4f6;
+  background: #3d4556;
   border: none;
   border-radius: 6px;
   padding: 6px;
   cursor: pointer;
-  color: #6b7280;
+  color: #cbd5e1;
   transition: all 0.2s;
   display: flex;
   align-items: center;
@@ -98,8 +98,8 @@
 }
 
 .dismiss-btn:hover {
-  background: #e5e7eb;
-  color: #111;
+  background: #4d5566;
+  color: #e2e8f0;
 }
 
 .card-header {
@@ -119,7 +119,7 @@
 .symbol {
   font-size: 18px;
   font-weight: bold;
-  color: #111;
+  color: #e2e8f0;
   margin: 0;
 }
 
@@ -133,13 +133,13 @@
 }
 
 .action-badge.add {
-  background: #d1fae5;
-  color: #065f46;
+  background: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
 }
 
 .action-badge.remove {
-  background: #fee2e2;
-  color: #7f1d1d;
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
 }
 
 .score-section {
@@ -158,7 +158,7 @@
 .score-bar {
   width: 100px;
   height: 6px;
-  background: #e5e7eb;
+  background: #3d4556;
   border-radius: 3px;
   overflow: hidden;
 }
@@ -171,8 +171,8 @@
 
 .card-body {
   padding: 12px 0;
-  border-top: 1px solid #f3f4f6;
-  border-bottom: 1px solid #f3f4f6;
+  border-top: 1px solid #3d4556;
+  border-bottom: 1px solid #3d4556;
 }
 
 .price-row {
@@ -183,21 +183,21 @@
 }
 
 .price-row .label {
-  color: #6b7280;
+  color: #94a3b8;
   font-weight: 500;
 }
 
 .price-row .value {
-  color: #111;
+  color: #e2e8f0;
   font-weight: 600;
 }
 
 .price-row .value.positive {
-  color: #10b981;
+  color: #6ee7b7;
 }
 
 .price-row .value.negative {
-  color: #ef4444;
+  color: #f87171;
 }
 
 .components-row {
@@ -216,7 +216,7 @@
 
 .component label {
   font-size: 11px;
-  color: #6b7280;
+  color: #cbd5e1;
   font-weight: 600;
   text-align: center;
 }
@@ -224,7 +224,7 @@
 .mini-bar {
   width: 100%;
   height: 4px;
-  background: #e5e7eb;
+  background: #3d4556;
   border-radius: 2px;
   overflow: hidden;
 }
@@ -238,16 +238,18 @@
 .component span {
   font-size: 11px;
   font-weight: bold;
-  color: #667eea;
+  color: #94a3b8;
 }
 
 .reasoning {
   margin-top: 10px;
   padding: 10px;
-  background: #f0f4ff;
+  background: rgba(102, 126, 234, 0.1);
   border-left: 3px solid #667eea;
   border-radius: 4px;
   font-size: 12px;
+  color: #cbd5e1;
+}
 }
 
 .reasoning strong {
@@ -257,7 +259,7 @@
 }
 
 .reasoning p {
-  color: #4b5563;
+  color: #cbd5e1;
   margin: 0;
   line-height: 1.4;
 }
@@ -285,24 +287,24 @@
 }
 
 .accept-btn {
-  background: #d1fae5;
-  color: #065f46;
-  border: 1px solid #a7f3d0;
+  background: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
 .accept-btn:hover:not(:disabled) {
-  background: #a7f3d0;
+  background: rgba(16, 185, 129, 0.3);
   transform: translateY(-1px);
 }
 
 .reject-btn {
-  background: #fee2e2;
-  color: #7f1d1d;
-  border: 1px solid #fca5a5;
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 .reject-btn:hover:not(:disabled) {
-  background: #fca5a5;
+  background: rgba(239, 68, 68, 0.3);
   transform: translateY(-1px);
 }
 
@@ -337,20 +339,21 @@
 }
 
 .loading-spinner p {
-  color: #6b7280;
+  color: #cbd5e1;
   font-size: 14px;
 }
 
 .error-message {
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 8px;
   padding: 16px;
+  color: #f87171;
   text-align: center;
 }
 
 .error-message p {
-  color: #7f1d1d;
+  color: #f87171;
   margin: 0 0 12px;
   font-weight: 500;
 }
@@ -380,19 +383,19 @@
 }
 
 .empty-icon {
-  color: #d1d5db;
+  color: #4d5566;
   width: 48px;
   height: 48px;
 }
 
 .empty-state p {
-  color: #6b7280;
+  color: #cbd5e1;
   font-weight: 500;
   margin: 0;
 }
 
 .empty-state small {
-  color: #9ca3af;
+  color: #94a3b8;
   font-size: 12px;
 }
 

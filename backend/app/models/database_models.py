@@ -411,6 +411,7 @@ class WatchlistRecommendation(Base):
     score = Column(Float, nullable=False)  # 0-100
     action = Column(String(10), nullable=False)  # 'ADD' or 'REMOVE'
     reasoning = Column(Text, nullable=True)  # DeepSeek explanation
+    components = Column(JSON, nullable=True)  # {momentum: 85, volume: 70, volatility: 60, rsi: 45}
     accepted = Column(Boolean, nullable=True, default=None)  # None=pending, True=accepted, False=rejected
     accepted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), index=True)
