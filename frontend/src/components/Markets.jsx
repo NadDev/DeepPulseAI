@@ -42,6 +42,15 @@ export default function Markets() {
         throw new Error(`Failed to update recommendations: ${response.status} - ${data.detail || ''}`);
       }
 
+      // After bootstrap, trigger recommendation generation
+      console.log('🔄 Triggering recommendation generation after bootstrap...');
+      const recGenResponse = await fetch(`${API_URL}/api/admin/generate-recommendations`, {
+        method: 'POST',
+        headers
+      });
+      
+      console.log('📊 Recommendation generation response:', recGenResponse.status);
+
       setUpdateStatus({
         type: 'success',
         message: '✅ Recommendations update started'
@@ -82,6 +91,15 @@ export default function Markets() {
       if (!response.ok) {
         throw new Error(`Failed to update market data: ${response.status} - ${data.detail || ''}`);
       }
+
+      // After bootstrap, trigger recommendation generation
+      console.log('🔄 Triggering recommendation generation after market data update...');
+      const recGenResponse = await fetch(`${API_URL}/api/admin/generate-recommendations`, {
+        method: 'POST',
+        headers
+      });
+      
+      console.log('📊 Recommendation generation response:', recGenResponse.status);
 
       setUpdateStatus({
         type: 'success',
