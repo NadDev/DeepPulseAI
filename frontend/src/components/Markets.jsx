@@ -24,7 +24,7 @@ export default function Markets() {
       setLoadingUpdates(true);
       setUpdateStatus(null);
       const headers = getAuthHeaders();
-      const url = `${API_URL}/api/admin/bootstrap?cryptos=50&days=730&force=false`;
+      const url = `${API_URL}/api/admin/bootstrap?cryptos=50&days=730&force=true`;
 
       console.log('🚀 Calling bootstrap:', url);
       console.log('🔐 Headers:', headers);
@@ -74,7 +74,7 @@ export default function Markets() {
       setLoadingUpdates(true);
       setUpdateStatus(null);
       const headers = getAuthHeaders();
-      const url = `${API_URL}/api/admin/bootstrap?cryptos=200&days=730&force=false`;
+      const url = `${API_URL}/api/admin/bootstrap?cryptos=200&days=730&force=true`;
 
       console.log('🚀 Calling market data update:', url);
       console.log('🔐 Headers:', headers);

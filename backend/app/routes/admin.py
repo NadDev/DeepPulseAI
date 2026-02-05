@@ -41,6 +41,11 @@ async def force_bootstrap_crypto_data(
     logger.info(f"📌 Bootstrap requested by {current_user.email}")
     logger.info(f"   Config: cryptos={cryptos}, days={days}, force={force}")
     
+    if force:
+        logger.info(f"   ✅ force=true → Will REFETCH all candles (may take longer)")
+    else:
+        logger.info(f"   ℹ️ force=false → Will only fetch MISSING candles (skips existing)")
+    
     # Add task to background
     background_tasks.add_task(
         _run_bootstrap_task,
@@ -188,7 +193,7 @@ async def _generate_recommendations_for_all_users():
                 SELECT DISTINCT user_id FROM bots WHERE status IN ('RUNNING', 'PAUSED')
             """))
             
-            user_ids = [row[0] for row in result.fetchall()]
+            user_ids = [str(row[0]) for row in result.fetchall()]
             logger.info(f"📊 [GEN-REC] Found {len(user_ids)} active users for recommendation generation")
             
             if not user_ids:
