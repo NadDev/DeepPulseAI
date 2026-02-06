@@ -60,8 +60,9 @@ class Settings:
             "http://127.0.0.1:8000",
         ]
     elif ENV == "staging":
+        # Staging uses DynamicCORSMiddleware to accept all Vercel Preview URLs
         ALLOWED_ORIGINS = [
-            "https://staging.yourapp.com",
+            "https://deep-pulse-ai.vercel.app",  # Production domain also accessible in staging
         ]
     else:  # production
         ALLOWED_ORIGINS = [

@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 from contextlib import asynccontextmanager
 import logging
 import asyncio
@@ -985,6 +987,36 @@ async def lifespan(app: FastAPI):
         await bot_engine_module.bot_engine.stop()
         logger.info("[OK] Bot Engine stopped")
 
+# Custom CORS middleware for staging (accepts all Vercel Preview URLs)
+class DynamicCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin", "")
+        
+        # Handle preflight OPTIONS requests
+        if request.method == "OPTIONS":
+            if settings.ENV == "staging" and ("vercel.app" in origin or "localhost" in origin or "127.0.0.1" in origin):
+                return Response(
+                    content="",
+                    status_code=200,
+                    headers={
+                        "Access-Control-Allow-Origin": origin,
+                        "Access-Control-Allow-Methods": "*",
+                        "Access-Control-Allow-Headers": "*",
+                        "Access-Control-Allow-Credentials": "true",
+                    }
+                )
+        
+        response = await call_next(request)
+        
+        # Add CORS headers for staging (Vercel Preview URLs)
+        if settings.ENV == "staging" and ("vercel.app" in origin or "localhost" in origin or "127.0.0.1" in origin):
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "*"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+        
+        return response
+
 # Create FastAPI app
 app = FastAPI(
     title=settings.API_TITLE,
@@ -992,6 +1024,12 @@ app = FastAPI(
     version=settings.API_VERSION,
     lifespan=lifespan
 )
+
+# Add dynamic CORS middleware (for staging Vercel Previews)
+if settings.ENV == "staging":
+    from starlette.responses import Response
+    app.add_middleware(DynamicCORSMiddleware)
+    logger.info("🔓 [STAGING] Dynamic CORS enabled for all Vercel Preview URLs")
 
 # Add CORS middleware
 app.add_middleware(
