@@ -33,5 +33,6 @@ if (!config.SUPABASE_URL || !config.SUPABASE_KEY) {
 console.log('Config loaded:', {
   API_URL: config.API_URL,
   MODE: import.meta.env.MODE,
+  VITE_API_URL_OVERRIDE: import.meta.env.VITE_API_URL || 'NOT SET',
   SUPABASE_URL: config.SUPABASE_URL ? 'set' : 'NOT SET',
 });
