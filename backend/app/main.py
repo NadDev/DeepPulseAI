@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
+from starlette.responses import Response
 from contextlib import asynccontextmanager
 import logging
 import asyncio
@@ -994,7 +995,7 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
         
         # Handle preflight OPTIONS requests
         if request.method == "OPTIONS":
-            if settings.ENV == "staging" and ("vercel.app" in origin or "localhost" in origin or "127.0.0.1" in origin):
+            if "vercel.app" in origin or "localhost" in origin or "127.0.0.1" in origin:
                 return Response(
                     content="",
                     status_code=200,
@@ -1009,7 +1010,7 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         
         # Add CORS headers for staging (Vercel Preview URLs)
-        if settings.ENV == "staging" and ("vercel.app" in origin or "localhost" in origin or "127.0.0.1" in origin):
+        if "vercel.app" in origin or "localhost" in origin or "127.0.0.1" in origin:
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
             response.headers["Access-Control-Allow-Methods"] = "*"
@@ -1027,18 +1028,17 @@ app = FastAPI(
 
 # Add dynamic CORS middleware (for staging Vercel Previews)
 if settings.ENV == "staging":
-    from starlette.responses import Response
     app.add_middleware(DynamicCORSMiddleware)
     logger.info("🔓 [STAGING] Dynamic CORS enabled for all Vercel Preview URLs")
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+else:
+    # Add standard CORS middleware (production/development)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.ALLOWED_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Include routers
 app.include_router(auth.router)  # Auth routes first
