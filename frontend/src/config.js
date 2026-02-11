@@ -1,7 +1,7 @@
 // Configuration - reads from environment variables
 // For production, use Railway API URL
 // NEVER commit real credentials - always use environment variables
-const isDev = import.meta.env.MODE === 'staging';
+const isDev = import.meta.env.MODE === 'development';
 
 // Allow override via VITE_API_URL for staging/preview environments
 const getApiUrl = () => {

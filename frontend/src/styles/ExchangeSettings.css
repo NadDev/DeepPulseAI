@@ -617,6 +617,22 @@
   box-shadow: 0 6px 20px rgba(34, 197, 94, 0.3);
 }
 
+/* Exchange Required Message */
+.exchange-required-message {
+  padding: 3rem 2rem;
+  text-align: center;
+  background: rgba(139, 92, 246, 0.05);
+  border: 2px dashed rgba(139, 92, 246, 0.3);
+  border-radius: 0.75rem;
+  margin: 2rem 0;
+}
+
+.exchange-required-message p {
+  color: #9ca3af;
+  font-size: 1rem;
+  margin: 0;
+}
+
 /* API Docs Link */
 .api-docs-link {
   display: flex;

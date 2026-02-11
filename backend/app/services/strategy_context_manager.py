@@ -397,12 +397,12 @@ class StrategyContextManager:
             },
             
             # ===== DCA (Long term accumulation) =====
-            "dca": {
-                "enabled": True,  # DCA works everywhere (long-term accumulation)
-                "reason": "✅ Long-term accumulation (6-12 months horizon)",
-                "position_size_multiplier": 0.2 if skip_all_bearish else 1.0,  # Reduced in bearish for day trading
-                "parameters": {}
-            },
+            #"dca": {
+             #   "enabled": True,  # DCA works everywhere (long-term accumulation)
+             #   "reason": "✅ Long-term accumulation (6-12 months horizon)",
+             #   "position_size_multiplier": 0.2 if skip_all_bearish else 1.0,  # Reduced in bearish for day trading
+             #   "parameters": {}
+          # },
             
             # ===== MACD CROSSOVER =====
             "macdcrossover": {

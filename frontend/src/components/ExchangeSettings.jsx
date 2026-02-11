@@ -320,8 +320,12 @@ export default function ExchangeSettings() {
 
       {/* Add/Edit Form Modal */}
       {showForm && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && resetForm()}>
-          <div className="exchange-form-modal">
+        <div className="modal-overlay" onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            resetForm();
+          }
+        }}>
+          <div className="exchange-form-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{editingConfig ? 'Edit Exchange' : 'Add New Exchange'}</h3>
               <button className="btn-close" onClick={resetForm}>×</button>
@@ -331,7 +335,7 @@ export default function ExchangeSettings() {
               {/* Exchange Selection */}
               {!editingConfig && (
                 <div className="form-group">
-                  <label>Select Exchange</label>
+                  <label>Select Exchange *</label>
                   <div className="exchange-grid">
                     {Object.entries(exchanges).map(([key, exchange]) => (
                       <button
@@ -349,7 +353,8 @@ export default function ExchangeSettings() {
                 </div>
               )}
 
-              {(formData.exchange || editingConfig) && (
+              {/* Show rest of form only if exchange selected */}
+              {(formData.exchange || editingConfig) ? (
                 <>
                   {/* Name */}
                   <div className="form-group">
@@ -514,6 +519,10 @@ export default function ExchangeSettings() {
                     </button>
                   </div>
                 </>
+              ) : (
+                <div className="exchange-required-message">
+                  <p>👆 Please select an exchange above to continue</p>
+                </div>
               )}
             </form>
 

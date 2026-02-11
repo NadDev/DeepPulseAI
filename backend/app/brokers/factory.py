@@ -85,12 +85,12 @@ class BrokerFactory:
         Raises:
             ValueError: If exchange not supported
         """
-        from app.security.encryption import CryptoService
+        from app.services.crypto_service import get_crypto_service
         
         # Decrypt credentials
-        crypto_service = CryptoService()
-        api_key = crypto_service.decrypt_value(config.api_key_encrypted) if config.api_key_encrypted else ""
-        api_secret = crypto_service.decrypt_value(config.api_secret_encrypted) if config.api_secret_encrypted else ""
+        crypto_service = get_crypto_service()
+        api_key = crypto_service.decrypt(config.api_key_encrypted) if config.api_key_encrypted else ""
+        api_secret = crypto_service.decrypt(config.api_secret_encrypted) if config.api_secret_encrypted else ""
         
         # Create appropriate broker
         if config.exchange == "binance":

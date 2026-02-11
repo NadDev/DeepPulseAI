@@ -403,25 +403,34 @@ async def test_exchange_connection(
     crypto = get_crypto_service()
     config = None
     
+    logger.info(f"🔍 TEST-CONNECTION request: exchange_id={request.exchange_id}, paper_trading={getattr(request, 'paper_trading', 'NOT SET')}")
+    
     # === 1. LOAD CREDENTIALS ===
     
     # Either use existing config or provided credentials
     if request.exchange_id:
+        logger.info(f"📋 Loading config from exchange_id: {request.exchange_id}")
         config = db.query(ExchangeConfig).filter(
             ExchangeConfig.id == request.exchange_id,
             ExchangeConfig.user_id == current_user.id
         ).first()
         
         if not config:
+            logger.error(f"❌ Config NOT FOUND for ID {request.exchange_id}")
             raise HTTPException(status_code=404, detail="Exchange config not found")
+        
+        logger.info(f"✅ Config found: exchange={config.exchange}, paper_trading={config.paper_trading}, testnet={config.use_testnet}")
         
         # Create broker from config
         try:
+            logger.info(f"🔄 Creating BrokerFactory for {config.exchange}...")
             broker = BrokerFactory.create(config, db)
+            logger.info(f"✅ BrokerFactory.create() succeeded: {broker.__class__.__name__}")
             exchange = config.exchange
             use_testnet = config.use_testnet
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to create broker: {e}")
+            logger.error(f"❌ BrokerFactory.create() FAILED: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to create broker: {str(e)}")
     
     elif request.exchange and request.api_key and request.api_secret:
         # Create temporary config for testing
@@ -452,10 +461,12 @@ async def test_exchange_connection(
     # === 2. TEST CONNECTION VIA BROKER ===
     
     try:
-        logger.info(f"🔌 Testing {exchange} connection for user {current_user.id} (testnet={use_testnet})...")
+        logger.info(f"� Testing {exchange} connection for user {current_user.id} (testnet={use_testnet})...")
         
         # REAL API CALL - get account balance
+        logger.info(f"🔗 Calling broker.get_account_balance()...")
         account_balance = await broker.get_account_balance()
+        logger.info(f"✅ get_account_balance() succeeded: {account_balance}")
         
         if not account_balance:
             raise Exception("get_account_balance() returned None")
@@ -492,7 +503,7 @@ async def test_exchange_connection(
         }
         
     except Exception as e:
-        logger.error(f"❌ Connection test FAILED: {e}")
+        logger.error(f"❌ Connection test FAILED at get_account_balance(): {str(e)}", exc_info=True)
         
         # Update config status if testing existing config
         if config:
