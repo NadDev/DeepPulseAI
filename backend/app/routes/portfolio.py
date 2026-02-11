@@ -57,10 +57,10 @@ async def get_portfolio_summary(
     open_trades = trade_query.filter(Trade.status == "OPEN").all()
     closed_trades = trade_query.filter(Trade.status == "CLOSED").all()
     
-    # === CAPITAL INITIAL ===
-    # Utilise le cash_balance stocké en DB (mis à jour par le sync broker)
-    # Fallback à 10,000 si jamais pas encore syncé
-    initial_capital = portfolio.cash_balance if portfolio.cash_balance > 0 else 10000.0
+    # === CAPITAL INITIAL (BROKER) ===
+    # Le cash_balance en DB vient du broker sync — NE PAS LE MODIFIER ICI
+    # On l'utilise comme capital de base pour les calculs
+    broker_cash_balance = portfolio.cash_balance if portfolio.cash_balance > 0 else 10000.0
     
     # Calculate cost of open positions
     cost_of_open_positions = sum(float(t.entry_price) * float(t.quantity) for t in open_trades)
@@ -68,10 +68,10 @@ async def get_portfolio_summary(
     # Calculate realized PnL from closed trades
     realized_pnl = sum(t.pnl for t in closed_trades if t.pnl)
     
-    # Cash disponible = capital initial (du broker) - positions ouvertes + PnL réalisé
-    recalculated_cash_balance = initial_capital - cost_of_open_positions + realized_pnl
+    # Cash disponible (runtime, pas sauvé en DB) = capital broker - positions ouvertes + PnL réalisé
+    available_cash = broker_cash_balance - cost_of_open_positions + realized_pnl
     
-    logger.debug(f"Portfolio recalculation: initial={initial_capital}, cost_open={cost_of_open_positions:.2f}, realized_pnl={realized_pnl:.2f}, cash={recalculated_cash_balance:.2f}")
+    logger.debug(f"Portfolio calc: broker_cash={broker_cash_balance}, open_cost={cost_of_open_positions:.2f}, realized_pnl={realized_pnl:.2f}, available={available_cash:.2f}")
     
     # Fetch current prices for open positions to calculate unrealized PnL
     market_collector = MarketDataCollector()
@@ -96,14 +96,14 @@ async def get_portfolio_summary(
             logger.warning(f"Could not get current price for {trade.symbol}: {str(e)}")
             positions_current_value += float(trade.quantity) * float(trade.entry_price)
     
-    # Update portfolio stats
+    # Update portfolio stats (NE PAS toucher à cash_balance — fixé par broker sync)
     # CRITICAL: Total PnL = Realized + Unrealized
     portfolio.total_pnl = realized_pnl + unrealized_pnl
-    portfolio.cash_balance = recalculated_cash_balance
+    # NOTE: cash_balance reste INTOUCHABLE — vient du broker sync
     
     # Calculate portfolio value dynamically:
-    # total_value = cash_balance + sum(current market value of open positions)
-    portfolio.total_value = recalculated_cash_balance + positions_current_value
+    # total_value = available cash + sum(current market value of open positions)
+    portfolio.total_value = available_cash + positions_current_value
     
     # Calculate win rate from closed trades
     if len(closed_trades) > 0:
@@ -152,7 +152,7 @@ async def get_portfolio_summary(
     
     return {
         "portfolio_value": portfolio.total_value,
-        "cash_balance": portfolio.cash_balance,
+        "cash_balance": available_cash,  # Cash disponible (runtime calculation)
         "daily_pnl": portfolio.daily_pnl,
         "total_pnl": portfolio.total_pnl,
         "win_rate": portfolio.win_rate,
