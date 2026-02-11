@@ -602,3 +602,50 @@ async def get_equity_curve(
         })
     
     return {"data": data, "current_value": portfolio.total_value}
+
+
+@router.post("/portfolio/sync")
+async def sync_portfolio_from_exchange(
+    db: Session = Depends(get_db),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Manually sync portfolio with connected exchange/broker.
+    
+    This fetches real balance from the exchange and updates the local portfolio.
+    Useful after:
+    - First time connecting an exchange
+    - Manual trades done outside the platform
+    - Suspected drift between local and exchange balance
+    """
+    from app.services.portfolio_sync_service import PortfolioSyncService
+    
+    user_id = current_user.id
+    
+    logger.info(f"🔄 Manual portfolio sync requested for user {user_id}")
+    
+    try:
+        sync_service = PortfolioSyncService()
+        success = await sync_service.sync_user_portfolio(user_id, db)
+        
+        if success:
+            # Fetch updated portfolio
+            portfolio = db.query(Portfolio).filter(Portfolio.user_id == user_id).first()
+            
+            return {
+                "status": "success",
+                "message": "Portfolio synchronized successfully",
+                "portfolio": {
+                    "total_value": portfolio.total_value,
+                    "cash_balance": portfolio.cash_balance,
+                    "daily_pnl": portfolio.daily_pnl,
+                    "total_pnl": portfolio.total_pnl,
+                    "updated_at": portfolio.updated_at.isoformat() if portfolio.updated_at else None
+                }
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to sync portfolio. Check exchange configuration.")
+    
+    except Exception as e:
+        logger.error(f"❌ Portfolio sync failed for user {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")

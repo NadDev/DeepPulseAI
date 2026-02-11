@@ -288,11 +288,28 @@ async def create_exchange_config(
         
         logger.info(f"✅ Exchange config created: {request.exchange} for user {current_user.id}")
         
+        # === AUTO-SYNC PORTFOLIO WITH BROKER ===
+        sync_result = None
+        try:
+            from app.services.portfolio_sync_service import PortfolioSyncService
+            sync_service = PortfolioSyncService()
+            sync_success = await sync_service.sync_user_portfolio(str(current_user.id), db)
+            if sync_success:
+                logger.info(f"✅ Portfolio auto-synced after broker creation")
+                sync_result = "synced"
+            else:
+                logger.warning(f"⚠️ Portfolio auto-sync failed after broker creation")
+                sync_result = "sync_failed"
+        except Exception as sync_err:
+            logger.error(f"❌ Portfolio auto-sync error: {sync_err}")
+            sync_result = "sync_error"
+        
         return {
             "status": "success",
             "message": f"Exchange {request.exchange} configured successfully",
             "id": str(config.id),
-            "exchange": config.exchange
+            "exchange": config.exchange,
+            "portfolio_sync": sync_result
         }
         
     except Exception as e:
@@ -349,9 +366,26 @@ async def update_exchange_config(
         
         logger.info(f"✅ Exchange config updated: {config.exchange}")
         
+        # === AUTO-SYNC PORTFOLIO WITH BROKER ===
+        sync_result = None
+        try:
+            from app.services.portfolio_sync_service import PortfolioSyncService
+            sync_service = PortfolioSyncService()
+            sync_success = await sync_service.sync_user_portfolio(str(current_user.id), db)
+            if sync_success:
+                logger.info(f"✅ Portfolio auto-synced after broker update")
+                sync_result = "synced"
+            else:
+                logger.warning(f"⚠️ Portfolio auto-sync failed after broker update")
+                sync_result = "sync_failed"
+        except Exception as sync_err:
+            logger.error(f"❌ Portfolio auto-sync error: {sync_err}")
+            sync_result = "sync_error"
+        
         return {
             "status": "success",
-            "message": f"Exchange {config.exchange} updated successfully"
+            "message": f"Exchange {config.exchange} updated successfully",
+            "portfolio_sync": sync_result
         }
         
     except Exception as e:

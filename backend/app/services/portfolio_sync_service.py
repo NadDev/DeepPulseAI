@@ -78,12 +78,13 @@ class PortfolioSyncService:
     
     async def sync_user_portfolio(self, user_id: str, db: Session) -> bool:
         """
-        Sync a single user's portfolio with their exchange account via broker abstraction
+        Sync a single user's portfolio with their exchange account via broker abstraction.
+        Works for BOTH paper trading and live trading modes.
         
         Returns:
             True if synced successfully, False if error
         """
-        logger.debug(f"🔄 Syncing portfolio for user {user_id}")
+        logger.info(f"🔄 Syncing portfolio for user {user_id}")
         
         # Get user's exchange config
         exchange_config = db.query(ExchangeConfig).filter(
@@ -95,137 +96,76 @@ class PortfolioSyncService:
             logger.warning(f"No active exchange config for user {user_id}")
             return False
         
-        # Skip paper trading accounts
-        if exchange_config.paper_trading:
-            return True  # Nothing to sync
-        
-        # Get portfolio record
+        # Get or create portfolio record
         portfolio = db.query(Portfolio).filter(
             Portfolio.user_id == user_id
         ).first()
         
         if not portfolio:
-            logger.warning(f"No portfolio found for user {user_id}")
-            return False
+            logger.info(f"Creating portfolio for user {user_id}")
+            portfolio = Portfolio(
+                user_id=user_id,
+                total_value=0.0,
+                cash_balance=0.0,
+                daily_pnl=0.0,
+                total_pnl=0.0,
+                win_rate=0.0,
+                max_drawdown=0.0
+            )
+            db.add(portfolio)
+            db.commit()
+            db.refresh(portfolio)
         
         try:
             # === FETCH REAL DATA FROM EXCHANGE VIA BROKER ===
+            broker = BrokerFactory.create(exchange_config, db)
             
-            # Create broker via factory
-            broker = BrokerFactory.from_user(user_id, db)
+            logger.info(f"Fetching account balance for {user_id} via {broker.name}...")
             
-            logger.debug(f"Fetching account balance for {user_id} via {broker.name}...")
-            
-            # Get account balance (already returns total value in quote currency)
+            # Get account balance
             account_balance = await broker.get_account_balance()
             
             if not account_balance:
                 logger.error(f"Invalid account balance for {user_id}")
                 return False
             
-            # === EXTRACT KEY METRICS ===
+            # === EXTRACT KEY METRICS (using correct AccountBalance attributes) ===
+            exchange_cash_balance = account_balance.free_usdt
+            exchange_total_value = account_balance.total_value_usdt
             
-            exchange_cash_balance = account_balance.free_balance  # Free USDT
-            exchange_total_value = account_balance.total_value  # All assets converted to USDT
-            
-            logger.debug(
-                f"  Exchange balance: Free=${exchange_cash_balance:.2f}, "
-                f"Total=${exchange_total_value:.2f}"
+            logger.info(
+                f"  Broker balance: Free=${exchange_cash_balance:.2f}, "
+                f"Total=${exchange_total_value:.2f}, "
+                f"Assets={len(account_balance.assets)}"
             )
             
-            # === CALCULATE LONG-TERM POSITIONS VALUE ===
+            # === UPDATE PORTFOLIO ===
+            old_total = portfolio.total_value
             
-            # LT positions are held separately (not on exchange yet)
-            lt_positions_value = await self._calculate_lt_positions_value(user_id, db, broker)
+            portfolio.cash_balance = exchange_cash_balance
+            portfolio.total_value = exchange_total_value
             
-            # Total portfolio value = Exchange value + LT positions (accumulating)
-            total_portfolio_value = exchange_total_value + lt_positions_value
-            
-            # === UPDATE DATABASE ===
-            
-            # Calculate difference (drift detection)
-            old_local_value = portfolio.cash_balance + portfolio.total_value
-            balance_difference = abs(old_local_value - total_portfolio_value)
-            
-            # Store exchange values
-            portfolio.exchange = exchange_config.exchange
-            portfolio.exchange_config_id = exchange_config.id
-            portfolio.exchange_cash_balance = exchange_cash_balance
-            portfolio.exchange_total_value = exchange_total_value
-            portfolio.balance_difference = balance_difference
-            portfolio.last_synced_with_exchange = datetime.utcnow()
-            
-            # === UPDATE DATABASE ===
-            
-            # Calculate difference (drift detection)
-            old_local_value = portfolio.cash_balance + portfolio.total_value
-            balance_difference = abs(old_local_value - total_portfolio_value)
-            
-            # Store exchange values
-            portfolio.exchange = exchange_config.exchange
-            portfolio.exchange_config_id = exchange_config.id
-            portfolio.exchange_cash_balance = exchange_cash_balance
-            portfolio.exchange_total_value = exchange_total_value
-            portfolio.balance_difference = balance_difference
-            portfolio.last_synced_with_exchange = datetime.utcnow()
-            
-            # Update total_value to include LT positions
-            portfolio.total_value = total_portfolio_value
-            
-            # === DRIFT DETECTION & AUTO-RECONCILIATION ===
-            
-            # Check if synced
-            if balance_difference > self.drift_threshold:
-                portfolio.is_synced = False
+            # Log drift if significant
+            drift = abs(old_total - exchange_total_value)
+            if drift > self.drift_threshold:
                 logger.warning(
-                    f"⚠️  DRIFT DETECTED for {user_id}: "
-                    f"Local=${old_local_value:.2f}, "
-                    f"Exchange=${exchange_total_value:.2f}, "
-                    f"Diff=${balance_difference:.2f}"
+                    f"⚠️ DRIFT DETECTED for {user_id}: "
+                    f"Old=${old_total:.2f} → New=${exchange_total_value:.2f} "
+                    f"(Diff=${drift:.2f})"
                 )
-                
-                # Auto-reconcile: use exchange as source of truth
-                logger.info(f"🔧 Auto-reconciling portfolio for {user_id}")
-                portfolio.cash_balance = exchange_cash_balance
-                portfolio.total_value = total_portfolio_value
-                portfolio.is_synced = True
-            else:
-                portfolio.is_synced = True
-            if balance_difference > self.drift_threshold:
-                portfolio.is_synced = False
-                logger.warning(
-                    f"⚠️  DRIFT DETECTED for {user_id}: "
-                    f"Local=${portfolio.local_total_value:.2f}, "
-                    f"Exchange=${exchange_total_value:.2f}, "
-                    f"Diff=${balance_difference:.2f}"
-                )
-                
-                # Auto-reconcile: use exchange as source of truth
-                logger.info(f"🔧 Auto-reconciling portfolio for {user_id}")
-                portfolio.local_total_value = total_portfolio_value
-                portfolio.cash_balance = exchange_cash_balance
-                portfolio.total_value = total_portfolio_value
-                portfolio.is_synced = True
-            else:
-                portfolio.is_synced = True
             
             db.commit()
             
             logger.info(
-                f"✅ Synced {user_id}: "
-                f"Cash=$ {exchange_cash_balance:.2f}, "
-                f"DT=${exchange_total_value:.2f}, "
-                f"LT=${lt_positions_value:.2f}, "
-                f"Total=${total_portfolio_value:.2f}, "
-                f"Sync={'✓' if portfolio.is_synced else '✗'}"
+                f"✅ Portfolio synced for {user_id}: "
+                f"Cash=${exchange_cash_balance:.2f}, "
+                f"Total=${exchange_total_value:.2f}"
             )
             
             return True
         
         except Exception as e:
-            logger.error(f" ❌ Sync failed for {user_id}: {str(e)}")
-            portfolio.is_synced = False
-            db.commit()
+            logger.error(f"❌ Sync failed for {user_id}: {str(e)}")
             return False
     
     async def _calculate_lt_positions_value(self, user_id: str, db: Session, broker) -> float:
