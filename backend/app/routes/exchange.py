@@ -480,14 +480,13 @@ async def test_exchange_connection(
             "broker": broker.name,
             "testnet": use_testnet,
             "status": "connected",
-            "quote_asset": account_balance.quote_asset,
-            "free_balance": account_balance.free_balance,
-            "locked_balance": account_balance.locked_balance,
-            "total_value": account_balance.total_value,
+            "free_balance": account_balance.free_usdt,
+            "locked_balance": account_balance.locked_usdt,
+            "total_value": account_balance.total_value_usdt,
             "assets_count": len(account_balance.assets)
         }
         
-        logger.info(f"✅ Connection test SUCCESS: {exchange} - Balance=${account_balance.total_value:.2f}")
+        logger.info(f"✅ Connection test SUCCESS: {exchange} - Balance=${account_balance.total_value_usdt:.2f}")
         
         # Update config status if testing existing config
         if config:
