@@ -57,14 +57,10 @@ async def get_portfolio_summary(
     open_trades = trade_query.filter(Trade.status == "OPEN").all()
     closed_trades = trade_query.filter(Trade.status == "CLOSED").all()
     
-    # === CRITICAL FIX ===
-    # Cash balance calculation:
-    # 1. Start with initial capital (100,000)
-    # 2. Subtract cost of ALL open positions (entry_price × quantity)
-    # 3. Add ALL realized PnL from closed trades
-    
-    # Get initial capital (should be stored, using 100k as default for now)
-    initial_capital = 100000.0
+    # === CAPITAL INITIAL ===
+    # Utilise le cash_balance stocké en DB (mis à jour par le sync broker)
+    # Fallback à 10,000 si jamais pas encore syncé
+    initial_capital = portfolio.cash_balance if portfolio.cash_balance > 0 else 10000.0
     
     # Calculate cost of open positions
     cost_of_open_positions = sum(float(t.entry_price) * float(t.quantity) for t in open_trades)
@@ -72,8 +68,7 @@ async def get_portfolio_summary(
     # Calculate realized PnL from closed trades
     realized_pnl = sum(t.pnl for t in closed_trades if t.pnl)
     
-    # RECALCULATE cash_balance correctly:
-    # cash_balance = initial_capital - cost_of_open_positions + realized_pnl
+    # Cash disponible = capital initial (du broker) - positions ouvertes + PnL réalisé
     recalculated_cash_balance = initial_capital - cost_of_open_positions + realized_pnl
     
     logger.debug(f"Portfolio recalculation: initial={initial_capital}, cost_open={cost_of_open_positions:.2f}, realized_pnl={realized_pnl:.2f}, cash={recalculated_cash_balance:.2f}")
