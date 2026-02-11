@@ -320,10 +320,13 @@ async def update_exchange_config(
         raise HTTPException(status_code=404, detail="Exchange config not found")
     
     try:
-        # Update encrypted credentials
-        config.api_key_encrypted = crypto.encrypt(request.api_key)
-        config.api_secret_encrypted = crypto.encrypt(request.api_secret)
-        config.passphrase_encrypted = crypto.encrypt(request.passphrase) if request.passphrase else None
+        # Update encrypted credentials (ONLY if provided - editing preserves existing secrets)
+        if request.api_key:  # Only update if a new key is provided
+            config.api_key_encrypted = crypto.encrypt(request.api_key)
+        if request.api_secret:  # Only update if a new secret is provided
+            config.api_secret_encrypted = crypto.encrypt(request.api_secret)
+        if request.passphrase:  # Only update if a new passphrase is provided
+            config.passphrase_encrypted = crypto.encrypt(request.passphrase)
         
         # Update other fields
         config.name = request.name or config.name

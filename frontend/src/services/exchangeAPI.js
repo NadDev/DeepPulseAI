@@ -59,13 +59,17 @@ export const exchangeAPI = {
         body: JSON.stringify(configData)
       });
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to create exchange config');
+        try {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Failed to create exchange config');
+        } catch (parseError) {
+          throw new Error(`HTTP ${response.status}: Failed to create exchange config`);
+        }
       }
       return response.json();
     } catch (error) {
       console.error('Error creating exchange config:', error);
-      throw error;
+      throw new Error(error.message || 'Failed to create exchange config');
     }
   },
 
@@ -81,13 +85,17 @@ export const exchangeAPI = {
         body: JSON.stringify(configData)
       });
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to update exchange config');
+        try {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Failed to update exchange config');
+        } catch (parseError) {
+          throw new Error(`HTTP ${response.status}: Failed to update exchange config`);
+        }
       }
       return response.json();
     } catch (error) {
       console.error('Error updating exchange config:', error);
-      throw error;
+      throw new Error(error.message || 'Failed to update exchange config');
     }
   },
 

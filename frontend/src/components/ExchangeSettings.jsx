@@ -90,7 +90,8 @@ export default function ExchangeSettings() {
       resetForm();
       await loadData();
     } catch (error) {
-      showMessage('error', error.message);
+      const errorMsg = error?.message || (typeof error === 'string' ? error : 'An error occurred');
+      showMessage('error', errorMsg);
     }
   };
 
