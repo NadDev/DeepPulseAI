@@ -507,7 +507,7 @@ class AIBotController:
                             #   - Cost = entry_price * quantity (initial spend)
                             #   - Gain/Loss = PnL = (exit_price - entry_price) * quantity
                             if portfolio:
-                                portfolio.cash_balance = float(portfolio.cash_balance) + float(pnl)
+                                # Update PnL tracking only (cash_balance managed by broker sync)
                                 portfolio.total_pnl = float(portfolio.total_pnl or 0) + float(pnl)
                             
                             logger.info(f"🔄 AI Bot closed {symbol} trade: Entry={float(trade.entry_price):.2f}, Exit={exit_price:.2f}, PnL={float(pnl):.2f}")

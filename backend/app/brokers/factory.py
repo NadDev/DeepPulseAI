@@ -55,22 +55,15 @@ class BrokerFactory:
             ValueError: If exchange not supported
         """
         if config.paper_trading:
-            # Paper mode: real market data, simulated orders
-            upstream = BrokerFactory._create_live_broker(config)
-            data_source = LiveDataSource(upstream)
-            
-            return PaperBroker(
-                data_source=data_source,
-                initial_balance=config.max_trade_size * 10,  # 10x max trade size
-                slippage_pct=0.05,  # 0.05% slippage
-                commission_pct=0.1   # 0.1% = Binance Standard fees
-            )
+            # Paper/Test mode: connect to TESTNET exchange (real API, fake money)
+            # Force testnet=True regardless of config.use_testnet
+            return BrokerFactory._create_live_broker(config, force_testnet=True)
         else:
-            # Live mode
+            # Live mode: real exchange, real money
             return BrokerFactory._create_live_broker(config)
     
     @staticmethod
-    def _create_live_broker(config) -> BaseBroker:
+    def _create_live_broker(config, force_testnet: bool = False) -> BaseBroker:
         """
         Create a live broker based on exchange type.
         
@@ -78,6 +71,7 @@ class BrokerFactory:
         
         Args:
             config: ExchangeConfig model instance
+            force_testnet: If True, force testnet mode (used for paper trading)
             
         Returns:
             Live broker (Binance, Kraken, etc.)
@@ -92,12 +86,14 @@ class BrokerFactory:
         api_key = crypto_service.decrypt(config.api_key_encrypted) if config.api_key_encrypted else ""
         api_secret = crypto_service.decrypt(config.api_secret_encrypted) if config.api_secret_encrypted else ""
         
+        use_testnet = force_testnet or config.use_testnet
+        
         # Create appropriate broker
         if config.exchange == "binance":
             return BinanceBroker(
                 api_key=api_key,
                 api_secret=api_secret,
-                testnet=config.use_testnet
+                testnet=use_testnet
             )
         elif config.exchange == "kraken":
             # Future implementation

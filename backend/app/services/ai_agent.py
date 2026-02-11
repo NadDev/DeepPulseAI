@@ -773,8 +773,7 @@ class AITradingAgent:
             offset_str = f"${entry_price - stop_loss:.8f}" if stop_loss else "N/A"
             logger.info(f"✅ [AI TRADE CREATE] {symbol} {side} | Entry: ${entry_price:.8f} | SL: {sl_str} (offset: {offset_str}) | TP: {tp_str} | Qty: {quantity:.8f} | Cost: ${cost:.2f}")
             
-            # Deduct from cash balance
-            portfolio.cash_balance = float(portfolio.cash_balance) - cost
+            # NOTE: cash_balance is managed by broker sync, not modified here
             
             # Create trade
             trade = Trade(
@@ -856,9 +855,9 @@ class AITradingAgent:
             ).first()
             
             if portfolio:
-                # Return original cost + PnL
+                # Update PnL tracking only (cash_balance managed by broker sync)
                 original_cost = entry_price * quantity
-                portfolio.cash_balance = float(portfolio.cash_balance) + original_cost + pnl
+                portfolio.total_pnl = float(portfolio.total_pnl or 0) + pnl
             
             db.commit()
             

@@ -94,8 +94,8 @@ class ExchangeConfigCreate(BaseModel):
     """Request to create/update exchange configuration"""
     exchange: str
     name: Optional[str] = None
-    api_key: str
-    api_secret: str
+    api_key: Optional[str] = None
+    api_secret: Optional[str] = None
     passphrase: Optional[str] = None
     paper_trading: bool = True
     use_testnet: bool = True
@@ -110,9 +110,12 @@ class ExchangeConfigCreate(BaseModel):
             raise ValueError(f"Unsupported exchange: {v}. Supported: {list(SUPPORTED_EXCHANGES.keys())}")
         return v.lower()
     
-    @validator('api_key', 'api_secret')
-    def validate_not_empty(cls, v):
-        if not v or len(v.strip()) < 10:
+    @validator('api_key', 'api_secret', pre=True, always=True)
+    def validate_credentials(cls, v):
+        # None or empty string = keep existing (for updates)
+        if v is None or v == '':
+            return None
+        if len(v.strip()) < 10:
             raise ValueError("API key/secret must be at least 10 characters")
         return v.strip()
 
@@ -241,6 +244,13 @@ async def create_exchange_config(
         raise HTTPException(
             status_code=400,
             detail=f"Exchange {request.exchange} already configured. Use PUT to update."
+        )
+    
+    # API key and secret are REQUIRED for creation
+    if not request.api_key or not request.api_secret:
+        raise HTTPException(
+            status_code=400,
+            detail="API key and secret are required when creating a new exchange config"
         )
     
     # Check if passphrase required

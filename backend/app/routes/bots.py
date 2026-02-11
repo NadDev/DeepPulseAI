@@ -385,7 +385,7 @@ async def delete_bot(
                 ).first()
                 
                 if portfolio:
-                    portfolio.cash_balance = float(portfolio.cash_balance) + float(pnl)
+                    # Update PnL tracking only (cash_balance managed by broker sync)
                     portfolio.total_pnl = float(portfolio.total_pnl or 0) + float(pnl)
                     db.add(portfolio)
                 

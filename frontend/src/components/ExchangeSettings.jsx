@@ -79,11 +79,16 @@ export default function ExchangeSettings() {
     e.preventDefault();
     
     try {
+      // For updates: don't send empty api_key/secret (backend keeps existing ones)
+      const dataToSend = { ...formData };
       if (editingConfig) {
-        await exchangeAPI.updateConfig(editingConfig.id, formData);
+        if (!dataToSend.api_key) delete dataToSend.api_key;
+        if (!dataToSend.api_secret) delete dataToSend.api_secret;
+        if (!dataToSend.passphrase) delete dataToSend.passphrase;
+        await exchangeAPI.updateConfig(editingConfig.id, dataToSend);
         showMessage('success', 'Exchange updated successfully');
       } else {
-        await exchangeAPI.createConfig(formData);
+        await exchangeAPI.createConfig(dataToSend);
         showMessage('success', 'Exchange added successfully');
       }
       
@@ -374,7 +379,7 @@ export default function ExchangeSettings() {
                     <div className="secret-input">
                       <input
                         type={showSecrets.api_key ? 'text' : 'password'}
-                        placeholder={editingConfig ? '(unchanged)' : 'Enter API Key'}
+                        placeholder={editingConfig ? 'Laisser vide pour garder la clé existante' : 'Enter API Key'}
                         value={formData.api_key}
                         onChange={(e) => handleInputChange('api_key', e.target.value)}
                         required={!editingConfig}
@@ -395,7 +400,7 @@ export default function ExchangeSettings() {
                     <div className="secret-input">
                       <input
                         type={showSecrets.api_secret ? 'text' : 'password'}
-                        placeholder={editingConfig ? '(unchanged)' : 'Enter API Secret'}
+                        placeholder={editingConfig ? 'Laisser vide pour garder le secret existant' : 'Enter API Secret'}
                         value={formData.api_secret}
                         onChange={(e) => handleInputChange('api_secret', e.target.value)}
                         required={!editingConfig}

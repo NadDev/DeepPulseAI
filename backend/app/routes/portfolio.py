@@ -36,10 +36,11 @@ async def get_portfolio_summary(
     
     if not portfolio:
         # Create portfolio for this user if not exists
+        # Values will be populated by broker sync
         portfolio = Portfolio(
             user_id=user_id,
-            total_value=100000.0,
-            cash_balance=100000.0,
+            total_value=0.0,
+            cash_balance=0.0,
             daily_pnl=0.0,
             total_pnl=0.0,
             win_rate=0.0,
@@ -57,53 +58,28 @@ async def get_portfolio_summary(
     open_trades = trade_query.filter(Trade.status == "OPEN").all()
     closed_trades = trade_query.filter(Trade.status == "CLOSED").all()
     
-    # === CAPITAL INITIAL (BROKER) ===
-    # Le cash_balance en DB vient du broker sync — NE PAS LE MODIFIER ICI
-    # On l'utilise comme capital de base pour les calculs
-    broker_cash_balance = portfolio.cash_balance if portfolio.cash_balance > 0 else 10000.0
-    
-    # Calculate cost of open positions
-    cost_of_open_positions = sum(float(t.entry_price) * float(t.quantity) for t in open_trades)
+    # === PORTFOLIO VALUES COME FROM BROKER SYNC (DB) ===
+    # cash_balance et total_value sont mis à jour par le broker sync
+    # Ici on calcule uniquement les KPIs (PnL, win_rate, drawdown)
     
     # Calculate realized PnL from closed trades
     realized_pnl = sum(t.pnl for t in closed_trades if t.pnl)
     
-    # Cash disponible (runtime, pas sauvé en DB) = capital broker - positions ouvertes + PnL réalisé
-    available_cash = broker_cash_balance - cost_of_open_positions + realized_pnl
-    
-    logger.debug(f"Portfolio calc: broker_cash={broker_cash_balance}, open_cost={cost_of_open_positions:.2f}, realized_pnl={realized_pnl:.2f}, available={available_cash:.2f}")
-    
     # Fetch current prices for open positions to calculate unrealized PnL
     market_collector = MarketDataCollector()
     unrealized_pnl = 0
-    positions_current_value = 0
     
     for trade in open_trades:
         try:
-            # Get current price from market
             ticker_data = await market_collector.get_ticker(trade.symbol)
             current_price = float(ticker_data['close'])
-            
-            # Calculate position value at current price
-            position_value_at_current = float(trade.quantity) * current_price
-            positions_current_value += position_value_at_current
-            
-            # Calculate unrealized PnL for this position
             trade_unrealized_pnl = float(trade.quantity) * (current_price - float(trade.entry_price))
             unrealized_pnl += trade_unrealized_pnl
         except Exception as e:
-            # Fallback: use entry price if current price not available
             logger.warning(f"Could not get current price for {trade.symbol}: {str(e)}")
-            positions_current_value += float(trade.quantity) * float(trade.entry_price)
     
-    # Update portfolio stats (NE PAS toucher à cash_balance — fixé par broker sync)
-    # CRITICAL: Total PnL = Realized + Unrealized
+    # Update KPIs only (NE PAS toucher cash_balance/total_value — vient du broker)
     portfolio.total_pnl = realized_pnl + unrealized_pnl
-    # NOTE: cash_balance reste INTOUCHABLE — vient du broker sync
-    
-    # Calculate portfolio value dynamically:
-    # total_value = available cash + sum(current market value of open positions)
-    portfolio.total_value = available_cash + positions_current_value
     
     # Calculate win rate from closed trades
     if len(closed_trades) > 0:
@@ -151,8 +127,8 @@ async def get_portfolio_summary(
     db.commit()
     
     return {
-        "portfolio_value": portfolio.total_value,
-        "cash_balance": available_cash,  # Cash disponible (runtime calculation)
+        "portfolio_value": portfolio.total_value,   # Du broker sync
+        "cash_balance": portfolio.cash_balance,      # Du broker sync
         "daily_pnl": portfolio.daily_pnl,
         "total_pnl": portfolio.total_pnl,
         "win_rate": portfolio.win_rate,

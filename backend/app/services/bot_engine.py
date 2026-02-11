@@ -670,9 +670,7 @@ class BotEngine:
             
             old_balance = float(portfolio.cash_balance)
             
-            # Deduct from balance (paper trading)
-            if bot_state["paper_trading"]:
-                portfolio.cash_balance = float(portfolio.cash_balance) - cost
+            # NOTE: cash_balance is managed by broker sync, not modified here
             
             new_balance = float(portfolio.cash_balance)
             
@@ -937,15 +935,13 @@ class BotEngine:
             logger.info(f"├─ PnL: {f'+${pnl:.2f}' if pnl > 0 else f'${pnl:.2f}'} ({f'+{pnl_percent:.2f}%' if pnl_percent > 0 else f'{pnl_percent:.2f}%'})")
             logger.info(f"└─ Reason: {reason}")
         
-        # Update portfolio (paper trading) - always add PnL regardless of full/partial
+        # Update portfolio PnL tracking (cash_balance managed by broker sync)
         if bot_state["paper_trading"]:
             portfolio = db.query(Portfolio).filter(Portfolio.user_id == bot_state["user_id"]).first()
             if portfolio:
                 pnl = (exit_price - entry_price) * close_quantity
-                new_balance = float(portfolio.cash_balance) + pnl
                 
-                # Only add back the exit proceeds + PnL
-                portfolio.cash_balance = new_balance
+                # Only update PnL tracking, NOT cash_balance
                 portfolio.total_pnl = float(portfolio.total_pnl or 0) + pnl
                 db.add(portfolio)
         

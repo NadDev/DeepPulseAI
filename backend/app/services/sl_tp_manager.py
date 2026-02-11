@@ -1208,9 +1208,8 @@ class GlobalTradeMonitor:
             ).first()
             
             if portfolio:
-                # Return cost + PnL to cash
+                # Update PnL tracking only (cash_balance managed by broker sync)
                 trade_value = entry_price * quantity
-                portfolio.cash_balance = float(portfolio.cash_balance) + trade_value + pnl
                 portfolio.total_pnl = float(portfolio.total_pnl or 0) + pnl
                 portfolio.daily_pnl = float(portfolio.daily_pnl or 0) + pnl
             
