@@ -839,6 +839,54 @@ async def lifespan(app: FastAPI):
                 logger.info(f"✅ Daily Recommendation Scheduler started (daily at {recommendation_time} UTC)")
             except Exception as e:
                 logger.error(f"❌ Failed to start Daily Recommendation Scheduler: {e}")
+
+            # Fix #6 — Weekly LSTM Retrain Scheduler (chaque lundi 02:00 UTC)
+            try:
+                from apscheduler.schedulers.asyncio import AsyncIOScheduler
+                import asyncio as asyncio_module
+
+                _weekly_scheduler = AsyncIOScheduler(timezone="UTC")
+
+                async def _weekly_retrain_job():
+                    """Réentraîne le modèle LSTM chaque lundi matin sur BTC/ETH/SOL."""
+                    from app.services.ml_engine.ml_engine import MLEngine
+                    logger.info("🔄 [WEEKLY RETRAIN] Starting LSTM weekly retrain ...")
+                    db = SessionLocal()
+                    try:
+                        ml_engine = MLEngine()
+                        symbols_to_retrain = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+                        for sym in symbols_to_retrain:
+                            try:
+                                logger.info(f"🔄 [WEEKLY RETRAIN] Training on {sym} ...")
+                                result = await ml_engine.train_model(
+                                    symbol=sym,
+                                    lookback_days=365,
+                                    epochs=50,
+                                )
+                                if result.get("status") == "success":
+                                    logger.info(f"✅ [WEEKLY RETRAIN] {sym} retrain complete — loss={result.get('final_loss', 'N/A')}")
+                                else:
+                                    logger.warning(f"⚠️ [WEEKLY RETRAIN] {sym} retrain returned non-success: {result}")
+                            except Exception as sym_err:
+                                logger.error(f"❌ [WEEKLY RETRAIN] {sym} failed: {sym_err}")
+                    finally:
+                        db.close()
+                    logger.info("✅ [WEEKLY RETRAIN] All symbols processed")
+
+                _weekly_scheduler.add_job(
+                    _weekly_retrain_job,
+                    trigger="cron",
+                    day_of_week="mon",
+                    hour=2,
+                    minute=0,
+                    id="weekly_lstm_retrain",
+                    replace_existing=True,
+                )
+                _weekly_scheduler.start()
+                app.state.weekly_retrain_scheduler = _weekly_scheduler
+                logger.info("✅ Weekly LSTM Retrain Scheduler started (every Monday 02:00 UTC)")
+            except Exception as e:
+                logger.error(f"❌ Failed to start Weekly Retrain Scheduler: {e}")
             
             logger.info("✓ Recommendation system initialized")
         except Exception as e:

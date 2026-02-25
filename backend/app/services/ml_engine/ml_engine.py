@@ -30,9 +30,15 @@ class MLEngine:
     
     def __init__(self):
         self.feature_engineer = FeatureEngineer()
-        self.lstm_predictor = LSTMPredictor(use_tensorflow=True)  # Try TensorFlow mode
-        self.lstm_predictor.load_model() # Load trained model if available
+        self.lstm_predictor = LSTMPredictor(use_tensorflow=True)  # CPU-only mode
+        self.lstm_predictor.load_model()  # Load trained model if available
         self.pattern_recognition = PatternRecognition()
+        
+        # Log ML engine status clearly
+        if self.lstm_predictor.model is not None:
+            logger.info("[OK] MLEngine: LSTM model loaded - REAL predictions active (CPU mode)")
+        else:
+            logger.warning("⚠️ MLEngine: No model loaded - FALLBACK mode active (predictions unreliable, confidence will be low)")
         
         # Cache des prédictions (éviter trop d'appels)
         self.prediction_cache = {}
@@ -252,32 +258,42 @@ class MLEngine:
             )
             
             # 3. LSTM Predictions
-            logger.info("Predicting with LSTM...")
-            lstm_outputs = self.lstm_predictor.predict(X)
-            
+            logger.info("Predicting with LSTM (Monte Carlo Dropout + Rolling Forecast)...")
+
             # Dénormaliser les prédictions
             min_price = np.min(closes)
             max_price = np.max(closes)
             price_range = max_price - min_price if max_price > min_price else max_price * 0.1
-            
-            # Prédictions futures
-            # Supposer que chaque output correspond à 1 jour
-            pred_1d = lstm_outputs[-1, 0] * price_range + min_price if len(lstm_outputs) > 0 else current_price
-            pred_7d = lstm_outputs[-1, 0] * price_range + min_price if len(lstm_outputs) > 0 else current_price
-            
-            # Ajouter une tendance basée sur les récents changements
+
+            # Fix #3: Monte Carlo Dropout — vraie mesure de confiance
+            lstm_outputs, confidence_base = self.lstm_predictor.predict_with_uncertainty(X, n_iterations=20)
+
+            # Fix #2: Prédiction 24h (t+1 step, toujours correct)
+            pred_24h_norm = float(lstm_outputs[-1, 0]) if len(lstm_outputs) > 0 else 0.5
+            pred_1d = pred_24h_norm * price_range + min_price
+
+            # Fix #2: Prédiction 7d via rolling forecast auto-régressif
+            last_seq = X[-1]  # (lookback, n_features) — dernière séquence disponible
+            preds_7d_list = self.lstm_predictor.rolling_forecast(last_seq, n_steps=7, price_range=price_range, min_price=min_price)
+            pred_7d = preds_7d_list[-1]  # Prix au 7ème jour
+
+            # Prédiction 1h : interpolation légère de la tendance très récente
             recent_trend = np.mean(np.diff(closes[-10:]))
-            pred_1d = pred_1d + (recent_trend * 0.5)
-            pred_7d = pred_7d + (recent_trend * 3.5)
             pred_1h = current_price + (recent_trend * 0.05)
-            
+
+            # Fix #4: Pénalité cross-symbole — modèle entraîné sur BTCUSDT uniquement
+            symbol_upper = symbol.upper().replace("/", "")
+            is_btc_model = symbol_upper in ("BTCUSDT", "BTC/USDT", "BTC")
+            if not is_btc_model:
+                original_confidence = confidence_base
+                confidence_base = confidence_base * 0.85
+                logger.info(f"⚠️ [ML] Cross-symbol penalty for {symbol}: confidence {original_confidence:.2f} → {confidence_base:.2f}")
+
             # Clamp to reasonable bounds
-            pred_1h = np.clip(pred_1h, current_price * 0.95, current_price * 1.05)
-            pred_7d = np.clip(pred_7d, current_price * 0.8, current_price * 1.2)
-            
-            # Calculer la confiance (basée sur la variance)
-            lstm_variance = np.std(lstm_outputs)
-            confidence_base = 1 - min(lstm_variance, 0.3) / 0.3
+            pred_1h = float(np.clip(pred_1h, current_price * 0.95, current_price * 1.05))
+            pred_7d = float(np.clip(pred_7d, current_price * 0.70, current_price * 1.30))
+
+            logger.info(f"📊 [ML] {symbol} | 1h=${pred_1h:.2f} | 24h=${pred_1d:.2f} | 7d=${pred_7d:.2f} | confidence={confidence_base:.2f}")
             
             # 4. Pattern Recognition
             logger.info("Detecting patterns...")
@@ -308,7 +324,7 @@ class MLEngine:
                 },
                 "patterns": patterns[:5],  # Top 5 patterns
                 "trend": "uptrend" if pred_7d > current_price else "downtrend",
-                "model": "LSTM + Pattern Recognition (v1.0)"
+                "model": "LSTM + MC-Dropout + RollingForecast (v2.0)"
             }
             
             # Cache le résultat

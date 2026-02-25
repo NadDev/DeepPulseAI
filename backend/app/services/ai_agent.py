@@ -446,6 +446,10 @@ class AITradingAgent:
             
             if result.get("status") == "success":
                 predictions = result.get("predictions", {})
+                # Detect fallback mode: model not loaded → predictions are random noise
+                is_fallback = ml_engine.lstm_predictor.model is None
+                if is_fallback:
+                    logger.warning(f"⚠️ [ML-FALLBACK] {symbol}: LSTM model not loaded - predictions are unreliable noise")
                 return {
                     "pred_1h": predictions.get("1h", {}).get("price"),
                     "confidence_1h": predictions.get("1h", {}).get("confidence", 0),
@@ -454,7 +458,8 @@ class AITradingAgent:
                     "pred_7d": predictions.get("7d", {}).get("price"),
                     "confidence_7d": predictions.get("7d", {}).get("confidence", 0),
                     "patterns": result.get("patterns", []),
-                    "timestamp": result.get("timestamp")
+                    "timestamp": result.get("timestamp"),
+                    "is_fallback": is_fallback  # Flag pour DeepSeek prompt
                 }
             else:
                 logger.debug(f"ML prediction not available for {symbol}: {result.get('message', 'Unknown error')}")
@@ -1307,11 +1312,22 @@ class AITradingAgent:
             conf_1h = ml_prediction.get('confidence_1h', 0)
             conf_24h = ml_prediction.get('confidence_24h', 0)
             conf_7d = ml_prediction.get('confidence_7d', 0)
+            is_fallback = ml_prediction.get('is_fallback', False)
             
             # Calculate ML signal
             ml_direction = "BULLISH" if pred_7d and pred_7d > current_price else "BEARISH" if pred_7d else "NEUTRAL"
             
-            ml_section = f"""## LSTM Model Predictions (Machine Learning)
+            if is_fallback:
+                ml_section = f"""## LSTM Model Predictions (Machine Learning)
+⚠️ **FALLBACK MODE**: No trained LSTM model available. Predictions below are statistical noise, NOT real forecasts.
+- 1h Forecast: ${pred_1h} (confidence: {conf_1h:.0%}) — UNRELIABLE
+- 24h Forecast: ${pred_24h} (confidence: {conf_24h:.0%}) — UNRELIABLE
+- 7d Forecast: ${pred_7d} (confidence: {conf_7d:.0%}) — UNRELIABLE
+
+**CRITICAL**: Ignore ML data entirely. Base your decision ONLY on technical indicators above.
+Apply automatic -20 points penalty to confidence (ML unavailable = higher uncertainty)."""
+            else:
+                ml_section = f"""## LSTM Model Predictions (Machine Learning)
 - 1h Forecast: ${pred_1h} (confidence: {conf_1h:.0%})
 - 24h Forecast: ${pred_24h} (confidence: {conf_24h:.0%})
 - 7d Forecast: ${pred_7d} (confidence: {conf_7d:.0%})

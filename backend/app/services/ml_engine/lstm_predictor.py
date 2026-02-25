@@ -36,7 +36,12 @@ class LSTMPredictor:
             self._init_tensorflow()
     
     def _init_tensorflow(self):
-        """Initialise TensorFlow/Keras si disponible"""
+        """Initialise TensorFlow/Keras en mode CPU uniquement (pas de CUDA)"""
+        import os
+        # Désactiver GPU/CUDA avant tout import TF - évite CUDA error 303 sur Railway
+        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+        os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # Silence CUDA/GPU warnings
+        os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
         try:
             from tensorflow import keras
             from tensorflow.keras import layers
@@ -44,6 +49,7 @@ class LSTMPredictor:
             self.keras = keras
             self.layers = layers
             self.tensorflow_available = True
+            print("[OK] TensorFlow loaded in CPU-only mode (no CUDA)")
         except ImportError:
             print("⚠️ TensorFlow not available. Using fallback mode.")
             self.tensorflow_available = False
@@ -140,7 +146,7 @@ class LSTMPredictor:
     
     def predict(self, X: np.ndarray) -> np.ndarray:
         """
-        Prédit les prix
+        Prédit les prix (t+1 step)
         
         Args:
             X: (n_samples, lookback, n_features)
@@ -148,12 +154,91 @@ class LSTMPredictor:
         Returns:
             np.ndarray de prix prédits [0, 1] normalisés
         """
-        
         if not self.use_tensorflow or not self.tensorflow_available or self.model is None:
-            # Mode fallback - utilise une moyenne simple + noise
             return self._predict_fallback(X)
         
         return self.model.predict(X, verbose=0)
+
+    def predict_with_uncertainty(self, X: np.ndarray, n_iterations: int = 20) -> tuple:
+        """
+        Fix #3: Monte Carlo Dropout - vraie mesure de confiance.
+        Lance la prédiction N fois avec dropout activé (training=True).
+        La variance des sorties = incertitude du modèle.
+        
+        Returns:
+            (mean_prediction np.ndarray, confidence float [0, 1])
+        """
+        if not self.use_tensorflow or not self.tensorflow_available or self.model is None:
+            preds = self._predict_fallback(X)
+            return preds, 0.25  # Confiance très basse pour le fallback
+
+        mc_preds = []
+        for _ in range(n_iterations):
+            # training=True active le dropout pendant l'inférence
+            pred = self.model(X, training=True).numpy()
+            mc_preds.append(pred)
+
+        mc_array = np.array(mc_preds)          # (n_iter, n_samples, 1)
+        mean_pred = np.mean(mc_array, axis=0)  # (n_samples, 1)
+        std_pred = np.std(mc_array, axis=0)    # (n_samples, 1)
+
+        # Coefficient de variation → confidence
+        mean_abs = np.mean(np.abs(mean_pred)) + 1e-10
+        cv = float(np.mean(std_pred) / mean_abs)
+        # CV faible = prédictions stables = haute confiance
+        confidence = float(np.clip(1.0 - cv * 8.0, 0.10, 0.92))
+
+        return mean_pred, confidence
+
+    def rolling_forecast(
+        self,
+        last_sequence: np.ndarray,
+        n_steps: int,
+        price_range: float,
+        min_price: float
+    ) -> list:
+        """
+        Fix #2: Prédiction auto-régressive sur n_steps horizons.
+        Chaque prédiction devient le nouvel input pour la suivante.
+        
+        Args:
+            last_sequence: Dernière séquence (lookback, n_features)
+            n_steps: Nombre de pas à prédire
+            price_range: max_price - min_price (pour dénormalisation)
+            min_price: Prix minimum de la fenêtre
+        
+        Returns:
+            Liste de prix prédits [prix_t1, prix_t2, ..., prix_tn]
+        """
+        if not self.use_tensorflow or not self.tensorflow_available or self.model is None:
+            # Fallback: extrapolation linéaire de la tendance récente
+            recent_trend = np.mean(np.diff(last_sequence[-10:, 0]))
+            current_norm = last_sequence[-1, 0]
+            return [
+                float(np.clip(current_norm + recent_trend * s, 0, 1) * price_range + min_price)
+                for s in range(1, n_steps + 1)
+            ]
+
+        current_seq = last_sequence.copy()  # (lookback, n_features)
+        predictions = []
+
+        for _ in range(n_steps):
+            X_input = current_seq.reshape(1, *current_seq.shape)  # (1, lookback, n_features)
+            pred_norm = float(self.model.predict(X_input, verbose=0)[0, 0])
+            pred_price = pred_norm * price_range + min_price
+            predictions.append(pred_price)
+
+            # Shift la fenêtre: supprimer le plus ancien, ajouter la nouvelle prédiction
+            new_step = current_seq[-1].copy()
+            prev_norm = current_seq[-1, 0]
+            new_step[0] = pred_norm  # Mettre à jour le prix normalisé
+            if current_seq.shape[1] > 1:
+                # Mettre à jour les returns (feature 1)
+                new_step[1] = (pred_norm - prev_norm) / (prev_norm + 1e-10)
+            # Les autres features (volume, RSI, etc.) restent constantes (approximation)
+            current_seq = np.vstack([current_seq[1:], new_step.reshape(1, -1)])
+
+        return predictions
     
     def _predict_fallback(self, X: np.ndarray) -> np.ndarray:
         """
@@ -195,6 +280,10 @@ class LSTMPredictor:
             return
         
         path = path or str(self.model_path)
+        from pathlib import Path as _Path
+        if not _Path(path).exists():
+            print(f"[WARN] Model file not found at {path} → fallback mode active (predictions unreliable)")
+            return
         try:
             # Try loading with compile=False to avoid metric deserialization issues
             self.model = self.keras.models.load_model(path, compile=False)
@@ -204,9 +293,11 @@ class LSTMPredictor:
                 loss='mse',
                 metrics=['mae']
             )
-            print(f"[OK] Model loaded from {path}")
+            import os
+            size_kb = os.path.getsize(path) / 1024
+            print(f"[OK] LSTM model loaded from {path} ({size_kb:.0f} KB) - REAL predictions active")
         except Exception as e:
-            print(f"[ERROR] Failed to load model: {e}")
+            print(f"[ERROR] Failed to load model from {path}: {e} → fallback mode active")
 
 
 class MLPricePredictions:
