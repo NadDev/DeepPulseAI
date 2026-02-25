@@ -649,12 +649,16 @@ class AITradingAgent:
             
             # Execute the trade
             if action == "BUY":
+                # Use TP1 from AI response if available, else fall back to validation TP
+                tp1 = analysis.get("take_profit_1") or validation.take_profit
+                tp2 = analysis.get("take_profit_2") or analysis.get("target_price")
                 trade_id = await self._create_ai_trade(
                     symbol=symbol,
                     side="BUY",
                     entry_price=current_price,
                     stop_loss=validation.stop_loss,
-                    take_profit=validation.take_profit,
+                    take_profit=tp1,
+                    take_profit_2=tp2,
                     confidence=confidence,
                     reasoning=analysis.get("reasoning", "AI Autonomous Trade")
                 )
@@ -685,7 +689,8 @@ class AITradingAgent:
         stop_loss: Optional[float],
         take_profit: Optional[float],
         confidence: int,
-        reasoning: str
+        reasoning: str,
+        take_profit_2: Optional[float] = None
     ) -> Optional[str]:
         """Create a trade initiated by AI Agent"""
         if not self.db_session_factory or not self.user_id:
@@ -770,8 +775,9 @@ class AITradingAgent:
             # Log trade creation with full details
             sl_str = f"${stop_loss:.8f}" if stop_loss else "None"
             tp_str = f"${take_profit:.8f}" if take_profit else "None"
+            tp2_str = f"${take_profit_2:.8f}" if take_profit_2 else "None"
             offset_str = f"${entry_price - stop_loss:.8f}" if stop_loss else "N/A"
-            logger.info(f"✅ [AI TRADE CREATE] {symbol} {side} | Entry: ${entry_price:.8f} | SL: {sl_str} (offset: {offset_str}) | TP: {tp_str} | Qty: {quantity:.8f} | Cost: ${cost:.2f}")
+            logger.info(f"✅ [AI TRADE CREATE] {symbol} {side} | Entry: ${entry_price:.8f} | SL: {sl_str} (offset: {offset_str}) | TP1: {tp_str} | TP2: {tp2_str} | Qty: {quantity:.8f} | Cost: ${cost:.2f}")
             
             # Deduct from cash balance
             portfolio.cash_balance = float(portfolio.cash_balance) - cost
@@ -793,7 +799,8 @@ class AITradingAgent:
                 exit_time=None,
                 strategy="AI_AGENT",  # Mark as AI trade
                 stop_loss_price=stop_loss,
-                take_profit_price=take_profit
+                take_profit_price=take_profit,
+                take_profit_2=take_profit_2
             )
             
             db.add(trade)
@@ -1367,12 +1374,15 @@ Format your response as JSON:
 {{
   "action": "BUY|SELL|HOLD",
   "confidence": <0-100>,
-  "reasoning": "<cite specific indicators like 'RSI at 32 shows oversold, MACD bullish crossover, price above Ichimoku cloud'>",
+  "reasoning": "<cite specific indicators like 'RSI at 32 shows oversold, MACD bullish crossover, price above Ichimoku cloud. Conflicts resolved: MACD bullish overridden by RSI overbought because RSI at 84 is extreme. R:R = 2.1 (favorable)'>",
   "risk_level": "LOW|MEDIUM|HIGH",
   "suggested_strategy": "grid_trading|trend_following|mean_reversion|momentum|scalping|breakout|rsi_divergence|macd_crossover|dca",
-  "target_price": <number based on Fib extensions or resistance>,
+  "target_price": <TP2 - final target based on Fib extensions or resistance>,
+  "take_profit_1": <TP1 - first partial exit at 50%, nearest Fib level or intermediate resistance>,
+  "take_profit_2": <TP2 - runner target, same as target_price>,
   "stop_loss": <number based on Fib retracements or support>,
-  "timeframe": "1h|4h|1d",
+  "risk_reward_ratio": <(target_price - current_price) / (current_price - stop_loss), 2 decimals>,
+  "timeframe": "1h|4h",
   "key_levels": {{
     "resistance": <nearest resistance>,
     "support": <nearest support>
@@ -1388,7 +1398,32 @@ IMPORTANT GUIDELINES:
 - Use SPECIFIC numbers from the data in your reasoning
 - HOLD is valid when signals conflict, but if most align → take action
 - Volume confirms moves: high volume = higher confidence
-- Multi-timeframe alignment = higher confidence"""
+- Multi-timeframe alignment = higher confidence
+
+RISK/REWARD FILTER (MANDATORY):
+- Calculate R:R = abs(target_price - current_price) / abs(current_price - stop_loss)
+- If R:R < 1.5: Reduce confidence by 20 points AND mention in reasoning
+- If R:R < 1.0: Change action to HOLD regardless of signals (unfavorable trade)
+- Always include risk_reward_ratio in your JSON output
+
+CONFLICT RESOLUTION (MANDATORY):
+- When bullish AND bearish signals coexist, you MUST explicitly state in reasoning:
+  * Which signal(s) override and WHY (e.g., 'RSI at 84 extreme overbought overrides MACD bullish because RSI extreme = imminent reversal')
+  * The net signal count: 'Net: 3 bearish vs 2 bullish → SELL'
+- Never list conflicting signals without resolving the conflict
+
+ML CONTRADICTION PENALTY:
+- If ML average confidence < 50% AND ML direction contradicts technical direction:
+  * Apply -15 points to your confidence score
+  * Mention: 'ML penalty applied: ML contradicts technical with low confidence'
+- If ML confidence > 60% and aligns with technicals: +5 bonus points
+
+TIMEFRAME RULES:
+- Primary analysis must use 1h timeframe data
+- Only use 4h timeframe if 1h signals are ambiguous (mixed)
+- Specify which timeframe you relied on in reasoning
+- TP1 = nearest Fibonacci level (38.2% or 50%) for partial exit at 50% of position
+- TP2 = final target at Fibonacci 61.8% extension or main resistance"""
     
     async def _call_deepseek(self, prompt: str) -> Optional[str]:
         """
@@ -1452,8 +1487,11 @@ IMPORTANT GUIDELINES FOR THIS SYSTEM:
 - ALWAYS provide a clear technical confidence score
 - NEVER ignore technical signals just because ML says otherwise
 - If ML confidence < 60%: Treat as informational only, prioritize technicals
+- If ML confidence < 50% AND contradicts technical direction: Apply -15 points penalty to final confidence and mention it
 - If technicals and ML diverge: Your final confidence should be in 40-65% range (cautious)
 - If technicals and ML align: Your confidence can go to 80-95% (strong)
+- ALWAYS resolve signal conflicts explicitly: state which signal wins and why
+- ALWAYS verify R:R ≥ 1.5 before confirming a trade; if R:R < 1.0 → output HOLD
 
 *** STRATEGY SELECTION: CHOOSE FROM PRE-CONFIGURED BOTS ***
 Your role is to SELECT the most appropriate strategy for current market conditions.
@@ -1744,8 +1782,26 @@ Always respond with valid JSON only, no markdown code blocks."""
             if "reasoning" not in analysis:
                 analysis["reasoning"] = "No reasoning provided"
             
+            # Extract TP1/TP2 and R:R
+            if "take_profit_1" in analysis:
+                try:
+                    analysis["take_profit_1"] = float(analysis["take_profit_1"])
+                except:
+                    analysis["take_profit_1"] = None
+            if "take_profit_2" in analysis:
+                try:
+                    analysis["take_profit_2"] = float(analysis["take_profit_2"])
+                except:
+                    analysis["take_profit_2"] = None
+            if "risk_reward_ratio" in analysis:
+                try:
+                    analysis["risk_reward_ratio"] = float(analysis["risk_reward_ratio"])
+                except:
+                    analysis["risk_reward_ratio"] = None
+
             # Log the parsed analysis for debugging
             logger.info(f"📊 Parsed AI Response: action={analysis['action']}, confidence={analysis['confidence']}%")
+            logger.info(f"📊 [TP LEVELS] TP1={analysis.get('take_profit_1')} | TP2={analysis.get('take_profit_2')} | R:R={analysis.get('risk_reward_ratio')}")
             logger.debug(f"📝 Reasoning: {analysis.get('reasoning', 'N/A')[:200]}")
             
             return analysis
