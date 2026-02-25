@@ -798,6 +798,24 @@ class BotEngine:
             
             for trade in open_trades:
                 trade_id = str(trade.id)
+
+                # ================================================================
+                # FIX-1: Grace period — 5 minutes minimum avant vérification SL/TP
+                # Évite les fermetures en quelques secondes dues à la latence
+                # entre l'ouverture et le premier cycle de monitoring.
+                # ================================================================
+                MIN_HOLD_SECONDS = 300  # 5 minutes
+                trade_age_seconds = (
+                    (datetime.utcnow() - trade.entry_time).total_seconds()
+                    if trade.entry_time else 999
+                )
+                if trade_age_seconds < MIN_HOLD_SECONDS:
+                    logger.debug(
+                        f"⏳ [GRACE-PERIOD] {symbol} | Trade {trade_id[:8]} | "
+                        f"Âge {trade_age_seconds:.0f}s < {MIN_HOLD_SECONDS}s minimum — SL/TP check skipped"
+                    )
+                    continue
+                # ================================================================
                 
                 # ================================================================
                 # Use SLTPManager to check for intelligent exits
@@ -852,9 +870,32 @@ class BotEngine:
                         # Mark TP1 as executed if this is a partial close
                         if update.close_reason == ExitReason.TP_PARTIAL:
                             trade.tp1_partial_executed = True
+
+                        # ================================================================
+                        # FIX-4: Simuler l’exécution réelle d’un stop order
+                        # Quand le SL est détecté au cycle 60s, le prix a pu glisser
+                        # bien en dessous du SL. On utilise le prix SL comme prix
+                        # d’exécution (simule un vrai stop-order sur exchange).
+                        # ================================================================
+                        if update.close_reason in [ExitReason.SL_HIT, ExitReason.TRAILING_SL]:
+                            sl_exec_price = (
+                                float(trade.stop_loss_price)
+                                if trade.stop_loss_price else current_price
+                            )
+                            slippage_gap = current_price - sl_exec_price
+                            if abs(slippage_gap) > 0.0001:
+                                logger.info(
+                                    f"⚠️ [SLIPPAGE-SIM] {symbol} | "
+                                    f"SL exec @ ${sl_exec_price:.4f} (current=${current_price:.4f}, "
+                                    f"gap={slippage_gap / sl_exec_price * 100:.2f}%)"
+                                )
+                            close_price = sl_exec_price
+                        else:
+                            close_price = current_price
+                        # ================================================================
                         
                         await self._close_position(
-                            db, bot_state, trade, current_price, 
+                            db, bot_state, trade, close_price, 
                             update.close_reason.value if update.close_reason else "Unknown",
                             quantity_override=update.close_quantity  # For partial exits
                         )
@@ -922,7 +963,18 @@ class BotEngine:
             trade.exit_price = exit_price
             trade.exit_time = datetime.utcnow()
             trade.status = "CLOSED"
-            
+
+            # FIX-5: Ne PAS modifier trade_phase a la fermeture.
+            # trade_phase est lu uniquement pour les trades OPEN.
+            # Ecrire PENDING_EXITED causerait un ValueError dans TradePhase().
+            # trade.status=CLOSED suffit pour indiquer la fermeture.
+            current_phase = getattr(trade, 'trade_phase', None) or 'PENDING'
+            if current_phase == 'PENDING':
+                logger.info(
+                    f"[PHASE-INFO] {trade.symbol} | Trade ferme phase PENDING (SL avant validation)"
+                )
+            # ===================================================
+
             # Calculate PnL
             if trade.side == "BUY":
                 trade.pnl = (exit_price - entry_price) * close_quantity

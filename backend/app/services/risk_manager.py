@@ -205,7 +205,32 @@ class RiskManager:
                 )
             elif drawdown > self.limits.max_drawdown_pct * 0.8:
                 warnings.append(f"Approaching max drawdown ({drawdown:.1f}%)")
-            
+
+            # ================================================================
+            # 3.7 FIX-3: Anti-corrélation — bloquer burst de trades simultanés
+            # ================================================================
+            # Les cryptos sont fortement corrélées : ouvrir BTC+ETH+SOL+XRP en
+            # même seconde multiplie le risque réel sans diversification réelle.
+            # On limite à MAX_CONCURRENT_BURST trades ouverts dans les 10 dernières minutes.
+            MAX_CONCURRENT_BURST = 3
+            BURST_WINDOW_MINUTES = 10
+            burst_cutoff = datetime.utcnow() - timedelta(minutes=BURST_WINDOW_MINUTES)
+            burst_count = db.query(Trade).filter(
+                Trade.user_id == user_id,
+                Trade.entry_time >= burst_cutoff,
+                Trade.status.in_(["OPEN"])
+            ).count()
+            if burst_count >= MAX_CONCURRENT_BURST:
+                return RiskValidation(
+                    allowed=False,
+                    reason=(
+                        f"Trop de trades corrélés simultanés : {burst_count} positions ouvertes "
+                        f"dans les {BURST_WINDOW_MINUTES} dernières minutes (max {MAX_CONCURRENT_BURST}). "
+                        f"Risque de corrélation inter-symboles."
+                    )
+                )
+            # ================================================================
+
             # ================================================================
             # 4. Validate Max Position Limits (but don't calculate size yet)
             # ================================================================
