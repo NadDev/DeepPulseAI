@@ -150,8 +150,8 @@ class UserSLTPSettings:
     tp1_exit_pct: float = 50.0
     tp2_risk_reward: float = 3.0
     enable_trailing_sl: bool = True
-    trailing_activation_pct: float = 1.5
-    trailing_distance_pct: float = 1.0
+    trailing_activation_pct: float = 2.5   # FIX-6: 1.5 → 2.5% (évite fermeture sur consolidation mineure)
+    trailing_distance_pct: float = 2.0     # FIX-6: 1.0 → 2.0% (laisse plus de respiration au trade)
     enable_trade_phases: bool = True
     validation_threshold_pct: float = 0.5
     move_sl_to_breakeven: bool = True
@@ -516,6 +516,10 @@ class SLTPManager:
         Returns:
             Tuple of (quantity, cost)
         """
+        # FIX-2: Absolute dollar limits (évite positions absurdes sur small-caps)
+        MIN_POSITION_VALUE = 2.0     # Minimum $2 par trade
+        MAX_POSITION_VALUE = 5000.0  # Maximum $5 000 par trade
+
         # Calculate SL distance
         sl_distance = abs(entry_price - stop_loss)
         
@@ -530,12 +534,23 @@ class SLTPManager:
         quantity = max_risk / sl_distance
         cost = quantity * entry_price
         
-        # Apply max position limit
+        # Apply max position limit (% of portfolio)
         max_cost = portfolio_value * (max_position_pct / 100)
         if cost > max_cost:
             cost = max_cost
             quantity = cost / entry_price
             logger.info(f"📊 [POS-SIZE] Capped to {max_position_pct}% of portfolio: ${cost:.2f}")
+        
+        # FIX-2: Apply absolute $ limits (indépendants du portfolio_value)
+        if cost > MAX_POSITION_VALUE:
+            cost = MAX_POSITION_VALUE
+            quantity = cost / entry_price
+            logger.info(f"📊 [POS-SIZE] Capped to absolute MAX ${MAX_POSITION_VALUE:.0f}: qty={quantity:.6f}")
+        
+        if cost < MIN_POSITION_VALUE:
+            cost = MIN_POSITION_VALUE
+            quantity = cost / entry_price
+            logger.info(f"📊 [POS-SIZE] Raised to absolute MIN ${MIN_POSITION_VALUE:.0f}: qty={quantity:.6f}")
         
         logger.info(f"📊 [POS-SIZE] Risk ${max_risk:.2f} ({risk_percent}%) | SL dist ${sl_distance:.4f} | Qty: {quantity:.6f} | Cost: ${cost:.2f}")
         
