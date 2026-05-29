@@ -75,12 +75,10 @@ class BrokerFactory:
             data_source = LiveDataSource(upstream_broker)
             
             # Create PaperBroker with user's configured initial_balance
-            # Fallback to 10000.0 if column doesn't exist yet (until migration 024 applied)
-            initial_balance = getattr(config, 'initial_balance', None) or 10000.0
-            
+            # Column is guaranteed to exist (created on app startup if missing)
             return PaperBroker(
                 data_source=data_source,
-                initial_balance=initial_balance,  # Use config's initial_balance with fallback
+                initial_balance=config.initial_balance,  # Use config's initial_balance
                 slippage_pct=0.05,
                 commission_pct=0.1
             )

@@ -742,6 +742,22 @@ async def lifespan(app: FastAPI):
             except Exception as create_error:
                 logger.error(f"❌ Failed to add broker fields: {create_error}")
 
+        # Check if exchange_configs table has initial_balance column (migration 024)
+        try:
+            db.execute(text("SELECT initial_balance FROM exchange_configs LIMIT 1"))
+            logger.info("[OK] exchange_configs table has initial_balance column")
+        except Exception as check_error:
+            try:
+                logger.info(f"⚙️ Adding initial_balance column to exchange_configs table...")
+                db.execute(text("""
+                    ALTER TABLE exchange_configs
+                    ADD COLUMN IF NOT EXISTS initial_balance FLOAT DEFAULT 10000.0
+                """))
+                db.commit()
+                logger.info("✅ initial_balance column added to exchange_configs successfully")
+            except Exception as create_error:
+                logger.error(f"❌ Failed to add initial_balance column: {create_error}")
+
         db.close()
     except Exception as e:
         logger.warning(f"⚠️ Could not verify/create tables: {e}")

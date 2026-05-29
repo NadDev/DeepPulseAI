@@ -203,7 +203,7 @@ class ExchangeConfig(Base):
     # === Trading Limits ===
     max_trade_size = Column(Float, default=1000.0)  # Max trade size in quote currency
     max_daily_trades = Column(Integer, default=50)  # Max trades per day
-    initial_balance = Column(Float, default=10000.0, nullable=True)  # Paper trading initial balance (USDT) - nullable until migration 024 applied
+    initial_balance = Column(Float, default=10000.0)  # Paper trading initial balance (USDT)
     allowed_symbols = Column(Text, nullable=True)  # JSON array of allowed symbols
     
     # === Connection Status ===
