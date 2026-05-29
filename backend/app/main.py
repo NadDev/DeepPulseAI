@@ -757,6 +757,22 @@ async def lifespan(app: FastAPI):
                 logger.info("✅ initial_balance column added to exchange_configs successfully")
             except Exception as create_error:
                 logger.error(f"❌ Failed to add initial_balance column: {create_error}")
+        
+        # Reset old portfolios with 100000.0 defaults to 0.0 (for sync with broker)
+        try:
+            reset_count = db.execute(text("""
+                UPDATE portfolios
+                SET total_value = 0.0, cash_balance = 0.0, updated_at = NOW()
+                WHERE total_value = 100000.0 AND cash_balance = 100000.0
+                RETURNING id
+            """)).rowcount
+            db.commit()
+            if reset_count > 0:
+                logger.info(f"✅ Reset {reset_count} old portfolios from 100000.0 to 0.0 (will sync from broker)")
+            else:
+                logger.info("[OK] No portfolios to reset (all already synced or using correct values)")
+        except Exception as reset_error:
+            logger.warning(f"⚠️ Could not reset old portfolios: {reset_error}")
 
         db.close()
     except Exception as e:
@@ -764,7 +780,41 @@ async def lifespan(app: FastAPI):
     
     logger.info("[OK] Database connection ready")
     
-    # Start Bot Engine first
+    # Sync portfolios with brokers on startup (for any reset portfolios)
+    try:
+        from app.services.portfolio_sync_service import PortfolioSyncService
+        from app.models.database_models import ExchangeConfig
+        
+        db = SessionLocal()
+        sync_service = PortfolioSyncService()
+        
+        # Get all users with active exchange configs
+        active_configs = db.query(ExchangeConfig).filter(
+            ExchangeConfig.is_active == True,
+            ExchangeConfig.is_default == True
+        ).all()
+        
+        synced_count = 0
+        for config in active_configs:
+            try:
+                success = await sync_service.sync_user_portfolio(str(config.user_id), db)
+                if success:
+                    synced_count += 1
+                    logger.info(f"✅ Synced portfolio for user {config.user_id}")
+                else:
+                    logger.debug(f"⚠️ Could not sync portfolio for user {config.user_id}")
+            except Exception as sync_err:
+                logger.debug(f"⚠️ Sync error for user {config.user_id}: {sync_err}")
+        
+        db.close()
+        
+        if synced_count > 0:
+            logger.info(f"✅ Portfolio sync completed: {synced_count} portfolios updated from broker")
+        else:
+            logger.info("[OK] No portfolios to sync on startup")
+    except Exception as sync_startup_error:
+        logger.warning(f"⚠️ Could not sync portfolios on startup: {sync_startup_error}")
+    
     try:
         bot_engine_module.bot_engine = BotEngine(SessionLocal)
         await bot_engine_module.bot_engine.start()
