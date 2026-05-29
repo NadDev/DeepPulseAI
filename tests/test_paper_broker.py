@@ -222,17 +222,32 @@ async def test_multi_asset_portfolio(mock_data_source):
     )
     
     # Buy BTC
-    await broker.place_order("BTCUSDT", OrderSide.BUY, OrderType.MARKET, 0.1)
+    await broker.place_order(
+        symbol="BTCUSDT",
+        side=OrderSide.BUY,
+        quantity=0.1,
+        order_type=OrderType.MARKET
+    )
     assert "BTC" in broker._balance
     assert broker._balance["BTC"] == 0.1
     
     # Buy ETH
-    await broker.place_order("ETHUSDT", OrderSide.BUY, OrderType.MARKET, 1.0)
+    await broker.place_order(
+        symbol="ETHUSDT",
+        side=OrderSide.BUY,
+        quantity=1.0,
+        order_type=OrderType.MARKET
+    )
     assert "ETH" in broker._balance
     assert broker._balance["ETH"] == 1.0
     
     # Sell some BTC
-    await broker.place_order("BTCUSDT", OrderSide.SELL, OrderType.MARKET, 0.05)
+    await broker.place_order(
+        symbol="BTCUSDT",
+        side=OrderSide.SELL,
+        quantity=0.05,
+        order_type=OrderType.MARKET
+    )
     assert broker._balance["BTC"] == 0.05
     
     # Validate multi-asset state
@@ -280,7 +295,12 @@ async def test_get_account_balance(paper_broker, mock_data_source):
     assert initial_balance.free_usdt == 10000.0
     
     # After buying BTC
-    await paper_broker.place_order("BTCUSDT", OrderSide.BUY, OrderType.MARKET, 0.1)
+    await paper_broker.place_order(
+        symbol="BTCUSDT",
+        side=OrderSide.BUY,
+        quantity=0.1,
+        order_type=OrderType.MARKET
+    )
     
     balance_after = await paper_broker.get_account_balance()
     
@@ -304,9 +324,24 @@ async def test_order_history_stored(paper_broker):
     assert len(paper_broker._orders) == 0
     
     # Place 3 orders
-    await paper_broker.place_order("BTCUSDT", OrderSide.BUY, OrderType.MARKET, 0.1)
-    await paper_broker.place_order("BTCUSDT", OrderSide.BUY, OrderType.MARKET, 0.05)
-    await paper_broker.place_order("BTCUSDT", OrderSide.SELL, OrderType.MARKET, 0.05)
+    await paper_broker.place_order(
+        symbol="BTCUSDT",
+        side=OrderSide.BUY,
+        quantity=0.1,
+        order_type=OrderType.MARKET
+    )
+    await paper_broker.place_order(
+        symbol="BTCUSDT",
+        side=OrderSide.BUY,
+        quantity=0.05,
+        order_type=OrderType.MARKET
+    )
+    await paper_broker.place_order(
+        symbol="BTCUSDT",
+        side=OrderSide.SELL,
+        quantity=0.05,
+        order_type=OrderType.MARKET
+    )
     
     # Should have 3 orders in history
     assert len(paper_broker._orders) == 3

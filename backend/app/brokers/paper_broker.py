@@ -147,18 +147,21 @@ class PaperBroker(BaseBroker):
         Returns:
             OrderResult with FILLED or REJECTED status
         """
-        # Get current market price
-        market_price = await self.get_latest_price(symbol)
+        # Get current market price (ensure it's a float)
+        market_price = float(await self.get_latest_price(symbol))
         
         # Calculate fill price with slippage
         if order_type == OrderType.MARKET:
             if side == OrderSide.BUY:
-                fill_price = market_price * (1 + self.slippage_pct / 100)
+                fill_price = float(market_price * (1 + self.slippage_pct / 100))
             else:
-                fill_price = market_price * (1 - self.slippage_pct / 100)
+                fill_price = float(market_price * (1 - self.slippage_pct / 100))
         else:
-            # LIMIT orders fill at specified price
-            fill_price = price or market_price
+            # LIMIT orders fill at specified price (ensure it's a float)
+            fill_price = float(price or market_price)
+        
+        # Ensure fill_price is numeric
+        fill_price = float(fill_price)
         
         # Calculate commission and total cost
         commission = fill_price * quantity * (self.commission_pct / 100)
@@ -171,17 +174,9 @@ class PaperBroker(BaseBroker):
         if side == OrderSide.BUY:
             # Check if enough USDT
             if self._balance.get("USDT", 0) < total_cost:
-                return OrderResult(
-                    order_id=self._next_order_id(),
-                    symbol=symbol,
-                    side=side,
-                    order_type=order_type,
-                    status=OrderStatus.REJECTED,
-                    requested_quantity=quantity,
-                    filled_quantity=0,
-                    requested_price=price,
-                    fill_price=0,
-                    commission=0
+                raise ValueError(
+                    f"Insufficient balance: {self._balance.get('USDT', 0)} USDT available, "
+                    f"{total_cost} USDT required to buy {quantity} {symbol}"
                 )
             
             # Deduct USDT, add crypto asset
@@ -191,17 +186,9 @@ class PaperBroker(BaseBroker):
         elif side == OrderSide.SELL:
             # Check if enough crypto asset
             if self._balance.get(base_asset, 0) < quantity:
-                return OrderResult(
-                    order_id=self._next_order_id(),
-                    symbol=symbol,
-                    side=side,
-                    order_type=order_type,
-                    status=OrderStatus.REJECTED,
-                    requested_quantity=quantity,
-                    filled_quantity=0,
-                    requested_price=price,
-                    fill_price=0,
-                    commission=0
+                raise ValueError(
+                    f"Insufficient balance: {self._balance.get(base_asset, 0)} {base_asset} available, "
+                    f"{quantity} {base_asset} required to sell"
                 )
             
             # Deduct crypto asset, add USDT (minus commission)
