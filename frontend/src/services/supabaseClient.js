@@ -1,39 +1,40 @@
 /**
- * Supabase Client Configuration
- * ==============================
- * Initializes Supabase client for authentication and database access
+ * Supabase Client - STUB
+ * =======================
+ * This app uses local JWT authentication (backend/app/auth/local_auth.py).
+ * Supabase is NOT used for auth. This stub replaces the real Supabase client
+ * to prevent @supabase/supabase-js from firing token refresh requests.
+ *
+ * All auth is done via authService.js → /api/auth/* endpoints.
  */
 
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables!');
-  console.error('Make sure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in .env');
-}
-
-// ⚠️ MUST run BEFORE createClient — Supabase reads localStorage on init and
-// immediately fires a token refresh if it finds a cached session.
-// This app uses local JWT auth; Supabase is only used for DB utilities (WatchlistManager).
+// Clear any stale Supabase session keys that may exist in localStorage
+// from previous versions of this app that used Supabase auth.
 try {
-  const supabaseProjectRef = (supabaseUrl || '').match(/\/\/([^.]+)\./)?.[1] || '';
-  [
-    'crbot-auth',
-    `sb-${supabaseProjectRef}-auth-token`,
-    `sb-${supabaseProjectRef}-auth-token-code-verifier`,
-  ].forEach(key => { if (key !== 'sb--auth-token') localStorage.removeItem(key); });
+  Object.keys(localStorage)
+    .filter(k => k.startsWith('sb-') || k === 'crbot-auth' || k === '__supabase_disabled__')
+    .forEach(k => localStorage.removeItem(k));
 } catch (_) {}
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-    detectSessionInUrl: false,
-    storageKey: '__supabase_disabled__',  // Use a key we never write to
-  },
-});
+// No-op stub — same API surface, does nothing
+const noop = () => Promise.resolve({ data: null, error: null });
+const noopObj = new Proxy({}, { get: () => noop });
+
+export const supabase = {
+  auth: noopObj,
+  from: () => noopObj,
+};
+
+export const getCurrentUser = async () => null;
+export const signUp = async () => ({ data: null, error: new Error('Use authService') });
+export const signIn = async () => ({ data: null, error: new Error('Use authService') });
+export const signOut = async () => {};
+export const resetPassword = async () => {};
+export const updatePassword = async () => {};
+export const getAuthHeaders = async () => ({});
+
+export default supabase;
+
 
 /**
  * Get current authenticated user

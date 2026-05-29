@@ -19,7 +19,6 @@ import {
   AlertTriangle,
   Loader2
 } from 'lucide-react';
-import { supabase } from '../services/supabaseClient';
 import WatchlistRecommendations from './WatchlistRecommendations';
 import '../styles/WatchlistManager.css';
 
