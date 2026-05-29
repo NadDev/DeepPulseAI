@@ -14,7 +14,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow info/warnings
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimization to reduce warnings
 
 # Import routes
-from app.routes import health, portfolio, crypto, bots, reports, risk, trades, translations, ml, auth, ai_agent, exchange, watchlist, settings as settings_routes, admin, long_term
+from app.routes import health, portfolio, crypto, bots, reports, risk, trades, translations, ml, auth, ai_agent, exchange, watchlist, settings as settings_routes, admin, long_term, maintenance
 from app.config import settings
 from app.db.database import Base, engine, SessionLocal
 from app.services import bot_engine as bot_engine_module
@@ -842,6 +842,54 @@ async def lifespan(app: FastAPI):
                 logger.info(f"✅ Daily Recommendation Scheduler started (daily at {recommendation_time} UTC)")
             except Exception as e:
                 logger.error(f"❌ Failed to start Daily Recommendation Scheduler: {e}")
+
+            # Fix #6 — Weekly LSTM Retrain Scheduler (chaque lundi 02:00 UTC)
+            try:
+                from apscheduler.schedulers.asyncio import AsyncIOScheduler
+                import asyncio as asyncio_module
+
+                _weekly_scheduler = AsyncIOScheduler(timezone="UTC")
+
+                async def _weekly_retrain_job():
+                    """Réentraîne le modèle LSTM chaque lundi matin sur BTC/ETH/SOL."""
+                    from app.services.ml_engine.ml_engine import MLEngine
+                    logger.info("🔄 [WEEKLY RETRAIN] Starting LSTM weekly retrain ...")
+                    db = SessionLocal()
+                    try:
+                        ml_engine = MLEngine()
+                        symbols_to_retrain = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+                        for sym in symbols_to_retrain:
+                            try:
+                                logger.info(f"🔄 [WEEKLY RETRAIN] Training on {sym} ...")
+                                result = await ml_engine.train_model(
+                                    symbol=sym,
+                                    lookback_days=365,
+                                    epochs=50,
+                                )
+                                if result.get("status") == "success":
+                                    logger.info(f"✅ [WEEKLY RETRAIN] {sym} retrain complete — loss={result.get('final_loss', 'N/A')}")
+                                else:
+                                    logger.warning(f"⚠️ [WEEKLY RETRAIN] {sym} retrain returned non-success: {result}")
+                            except Exception as sym_err:
+                                logger.error(f"❌ [WEEKLY RETRAIN] {sym} failed: {sym_err}")
+                    finally:
+                        db.close()
+                    logger.info("✅ [WEEKLY RETRAIN] All symbols processed")
+
+                _weekly_scheduler.add_job(
+                    _weekly_retrain_job,
+                    trigger="cron",
+                    day_of_week="mon",
+                    hour=2,
+                    minute=0,
+                    id="weekly_lstm_retrain",
+                    replace_existing=True,
+                )
+                _weekly_scheduler.start()
+                app.state.weekly_retrain_scheduler = _weekly_scheduler
+                logger.info("✅ Weekly LSTM Retrain Scheduler started (every Monday 02:00 UTC)")
+            except Exception as e:
+                logger.error(f"❌ Failed to start Weekly Retrain Scheduler: {e}")
             
             logger.info("✓ Recommendation system initialized")
         except Exception as e:
@@ -922,6 +970,45 @@ async def lifespan(app: FastAPI):
             logger.info("[SKIP] Portfolio Sync Service disabled (set ENABLE_PORTFOLIO_SYNC=true to enable)")
     except Exception as e:
         logger.warning(f"⚠️ Could not start Portfolio Sync Service: {e}")
+    
+    # === Phase 3: Start Database Cleanup Task ===
+    async def periodic_cleanup():
+        """Run database cleanup every 24 hours"""
+        try:
+            db = SessionLocal()
+            cleanup_interval = 24 * 3600  # 24 hours in seconds
+            
+            while True:
+                try:
+                    await asyncio.sleep(cleanup_interval)
+                    
+                    from sqlalchemy import text
+                    logger.info("🧹 Running periodic database cleanup...")
+                    
+                    # Run cleanup stored procedure
+                    result = db.execute(text("SELECT * FROM cleanup_old_data()"))
+                    cleanup_results = list(result)
+                    
+                    total_deleted = sum(row[1] for row in cleanup_results if row[1])
+                    total_freed = sum(float(row[2]) if row[2] else 0 for row in cleanup_results)
+                    
+                    if total_deleted > 0:
+                        logger.info(f"✅ Cleanup complete: {total_deleted:,} rows deleted, {total_freed:.1f} MB freed")
+                    else:
+                        logger.info(f"ℹ️ Cleanup complete: no old data found to delete")
+                    
+                except Exception as cleanup_error:
+                    db.rollback()
+                    logger.warning(f"⚠️ Cleanup task error: {cleanup_error}")
+        
+        except Exception as e:
+            logger.warning(f"⚠️ Could not start periodic cleanup: {e}")
+    
+    try:
+        asyncio.create_task(periodic_cleanup())
+        logger.info("✅ Database cleanup task scheduled (runs every 24 hours)")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not schedule cleanup task: {e}")
     
     yield
     
@@ -1057,6 +1144,7 @@ app.include_router(watchlist.router)  # Watchlist management routes
 app.include_router(settings_routes.router)  # Trading settings routes
 app.include_router(long_term.router)  # Long-Term DCA strategy routes
 app.include_router(admin.router)  # Admin management routes
+app.include_router(maintenance.router)  # Database maintenance routes
 
 @app.get("/")
 async def root():
