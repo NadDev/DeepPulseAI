@@ -49,7 +49,23 @@ async def get_portfolio_summary(
         db.add(portfolio)
         db.commit()
         db.refresh(portfolio)
-    
+
+    # === REAL-TIME BROKER SYNC ===
+    # Sync portfolio from broker if data is stale (>60s old) or still at 0.0
+    try:
+        stale = (
+            portfolio.total_value == 0.0
+            or portfolio.updated_at is None
+            or (datetime.utcnow() - portfolio.updated_at).total_seconds() > 60
+        )
+        if stale:
+            from app.services.portfolio_sync_service import PortfolioSyncService
+            sync_service = PortfolioSyncService()
+            await sync_service.sync_user_portfolio(str(user_id), db)
+            db.refresh(portfolio)
+    except Exception as sync_err:
+        logger.debug(f"Portfolio broker sync skipped: {sync_err}")
+
     # Calculate real-time stats from trades (filtered by user)
     trade_query = db.query(Trade)
     if current_user:

@@ -16,9 +16,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
+    autoRefreshToken: false,   // Disabled: app uses local JWT auth (not Supabase auth)
+    persistSession: false,     // Disabled: prevents Supabase from spamming token refreshes
+    detectSessionInUrl: false,
     storageKey: 'crbot-auth',
   },
 });
