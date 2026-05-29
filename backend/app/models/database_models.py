@@ -28,8 +28,8 @@ class Portfolio(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(UUID(as_uuid=True), unique=True, index=True, nullable=False)
-    total_value = Column(Float, default=100000.0)
-    cash_balance = Column(Float, default=100000.0)
+    total_value = Column(Float, default=0.0)  # Will be synced from broker
+    cash_balance = Column(Float, default=0.0)  # Will be synced from broker
     daily_pnl = Column(Float, default=0.0)
     total_pnl = Column(Float, default=0.0)
     win_rate = Column(Float, default=0.0)
@@ -203,6 +203,7 @@ class ExchangeConfig(Base):
     # === Trading Limits ===
     max_trade_size = Column(Float, default=1000.0)  # Max trade size in quote currency
     max_daily_trades = Column(Integer, default=50)  # Max trades per day
+    initial_balance = Column(Float, default=10000.0)  # Paper trading initial balance (USDT)
     allowed_symbols = Column(Text, nullable=True)  # JSON array of allowed symbols
     
     # === Connection Status ===

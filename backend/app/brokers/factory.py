@@ -41,7 +41,7 @@ class BrokerFactory:
         Create a broker from an ExchangeConfig.
         
         Logic:
-        1. If paper_trading=True → PaperBroker(LiveDataSource(BinanceBroker))
+        1. If paper_trading=True → PaperBroker with configurable initial_balance
         2. If paper_trading=False → BinanceBroker (live or testnet)
         
         Args:
@@ -55,11 +55,35 @@ class BrokerFactory:
             ValueError: If exchange not supported
         """
         if config.paper_trading:
-            # Paper/Test mode: connect to TESTNET exchange (real API, fake money)
-            # Force testnet=True regardless of config.use_testnet
-            return BrokerFactory._create_live_broker(config, force_testnet=True)
+            # === PAPER TRADING MODE ===
+            # Create PaperBroker with user-configured initial_balance
+            # Uses Binance testnet for market data prices
+            from app.services.crypto_service import get_crypto_service
+            
+            crypto_service = get_crypto_service()
+            api_key = crypto_service.decrypt(config.api_key_encrypted) if config.api_key_encrypted else ""
+            api_secret = crypto_service.decrypt(config.api_secret_encrypted) if config.api_secret_encrypted else ""
+            
+            # Create upstream Binance broker on testnet (for market data only)
+            upstream_broker = BinanceBroker(
+                api_key=api_key,
+                api_secret=api_secret,
+                testnet=True  # Always use testnet for data source
+            )
+            
+            # Create LiveDataSource from testnet Binance
+            data_source = LiveDataSource(upstream_broker)
+            
+            # Create PaperBroker with user's configured initial_balance
+            return PaperBroker(
+                data_source=data_source,
+                initial_balance=config.initial_balance,  # Use config's initial_balance
+                slippage_pct=0.05,
+                commission_pct=0.1
+            )
         else:
-            # Live mode: real exchange, real money
+            # === LIVE TRADING MODE ===
+            # Real exchange connection (live or testnet based on config)
             return BrokerFactory._create_live_broker(config)
     
     @staticmethod

@@ -101,6 +101,7 @@ class ExchangeConfigCreate(BaseModel):
     use_testnet: bool = True
     max_trade_size: float = 1000.0
     max_daily_trades: int = 50
+    initial_balance: float = 10000.0  # Paper trading initial balance
     allowed_symbols: Optional[List[str]] = None
     is_default: bool = False
     
@@ -286,6 +287,7 @@ async def create_exchange_config(
             use_testnet=request.use_testnet,
             max_trade_size=request.max_trade_size,
             max_daily_trades=request.max_daily_trades,
+            initial_balance=request.initial_balance,  # Paper trading balance
             allowed_symbols=json.dumps(request.allowed_symbols) if request.allowed_symbols else None,
             is_default=request.is_default,
             is_active=True,
@@ -361,6 +363,7 @@ async def update_exchange_config(
         config.use_testnet = request.use_testnet
         config.max_trade_size = request.max_trade_size
         config.max_daily_trades = request.max_daily_trades
+        config.initial_balance = request.initial_balance  # Update paper trading balance
         config.allowed_symbols = json.dumps(request.allowed_symbols) if request.allowed_symbols else None
         config.connection_status = "untested"  # Reset status after update
         
