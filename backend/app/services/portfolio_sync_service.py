@@ -96,6 +96,11 @@ class PortfolioSyncService:
             logger.warning(f"No active exchange config for user {user_id}")
             return False
         
+        # Skip sync for paper trading — balance is simulated, not real broker data
+        if exchange_config.paper_trading:
+            logger.debug(f"[SKIP] User {user_id} is in paper trading mode — skipping broker sync")
+            return False
+        
         # Get or create portfolio record
         portfolio = db.query(Portfolio).filter(
             Portfolio.user_id == user_id

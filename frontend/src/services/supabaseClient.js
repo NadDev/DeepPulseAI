@@ -14,12 +14,24 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Make sure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in .env');
 }
 
+// ⚠️ MUST run BEFORE createClient — Supabase reads localStorage on init and
+// immediately fires a token refresh if it finds a cached session.
+// This app uses local JWT auth; Supabase is only used for DB utilities (WatchlistManager).
+try {
+  const supabaseProjectRef = (supabaseUrl || '').match(/\/\/([^.]+)\./)?.[1] || '';
+  [
+    'crbot-auth',
+    `sb-${supabaseProjectRef}-auth-token`,
+    `sb-${supabaseProjectRef}-auth-token-code-verifier`,
+  ].forEach(key => { if (key !== 'sb--auth-token') localStorage.removeItem(key); });
+} catch (_) {}
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    autoRefreshToken: false,   // Disabled: app uses local JWT auth (not Supabase auth)
-    persistSession: false,     // Disabled: prevents Supabase from spamming token refreshes
+    autoRefreshToken: false,
+    persistSession: false,
     detectSessionInUrl: false,
-    storageKey: 'crbot-auth',
+    storageKey: '__supabase_disabled__',  // Use a key we never write to
   },
 });
 

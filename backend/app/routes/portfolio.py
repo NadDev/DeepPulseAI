@@ -50,19 +50,27 @@ async def get_portfolio_summary(
         db.commit()
         db.refresh(portfolio)
 
-    # === REAL-TIME BROKER SYNC ===
-    # Sync portfolio from broker if data is stale (>60s old) or still at 0.0
+    # === REAL-TIME BROKER SYNC (live trading only) ===
+    # For paper trading: portfolio is calculated from trades below (no broker call needed)
+    # For live trading: sync from broker if data is stale (>60s) or zero
     try:
-        stale = (
-            portfolio.total_value == 0.0
-            or portfolio.updated_at is None
-            or (datetime.utcnow() - portfolio.updated_at).total_seconds() > 60
-        )
-        if stale:
-            from app.services.portfolio_sync_service import PortfolioSyncService
-            sync_service = PortfolioSyncService()
-            await sync_service.sync_user_portfolio(str(user_id), db)
-            db.refresh(portfolio)
+        from app.models.database_models import ExchangeConfig
+        exchange_config = db.query(ExchangeConfig).filter(
+            ExchangeConfig.user_id == user_id,
+            ExchangeConfig.is_active == True
+        ).first()
+        is_live = exchange_config and not exchange_config.paper_trading
+        if is_live:
+            stale = (
+                portfolio.total_value == 0.0
+                or portfolio.updated_at is None
+                or (datetime.utcnow() - portfolio.updated_at.replace(tzinfo=None)).total_seconds() > 60
+            )
+            if stale:
+                from app.services.portfolio_sync_service import PortfolioSyncService
+                sync_service = PortfolioSyncService()
+                await sync_service.sync_user_portfolio(str(user_id), db)
+                db.refresh(portfolio)
     except Exception as sync_err:
         logger.debug(f"Portfolio broker sync skipped: {sync_err}")
 
@@ -94,8 +102,17 @@ async def get_portfolio_summary(
         except Exception as e:
             logger.warning(f"Could not get current price for {trade.symbol}: {str(e)}")
     
-    # Update KPIs only (NE PAS toucher cash_balance/total_value — vient du broker)
     portfolio.total_pnl = realized_pnl + unrealized_pnl
+
+    # === PAPER TRADING: calculate portfolio value from initial_balance + PnL ===
+    # For paper mode, there is no real broker to sync — compute from trade history
+    try:
+        if exchange_config and exchange_config.paper_trading:
+            initial = float(exchange_config.initial_balance or 100000.0)
+            portfolio.cash_balance = initial + realized_pnl
+            portfolio.total_value = initial + realized_pnl + unrealized_pnl
+    except Exception as paper_err:
+        logger.debug(f"Paper portfolio calc skipped: {paper_err}")
     
     # Calculate win rate from closed trades
     if len(closed_trades) > 0:
