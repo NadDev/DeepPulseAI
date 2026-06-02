@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Plus, Trash2, RefreshCw, CheckCircle, XCircle, 
-  Eye, EyeOff, AlertTriangle, Zap, TestTube,
+  Eye, EyeOff, AlertTriangle, Zap, TestTube, Pencil,
   ExternalLink, Shield
 } from 'lucide-react';
 import { exchangeAPI } from '../services/exchangeAPI';
@@ -266,7 +266,7 @@ export default function ExchangeSettings() {
                       onClick={() => handleEdit(config)}
                       title="Edit"
                     >
-                      <Eye size={16} />
+                      <Pencil size={16} />
                     </button>
                     <button 
                       className="btn-icon danger"
@@ -326,18 +326,18 @@ export default function ExchangeSettings() {
 
       {/* Add/Edit Form Modal */}
       {showForm && (
-        <div className="modal-overlay" onClick={(e) => {
-          if (e.target === e.currentTarget) {
-            resetForm();
-          }
-        }}>
+        <div className="modal-overlay">
           <div className="exchange-form-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{editingConfig ? 'Edit Exchange' : 'Add New Exchange'}</h3>
               <button className="btn-close" onClick={resetForm}>×</button>
             </div>
 
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} autoComplete="off">
+              {/* Hidden decoy fields to prevent browser credential autofill in API fields */}
+              <input type="text" name="username" autoComplete="username" style={{ display: 'none' }} />
+              <input type="password" name="password" autoComplete="current-password" style={{ display: 'none' }} />
+
               {/* Exchange Selection */}
               {!editingConfig && (
                 <div className="form-group">
@@ -367,6 +367,8 @@ export default function ExchangeSettings() {
                     <label>Account Name (optional)</label>
                     <input
                       type="text"
+                      name="exchange_account_name"
+                      autoComplete="off"
                       placeholder="e.g., Main Trading Account"
                       value={formData.name}
                       onChange={(e) => handleInputChange('name', e.target.value)}
@@ -379,6 +381,9 @@ export default function ExchangeSettings() {
                     <div className="secret-input">
                       <input
                         type={showSecrets.api_key ? 'text' : 'password'}
+                        name="exchange_api_key"
+                        autoComplete="new-password"
+                        spellCheck={false}
                         placeholder={editingConfig ? 'Laisser vide pour garder la clé existante' : 'Enter API Key'}
                         value={formData.api_key}
                         onChange={(e) => handleInputChange('api_key', e.target.value)}
@@ -400,6 +405,9 @@ export default function ExchangeSettings() {
                     <div className="secret-input">
                       <input
                         type={showSecrets.api_secret ? 'text' : 'password'}
+                        name="exchange_api_secret"
+                        autoComplete="new-password"
+                        spellCheck={false}
                         placeholder={editingConfig ? 'Laisser vide pour garder le secret existant' : 'Enter API Secret'}
                         value={formData.api_secret}
                         onChange={(e) => handleInputChange('api_secret', e.target.value)}
@@ -423,6 +431,9 @@ export default function ExchangeSettings() {
                       <div className="secret-input">
                         <input
                           type={showSecrets.passphrase ? 'text' : 'password'}
+                          name="exchange_passphrase"
+                          autoComplete="new-password"
+                          spellCheck={false}
                           placeholder={editingConfig ? '(unchanged)' : 'Enter Passphrase'}
                           value={formData.passphrase}
                           onChange={(e) => handleInputChange('passphrase', e.target.value)}
