@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from .base import BaseBroker
 from .binance_broker import BinanceBroker
+from .bybit_broker import BybitBroker
 from .paper_broker import PaperBroker
 from .data_sources import LiveDataSource
 
@@ -57,28 +58,24 @@ class BrokerFactory:
         if config.paper_trading:
             # === PAPER TRADING MODE ===
             # Create PaperBroker with user-configured initial_balance
-            # Uses Binance testnet for market data prices
+            # Uses Binance testnet OR Bybit testnet for market data prices
             from app.services.crypto_service import get_crypto_service
-            
+
             crypto_service = get_crypto_service()
             api_key = crypto_service.decrypt(config.api_key_encrypted) if config.api_key_encrypted else ""
             api_secret = crypto_service.decrypt(config.api_secret_encrypted) if config.api_secret_encrypted else ""
-            
-            # Create upstream Binance broker on testnet (for market data only)
-            upstream_broker = BinanceBroker(
-                api_key=api_key,
-                api_secret=api_secret,
-                testnet=True  # Always use testnet for data source
-            )
-            
-            # Create LiveDataSource from testnet Binance
+
+            # Pick upstream data source based on configured exchange
+            if config.exchange == "bybit":
+                upstream_broker = BybitBroker(api_key=api_key, api_secret=api_secret, testnet=True)
+            else:
+                upstream_broker = BinanceBroker(api_key=api_key, api_secret=api_secret, testnet=True)
+
             data_source = LiveDataSource(upstream_broker)
-            
-            # Create PaperBroker with user's configured initial_balance
-            # Column is guaranteed to exist (created on app startup if missing)
+
             return PaperBroker(
                 data_source=data_source,
-                initial_balance=config.initial_balance,  # Use config's initial_balance
+                initial_balance=config.initial_balance,
                 slippage_pct=0.05,
                 commission_pct=0.1
             )
@@ -116,6 +113,12 @@ class BrokerFactory:
         # Create appropriate broker
         if config.exchange == "binance":
             return BinanceBroker(
+                api_key=api_key,
+                api_secret=api_secret,
+                testnet=use_testnet
+            )
+        elif config.exchange == "bybit":
+            return BybitBroker(
                 api_key=api_key,
                 api_secret=api_secret,
                 testnet=use_testnet
