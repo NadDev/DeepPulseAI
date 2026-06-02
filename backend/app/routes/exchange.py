@@ -267,14 +267,26 @@ async def create_exchange_config(
         api_key_encrypted = crypto.encrypt(request.api_key)
         api_secret_encrypted = crypto.encrypt(request.api_secret)
         passphrase_encrypted = crypto.encrypt(request.passphrase) if request.passphrase else None
-        
-        # If setting as default, unset other defaults
-        if request.is_default:
+
+        # Single-active policy: new config becomes the only active one
+        db.query(ExchangeConfig).filter(
+            ExchangeConfig.user_id == current_user.id,
+            ExchangeConfig.is_active == True
+        ).update({"is_active": False})
+
+        # Default policy: keep exactly one default; first config is default automatically
+        existing_default = db.query(ExchangeConfig).filter(
+            ExchangeConfig.user_id == current_user.id,
+            ExchangeConfig.is_default == True
+        ).first()
+        should_be_default = bool(request.is_default or not existing_default)
+
+        if should_be_default:
             db.query(ExchangeConfig).filter(
                 ExchangeConfig.user_id == current_user.id,
                 ExchangeConfig.is_default == True
             ).update({"is_default": False})
-        
+
         # Create config
         config = ExchangeConfig(
             user_id=current_user.id,
@@ -289,7 +301,7 @@ async def create_exchange_config(
             max_daily_trades=request.max_daily_trades,
             initial_balance=request.initial_balance,  # Paper trading balance
             allowed_symbols=json.dumps(request.allowed_symbols) if request.allowed_symbols else None,
-            is_default=request.is_default,
+            is_default=should_be_default,
             is_active=True,
             connection_status="untested"
         )
@@ -588,18 +600,47 @@ async def toggle_exchange_active(
     db: Session = Depends(get_db),
     current_user: UserResponse = Depends(get_current_user)
 ):
-    """Toggle exchange active status"""
+    """Toggle exchange active status (single-active policy per user)."""
     config = db.query(ExchangeConfig).filter(
         ExchangeConfig.id == config_id,
         ExchangeConfig.user_id == current_user.id
     ).first()
-    
+
     if not config:
         raise HTTPException(status_code=404, detail="Exchange config not found")
-    
-    config.is_active = not config.is_active
+
+    # Activate this config => deactivate all others for this user
+    if not config.is_active:
+        db.query(ExchangeConfig).filter(
+            ExchangeConfig.user_id == current_user.id,
+            ExchangeConfig.id != config.id,
+            ExchangeConfig.is_active == True
+        ).update({"is_active": False})
+
+        # Keep default aligned with the active broker
+        db.query(ExchangeConfig).filter(
+            ExchangeConfig.user_id == current_user.id,
+            ExchangeConfig.is_default == True
+        ).update({"is_default": False})
+        config.is_default = True
+        config.is_active = True
+    else:
+        # Deactivate current config
+        config.is_active = False
+
+        # If it was default, clear default and promote another active config (if any)
+        if config.is_default:
+            config.is_default = False
+            fallback = db.query(ExchangeConfig).filter(
+                ExchangeConfig.user_id == current_user.id,
+                ExchangeConfig.id != config.id,
+                ExchangeConfig.is_active == True
+            ).first()
+            if fallback:
+                fallback.is_default = True
+
     db.commit()
-    
+
     return {
         "status": "success",
         "is_active": config.is_active,

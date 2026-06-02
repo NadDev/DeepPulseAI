@@ -15,6 +15,7 @@ from .binance_broker import BinanceBroker
 from .bybit_broker import BybitBroker
 from .paper_broker import PaperBroker
 from .data_sources import LiveDataSource
+from .data_sources.mock import MockDataSource
 
 
 class BrokerFactory:
@@ -129,9 +130,6 @@ class BrokerFactory:
         elif config.exchange == "coinbase":
             # Future implementation
             raise NotImplementedError("Coinbase broker not yet implemented")
-        elif config.exchange == "bybit":
-            # Future implementation
-            raise NotImplementedError("Bybit broker not yet implemented")
         else:
             raise ValueError(f"Unsupported exchange: {config.exchange}")
     
@@ -164,20 +162,26 @@ class BrokerFactory:
         """
         from app.models.database_models import ExchangeConfig
         
-        # Query user's active default config
+        # 1) Try active default config first
         config = db.query(ExchangeConfig).filter(
             ExchangeConfig.user_id == user_id,
             ExchangeConfig.is_active == True,
             ExchangeConfig.is_default == True
-        ).first()
-        
+        ).order_by(ExchangeConfig.updated_at.desc()).first()
+
+        # 2) Fallback to any active config (deterministic by latest update)
         if not config:
-            # No config found → default to PaperBroker with public Binance data
-            upstream = BinanceBroker()  # No API keys = public data only
-            data_source = LiveDataSource(upstream)
+            config = db.query(ExchangeConfig).filter(
+                ExchangeConfig.user_id == user_id,
+                ExchangeConfig.is_active == True
+            ).order_by(ExchangeConfig.updated_at.desc()).first()
+
+        # 3) If user has no active broker config, use local fake-paper fallback
+        #    This keeps broker architecture consistent and avoids external API dependency.
+        if not config:
             return PaperBroker(
-                data_source=data_source,
-                initial_balance=10000.0
+                data_source=MockDataSource(),
+                initial_balance=10000.0,
             )
         
         # Create broker from config
@@ -192,7 +196,7 @@ class BrokerFactory:
         Create a PaperBroker directly (for testing/backtesting).
         
         Args:
-            source_type: "live", "file", or "db"
+            source_type: "live", "mock", "file", or "db"
             config: Optional configuration dict
             
         Returns:
@@ -213,6 +217,9 @@ class BrokerFactory:
             # Live data from Binance
             upstream = BinanceBroker()
             data_source = LiveDataSource(upstream)
+        elif source_type == "mock":
+            # Fully local fake market data (no external API calls)
+            data_source = MockDataSource()
         elif source_type == "file":
             # Historical data from files
             from .data_sources import FileDataSource

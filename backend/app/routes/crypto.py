@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.db.database import get_db
 from app.models.database_models import WatchlistItem
+from app.auth.local_auth import get_optional_user, UserResponse
 import httpx
 import os
 from datetime import datetime, timedelta
@@ -23,6 +24,56 @@ router = APIRouter(prefix="/api", tags=["crypto"])
 
 # Default symbols for fallback
 DEFAULT_SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "DOGEUSDT", "XRPUSDT"]
+
+
+def _ticker_to_dict(ticker: Any) -> Dict[str, float]:
+    """Normalize broker ticker (dataclass or dict) to dict shape."""
+    if hasattr(ticker, "price"):
+        return {
+            "price": float(getattr(ticker, "price", 0.0)),
+            "change_24h": float(getattr(ticker, "change_24h_pct", 0.0)),
+            "high_24h": float(getattr(ticker, "high_24h", 0.0)),
+            "low_24h": float(getattr(ticker, "low_24h", 0.0)),
+            "volume_24h": float(getattr(ticker, "volume_24h", 0.0)),
+        }
+
+    return {
+        "price": float(ticker.get("price", ticker.get("lastPrice", 0.0))),
+        "change_24h": float(ticker.get("change_24h", ticker.get("priceChangePercent", 0.0))),
+        "high_24h": float(ticker.get("high_24h", ticker.get("highPrice", 0.0))),
+        "low_24h": float(ticker.get("low_24h", ticker.get("lowPrice", 0.0))),
+        "volume_24h": float(ticker.get("volume_24h", ticker.get("volume", 0.0))),
+    }
+
+
+def _candle_to_dict(candle: Any) -> Dict[str, Any]:
+    """Normalize broker candle (dataclass or dict) to dict shape used by API."""
+    if hasattr(candle, "timestamp"):
+        ts = candle.timestamp
+        ts_ms = int(ts.timestamp() * 1000)
+        return {
+            "timestamp": ts_ms,
+            "open": float(candle.open),
+            "high": float(candle.high),
+            "low": float(candle.low),
+            "close": float(candle.close),
+            "volume": float(candle.volume),
+        }
+    return candle
+
+
+def _resolve_market_broker(db: Session, current_user: Optional[UserResponse]):
+    """Resolve user's active broker, fallback to local mock-paper broker."""
+    from app.brokers import BrokerFactory
+
+    try:
+        if current_user:
+            return BrokerFactory.from_user(str(current_user.id), db)
+    except Exception as e:
+        logger.warning(f"⚠️ Broker resolution failed for user: {e}. Falling back to mock paper broker")
+
+    return BrokerFactory.create_paper(source_type="mock")
+
 
 async def get_watchlist_symbols(db: Session) -> List[str]:
     """Get symbols from watchlist, fallback to defaults if empty"""
@@ -116,40 +167,40 @@ async def get_crypto_chart(symbol: str = "BTCUSDT", interval: str = "1h"):
 
 # ============ FEATURE 3.1: Global Crypto Selector ============
 @router.get("/crypto/{symbol}/data")
-async def get_crypto_data(symbol: str):
+async def get_crypto_data(
+    symbol: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[UserResponse] = Depends(get_optional_user)
+):
     """
     FEATURE 3.1: Get comprehensive crypto data for the selected symbol
     Returns: current price, 24h change, high, low, volume
     """
     logger.info(f"💰 [DATA] Requesting crypto data for {symbol}")
     symbol_upper = symbol.upper()
-    
-    # Ensure symbol ends with USDT (but don't add it twice)
+
     if not symbol_upper.endswith('USDT'):
         symbol_upper = f"{symbol_upper}USDT"
-    
+
     try:
-        # Use market_data_collector for consistent data retrieval and caching
-        ticker_data = await market_data_collector.get_ticker_24h(symbol_upper)
-        
-        if "error" not in ticker_data:
-            logger.info(f"✅ [DATA] Binance data received for {symbol_upper}")
-            return {
-                "symbol": symbol_upper,
-                "price": float(ticker_data.get("price", 0)),
-                "change_24h": float(ticker_data.get("change_24h", 0)),
-                "high_24h": float(ticker_data.get("high_24h", 0)),
-                "low_24h": float(ticker_data.get("low_24h", 0)),
-                "volume_24h": float(ticker_data.get("volume_24h", 0)),
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        else:
-            logger.error(f"❌ [DATA] Market data error for {symbol_upper}: {ticker_data.get('error')}")
+        broker = _resolve_market_broker(db, current_user)
+        ticker = await broker.get_ticker(symbol_upper)
+        ticker_data = _ticker_to_dict(ticker)
+
+        return {
+            "symbol": symbol_upper,
+            "price": float(ticker_data.get("price", 0)),
+            "change_24h": float(ticker_data.get("change_24h", 0)),
+            "high_24h": float(ticker_data.get("high_24h", 0)),
+            "low_24h": float(ticker_data.get("low_24h", 0)),
+            "volume_24h": float(ticker_data.get("volume_24h", 0)),
+            "source": getattr(broker, "name", "broker"),
+            "timestamp": datetime.utcnow().isoformat()
+        }
     except Exception as e:
-        logger.error(f"❌ [DATA] Error fetching data for {symbol_upper}: {e}", exc_info=True)
-    
-    # Demo fallback - only if Binance completely fails
-    logger.warn(f"⚠️ [DATA] Using demo data for {symbol_upper}")
+        logger.error(f"❌ [DATA] Error fetching broker data for {symbol_upper}: {e}", exc_info=True)
+
+    logger.warning(f"⚠️ [DATA] Using emergency demo fallback for {symbol_upper}")
     return {
         "symbol": symbol_upper,
         "price": 42150.50 + random.uniform(-1000, 1000),
@@ -157,60 +208,61 @@ async def get_crypto_data(symbol: str):
         "high_24h": 43200.0,
         "low_24h": 41000.0,
         "volume_24h": 28500000,
+        "source": "demo",
         "timestamp": datetime.utcnow().isoformat()
     }
 
 # ============ FEATURE 4.1: Crypto Analysis Data ============
 @router.get("/crypto/{symbol}/analysis")
-async def get_crypto_analysis(symbol: str):
+async def get_crypto_analysis(
+    symbol: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[UserResponse] = Depends(get_optional_user)
+):
     """
-    Get comprehensive crypto analysis using Binance as single source
+    Get comprehensive crypto analysis using the active user broker.
     Returns: trend, sentiment_score, 24h_change%, volume, market data
     """
     logger.info(f"📈 [ANALYSIS] Requesting analysis for {symbol}")
-    
-    # Normalize symbol to Binance format
+
     symbol_normalized = symbol.upper()
     if not symbol_normalized.endswith("USDT"):
         symbol_normalized = f"{symbol_normalized}USDT"
-    
+
     try:
-        # Get 24h ticker data from Binance (unified source)
-        logger.info(f"📈 [ANALYSIS] Fetching from Binance for {symbol_normalized}")
-        ticker_24h = await market_data_collector.get_ticker_24h(symbol_normalized)
-        
-        if "error" not in ticker_24h:
-            change_24h = ticker_24h.get("change_24h", 0)
-            volume_24h = ticker_24h.get("quote_asset_volume", 0)
-            
-            # Determine trend based on 24h change
-            if change_24h > 5:
-                trend = "bullish"
-                sentiment_score = min(change_24h / 20, 1.0)  # Normalize to 0-1
-            elif change_24h < -5:
-                trend = "bearish"
-                sentiment_score = max(change_24h / 20, -1.0)  # Normalize to -1-0
-            else:
-                trend = "neutral"
-                sentiment_score = 0
-            
-            # Calculate reputation score based on volume (higher volume = higher reputation)
-            reputation_base = min(volume_24h / 1000000000, 1.0)  # Normalize by 1B USD volume
-            reputation_score = 0.3 + (reputation_base * 0.7)  # Range 0.3-1.0
-            
-            return {
-                "symbol": symbol.upper(),
-                "price": ticker_24h.get("price", 0),
-                "trend": trend,
-                "sentiment_score": sentiment_score,
-                "change_24h": change_24h,
-                "high_24h": ticker_24h.get("high_24h", 0),
-                "low_24h": ticker_24h.get("low_24h", 0),
-                "volume_24h_usd": ticker_24h.get("quote_asset_volume", 0),
-                "number_of_trades": ticker_24h.get("number_of_trades", 0),
-                "reputation_score": reputation_score,
-                "source": "binance"
-            }
+        broker = _resolve_market_broker(db, current_user)
+        ticker = await broker.get_ticker(symbol_normalized)
+        ticker_24h = _ticker_to_dict(ticker)
+
+        change_24h = ticker_24h.get("change_24h", 0)
+        volume_24h = ticker_24h.get("volume_24h", 0)
+
+        if change_24h > 5:
+            trend = "bullish"
+            sentiment_score = min(change_24h / 20, 1.0)
+        elif change_24h < -5:
+            trend = "bearish"
+            sentiment_score = max(change_24h / 20, -1.0)
+        else:
+            trend = "neutral"
+            sentiment_score = 0
+
+        reputation_base = min(volume_24h / 1000000000, 1.0)
+        reputation_score = 0.3 + (reputation_base * 0.7)
+
+        return {
+            "symbol": symbol.upper(),
+            "price": ticker_24h.get("price", 0),
+            "trend": trend,
+            "sentiment_score": sentiment_score,
+            "change_24h": change_24h,
+            "high_24h": ticker_24h.get("high_24h", 0),
+            "low_24h": ticker_24h.get("low_24h", 0),
+            "volume_24h_usd": volume_24h,
+            "number_of_trades": 0,
+            "reputation_score": reputation_score,
+            "source": getattr(broker, "name", "broker")
+        }
     except Exception as e:
         logger.error(f"Error analyzing {symbol}: {e}")
     
@@ -247,19 +299,23 @@ async def get_crypto_analysis(symbol: str):
 async def get_market_candles(
     symbol: str,
     timeframe: str = "1h",
-    limit: int = 100
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: Optional[UserResponse] = Depends(get_optional_user)
 ):
     """
-    ARCH 1: Get OHLCV candle data from market data collector
-    Uses cache with TTL for performance
+    ARCH 1: Get OHLCV candle data from active broker (with mock fallback).
     """
     try:
-        candles = await market_data_collector.get_candles(symbol, timeframe, limit)
+        broker = _resolve_market_broker(db, current_user)
+        raw_candles = await broker.get_candles(symbol, interval=timeframe, limit=limit)
+        candles = [_candle_to_dict(c) for c in raw_candles]
         return {
             "symbol": symbol,
             "timeframe": timeframe,
             "candles": candles,
             "count": len(candles),
+            "source": getattr(broker, "name", "broker"),
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
@@ -267,13 +323,27 @@ async def get_market_candles(
 
 
 @router.get("/data/market/{symbol}")
-async def get_market_data(symbol: str):
+async def get_market_data(
+    symbol: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[UserResponse] = Depends(get_optional_user)
+):
     """
-    ARCH 1: Get comprehensive market data (price, market cap, volume)
+    ARCH 1: Get comprehensive market data from active broker (with mock fallback).
     """
     try:
-        market_data = await market_data_collector.get_market_data(symbol)
-        return market_data
+        broker = _resolve_market_broker(db, current_user)
+        ticker = await broker.get_ticker(symbol)
+        ticker_data = _ticker_to_dict(ticker)
+        return {
+            "symbol": symbol.upper(),
+            "price": ticker_data.get("price", 0.0),
+            "change_24h": ticker_data.get("change_24h", 0.0),
+            "high_24h": ticker_data.get("high_24h", 0.0),
+            "low_24h": ticker_data.get("low_24h", 0.0),
+            "volume_24h": ticker_data.get("volume_24h", 0.0),
+            "source": getattr(broker, "name", "broker"),
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -887,21 +957,22 @@ async def ml_prediction_performance(symbol: str, days: int = 7):
     }
 
 @router.get("/crypto/{symbol}/chart")
-async def get_coin_chart(symbol: str, period: str = "7d"):
-    """Get chart data for a specific coin"""
+async def get_coin_chart(
+    symbol: str,
+    period: str = "7d",
+    db: Session = Depends(get_db),
+    current_user: Optional[UserResponse] = Depends(get_optional_user)
+):
+    """Get chart data for a specific coin from active broker (with mock fallback)."""
     logger.info(f"📊 [CHARTS] Requesting chart for {symbol} period={period}")
-    
-    # Normalize symbol to Binance format (BTC -> BTCUSDT)
+
     symbol = symbol.upper()
     if not symbol.endswith("USDT"):
         symbol = f"{symbol}USDT"
-    
-    logger.info(f"📊 [CHARTS] Normalized to: {symbol}")
-    
-    # Determine limit and interval based on period
-    limit = 168 # default
+
+    limit = 168
     interval = "1h"
-    
+
     if period == "1h":
         interval = "1m"
         limit = 60
@@ -920,7 +991,6 @@ async def get_coin_chart(symbol: str, period: str = "7d"):
     elif period == "1y":
         interval = "1d"
         limit = 365
-    # Fallback for legacy 'days' integer if passed as string
     elif period.isdigit():
         days = int(period)
         if days <= 1:
@@ -932,19 +1002,21 @@ async def get_coin_chart(symbol: str, period: str = "7d"):
         else:
             interval = "1d"
             limit = days
-        
-    # Use market_data_collector with normalized symbol
-    candles = await market_data_collector.get_candles(symbol, timeframe=interval, limit=limit)
-    
-    # Format for frontend: [[timestamp, price], ...]
+
+    broker = _resolve_market_broker(db, current_user)
+    candles = await broker.get_candles(symbol, interval=interval, limit=limit)
+
     prices = []
     for c in candles:
-        # timestamp in ms
-        ts = c["timestamp"]
-        price = c["close"]
+        if hasattr(c, "timestamp"):
+            ts = int(c.timestamp.timestamp() * 1000)
+            price = float(c.close)
+        else:
+            ts = c["timestamp"]
+            price = c["close"]
         prices.append([ts, price])
-        
-    return {"prices": prices}
+
+    return {"prices": prices, "source": getattr(broker, "name", "broker")}
 
 
 @router.post("/market-data/bootstrap")
