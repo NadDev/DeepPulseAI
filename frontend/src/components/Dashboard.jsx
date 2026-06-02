@@ -11,6 +11,7 @@ import './DashboardGrid.css'
 function Dashboard() {
   const [topCryptos, setTopCryptos] = useState([])
   const [portfolio, setPortfolio] = useState([])
+  const [valueSource, setValueSource] = useState('db_cache')
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({
     totalValue: 0,
@@ -27,11 +28,12 @@ function Dashboard() {
       setLoading(true)
       const [cryptos, portfolioData] = await Promise.all([
         cryptoAPI.getPrices(),
-        cryptoAPI.getPortfolio()
+        cryptoAPI.getPortfolioSummary()
       ])
 
       setTopCryptos(cryptos.slice(0, 10))
       setPortfolio(portfolioData)
+      setValueSource(portfolioData.value_source || 'db_cache')
 
       // Calculate portfolio stats from summary object
       // Backend returns: { portfolio_value, cash_balance, daily_pnl, total_pnl, ... }
@@ -64,6 +66,13 @@ function Dashboard() {
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
   }
 
+  const valueSourceLabel =
+    valueSource === 'broker'
+      ? 'Source: Broker API'
+      : valueSource === 'paper_calculated'
+      ? 'Source: Paper Calculated'
+      : 'Source: Cache'
+
   if (loading) {
     return (
       <div className="dashboard">
@@ -84,6 +93,7 @@ function Dashboard() {
           <div className="stat-content">
             <p className="stat-label">Valeur Totale</p>
             <p className="stat-value">{formatCurrency(stats.totalValue)}</p>
+            <p className="stat-change">{valueSourceLabel}</p>
           </div>
         </div>
 

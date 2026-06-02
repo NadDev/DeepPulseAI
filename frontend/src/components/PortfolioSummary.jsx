@@ -8,6 +8,7 @@ const PortfolioSummary = ({ data }) => {
   const { 
     portfolio_value, 
     cash_balance, 
+    value_source = 'db_cache',
     daily_pnl, 
     total_pnl, 
     win_rate, 
@@ -32,6 +33,12 @@ const PortfolioSummary = ({ data }) => {
     return `${val > 0 ? '+' : ''}${val.toFixed(2)}%`;
   };
 
+  const getValueSourceLabel = (source) => {
+    if (source === 'broker') return 'Source: Broker API';
+    if (source === 'paper_calculated') return 'Source: Paper Calculated';
+    return 'Source: Cache';
+  };
+
   return (
     <div className="portfolio-summary-grid">
       {/* Total Value */}
@@ -42,6 +49,7 @@ const PortfolioSummary = ({ data }) => {
         <div className="card-content">
           <span className="card-label">Total Portfolio Value</span>
           <span className="card-value">{formatCurrency(portfolio_value)}</span>
+          <span className="card-subtitle">{getValueSourceLabel(value_source)}</span>
         </div>
       </div>
 
