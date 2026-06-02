@@ -551,16 +551,31 @@ async def test_exchange_connection(
             "account": account_info
         }
         
+    except ConnectionError as e:
+        # Specific handling for geo-blocked IPs (HTTP 451)
+        err_msg = str(e)
+        logger.warning(f"⚠️ Connection test IP-BLOCKED (451): {err_msg}")
+
+        if config:
+            config.connection_status = "ip_blocked"
+            config.last_connection_test = datetime.utcnow()
+            config.connection_error = err_msg
+            db.commit()
+
+        return {
+            "status": "ip_blocked",
+            "message": err_msg
+        }
+
     except Exception as e:
         logger.error(f"❌ Connection test FAILED at get_account_balance(): {str(e)}", exc_info=True)
-        
-        # Update config status if testing existing config
+
         if config:
             config.connection_status = "failed"
             config.last_connection_test = datetime.utcnow()
             config.connection_error = str(e)
             db.commit()
-        
+
         return {
             "status": "error",
             "message": f"Connection failed: {str(e)}"

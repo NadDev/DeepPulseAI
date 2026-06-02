@@ -81,6 +81,7 @@ export default function ExchangeSettings() {
     try {
       // For updates: don't send empty api_key/secret (backend keeps existing ones)
       const dataToSend = { ...formData };
+      delete dataToSend._api_key_masked; // Internal UI hint, never send to backend
       if (editingConfig) {
         if (!dataToSend.api_key) delete dataToSend.api_key;
         if (!dataToSend.api_secret) delete dataToSend.api_secret;
@@ -105,14 +106,15 @@ export default function ExchangeSettings() {
     setFormData({
       exchange: config.exchange,
       name: config.name || '',
-      api_key: '', // Don't pre-fill secrets
-      api_secret: '',
+      api_key: '',        // Never pre-fill secrets for security
+      api_secret: '',     // Leave blank = keep existing in DB
       passphrase: '',
       paper_trading: config.paper_trading,
       use_testnet: config.use_testnet,
       max_trade_size: config.max_trade_size,
       max_daily_trades: config.max_daily_trades,
-      is_default: config.is_default
+      is_default: config.is_default,
+      _api_key_masked: config.api_key_masked || null,   // For display hint only
     });
     setShowForm(true);
   };
@@ -136,9 +138,11 @@ export default function ExchangeSettings() {
     
     try {
       const result = await exchangeAPI.testConnection({ exchange_id: configId });
-      
+
       if (result.status === 'success') {
         showMessage('success', 'Connection successful!');
+      } else if (result.status === 'ip_blocked') {
+        showMessage('warning', '⚠️ IP bloquée par Binance (HTTP 451). Vos clés sont sauvegardées. Utilisez le mode Paper Trading.');
       } else {
         showMessage('error', result.message || 'Connection failed');
       }
@@ -209,7 +213,7 @@ export default function ExchangeSettings() {
 
       {message.text && (
         <div className={`alert alert-${message.type}`}>
-          {message.type === 'success' ? <CheckCircle size={18} /> : <XCircle size={18} />}
+          {message.type === 'success' ? <CheckCircle size={18} /> : message.type === 'warning' ? <AlertTriangle size={18} /> : <XCircle size={18} />}
           <span>{message.text}</span>
         </div>
       )}
@@ -305,9 +309,15 @@ export default function ExchangeSettings() {
                   <div className={`connection-status status-${config.connection_status}`}>
                     {config.connection_status === 'connected' && <CheckCircle size={14} />}
                     {config.connection_status === 'failed' && <XCircle size={14} />}
+                    {config.connection_status === 'ip_blocked' && <AlertTriangle size={14} />}
                     {config.connection_status === 'untested' && <AlertTriangle size={14} />}
-                    <span>{config.connection_status}</span>
+                    <span>{config.connection_status === 'ip_blocked' ? '⚠️ IP bloquée' : config.connection_status}</span>
                   </div>
+                  {config.connection_status === 'ip_blocked' && (
+                    <div className="connection-error-detail ip-blocked-notice">
+                      Binance bloque les IPs cloud (HTTP 451). Vos clés sont sauvegardées ✅. Utilisez le mode Paper Trading ou configurez un proxy.
+                    </div>
+                  )}
                   {config.connection_status === 'failed' && config.connection_error && (
                     <div className="connection-error-detail" title={config.connection_error}>
                       ⚠️ {config.connection_error.length > 80 ? config.connection_error.substring(0, 80) + '…' : config.connection_error}
@@ -402,6 +412,9 @@ export default function ExchangeSettings() {
                         {showSecrets.api_key ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
                     </div>
+                    {editingConfig && formData._api_key_masked && (
+                      <p className="field-hint">🔑 Clé actuelle : <code>{formData._api_key_masked}</code> — laisser vide pour conserver</p>
+                    )}
                   </div>
 
                   {/* API Secret */}

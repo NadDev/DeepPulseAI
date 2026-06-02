@@ -386,14 +386,21 @@ class BinanceBroker(BaseBroker):
             hashlib.sha256
         ).hexdigest()
         params["signature"] = signature
-        
+
         headers = {"X-MBX-APIKEY": self.api_key}
-        
+
         async with httpx.AsyncClient() as client:
             response = await client.get(url, params=params, headers=headers, timeout=10)
+            if response.status_code == 451:
+                raise ConnectionError(
+                    "Binance API blocked this server's IP (HTTP 451 – geo-restriction). "
+                    "Your credentials are saved and valid. "
+                    "Binance restricts cloud provider IPs. "
+                    "Use paper trading mode or route traffic through a VPN/proxy."
+                )
             response.raise_for_status()
             data = response.json()
-        
+
         # Parse balances
         assets = {}
         total_usdt = 0.0
