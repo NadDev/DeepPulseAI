@@ -59,10 +59,19 @@ async def get_portfolio_summary(
     broker_sync_success = False
     try:
         from app.models.database_models import ExchangeConfig
+        # Prefer default active config first (deterministic), fallback to any active
         exchange_config = db.query(ExchangeConfig).filter(
             ExchangeConfig.user_id == user_id,
-            ExchangeConfig.is_active == True
+            ExchangeConfig.is_active == True,
+            ExchangeConfig.is_default == True
         ).first()
+
+        if not exchange_config:
+            exchange_config = db.query(ExchangeConfig).filter(
+                ExchangeConfig.user_id == user_id,
+                ExchangeConfig.is_active == True
+            ).first()
+
         is_live = exchange_config and not exchange_config.paper_trading
         if is_live:
             broker_sync_attempted = True
