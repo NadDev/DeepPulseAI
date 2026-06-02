@@ -52,7 +52,8 @@ async def get_portfolio_summary(
 
     # === REAL-TIME BROKER SYNC (live trading only) ===
     # For paper trading: portfolio is calculated from trades below (no broker call needed)
-    # For live trading: sync from broker if data is stale (>60s) or zero
+    # For live trading: always try to sync from broker on each request
+    exchange_config = None
     try:
         from app.models.database_models import ExchangeConfig
         exchange_config = db.query(ExchangeConfig).filter(
@@ -61,16 +62,10 @@ async def get_portfolio_summary(
         ).first()
         is_live = exchange_config and not exchange_config.paper_trading
         if is_live:
-            stale = (
-                portfolio.total_value == 0.0
-                or portfolio.updated_at is None
-                or (datetime.utcnow() - portfolio.updated_at.replace(tzinfo=None)).total_seconds() > 60
-            )
-            if stale:
-                from app.services.portfolio_sync_service import PortfolioSyncService
-                sync_service = PortfolioSyncService()
-                await sync_service.sync_user_portfolio(str(user_id), db)
-                db.refresh(portfolio)
+            from app.services.portfolio_sync_service import PortfolioSyncService
+            sync_service = PortfolioSyncService()
+            await sync_service.sync_user_portfolio(str(user_id), db)
+            db.refresh(portfolio)
     except Exception as sync_err:
         logger.debug(f"Portfolio broker sync skipped: {sync_err}")
 
@@ -97,7 +92,12 @@ async def get_portfolio_summary(
         try:
             ticker_data = await market_collector.get_ticker(trade.symbol)
             current_price = float(ticker_data['close'])
-            trade_unrealized_pnl = float(trade.quantity) * (current_price - float(trade.entry_price))
+            quantity = float(trade.quantity)
+            entry_price = float(trade.entry_price)
+            if trade.side == "SELL":
+                trade_unrealized_pnl = quantity * (entry_price - current_price)
+            else:
+                trade_unrealized_pnl = quantity * (current_price - entry_price)
             unrealized_pnl += trade_unrealized_pnl
         except Exception as e:
             logger.warning(f"Could not get current price for {trade.symbol}: {str(e)}")
@@ -123,8 +123,10 @@ async def get_portfolio_summary(
     
     db.commit()
     
-    # Get recent trades
-    recent_trades = db.query(Trade).order_by(desc(Trade.entry_time)).limit(5).all()
+    # Get recent trades (user-scoped)
+    recent_trades = db.query(Trade).filter(
+        Trade.user_id == current_user.id
+    ).order_by(desc(Trade.entry_time)).limit(5).all()
     
     # Calculate advanced risk metrics
     trades_data = [
@@ -132,7 +134,7 @@ async def get_portfolio_summary(
             'status': t.status,
             'pnl': t.pnl
         }
-        for t in db.query(Trade).all()
+        for t in db.query(Trade).filter(Trade.user_id == current_user.id).all()
     ]
     
     # Get equity curve for max drawdown calculation
