@@ -308,6 +308,11 @@ export default function ExchangeSettings() {
                     {config.connection_status === 'untested' && <AlertTriangle size={14} />}
                     <span>{config.connection_status}</span>
                   </div>
+                  {config.connection_status === 'failed' && config.connection_error && (
+                    <div className="connection-error-detail" title={config.connection_error}>
+                      ⚠️ {config.connection_error.length > 80 ? config.connection_error.substring(0, 80) + '…' : config.connection_error}
+                    </div>
+                  )}
                   <div className="footer-actions">
                     {config.is_default && <span className="default-badge">Default</span>}
                     <button 

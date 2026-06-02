@@ -316,6 +316,15 @@
   color: #fcd34d;
 }
 
+.connection-error-detail {
+  font-size: 0.72rem;
+  color: #fca5a5;
+  margin-top: 0.35rem;
+  word-break: break-word;
+  opacity: 0.85;
+  cursor: help;
+}
+
 .footer-actions {
   display: flex;
   align-items: center;
