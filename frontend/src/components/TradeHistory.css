@@ -487,24 +487,6 @@
     margin-top: 4px;
   }
 }
-  
-  .history-table {
-    font-size: 0.75rem;
-  }
-  
-  .history-table th,
-  .history-table td {
-    padding: 6px 8px;
-  }
-  
-  .page-btn {
-    padding: 4px 8px;
-    font-size: 0.75rem;
-  }
-}
-  font-size: 0.75rem;
-  font-weight: 600;
-}
 
 .status-badge.open {
   background: rgba(59, 130, 246, 0.2);

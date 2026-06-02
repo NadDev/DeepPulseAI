@@ -134,6 +134,8 @@
 .positions-table td.price-down {
   color: #ef4444;
 }
+
+.positions-table tr:last-child td {
   border-bottom: none;
 }
 
