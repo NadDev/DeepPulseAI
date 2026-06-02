@@ -134,40 +134,46 @@ class MarketDataCollector:
             logger.info(f"✅ [BINANCE] Cache hit: 24h ticker {symbol}")
             return self.cache[cache_key]
         
-        try:
-            async with httpx.AsyncClient() as client:
-                # Normalize symbol to Binance format
-                symbol = symbol.upper()
-                if not symbol.endswith("USDT"):
-                    symbol = f"{symbol}USDT"
-                
-                logger.info(f"📊 [BINANCE] Fetching 24h ticker: {symbol}")
-                response = await client.get(
-                    f"https://api.binance.com/api/v3/ticker/24hr",
-                    params={"symbol": symbol},
-                    timeout=10
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    logger.info(f"✅ [BINANCE] 24h ticker fetched: {symbol} price=${data.get('lastPrice', 'N/A')}")
-                    ticker_24h = {
-                        "symbol": symbol,
-                        "price": float(data.get("lastPrice", 0)),
-                        "change_24h": float(data.get("priceChangePercent", 0)),
-                        "high_24h": float(data.get("highPrice", 0)),
-                        "low_24h": float(data.get("lowPrice", 0)),
-                        "volume_24h": float(data.get("volume", 0)),
-                        "quote_asset_volume": float(data.get("quoteAssetVolume", 0)),
-                        "number_of_trades": int(data.get("count", 0)),
-                    }
-                    
-                    self.cache[cache_key] = ticker_24h
-                    self.update_times[cache_key] = datetime.now()
-                    return ticker_24h
-        except Exception as e:
-            logger.error(f"Error fetching 24h ticker for {symbol}: {str(e)}")
-        
+        # Normalize symbol
+        symbol = symbol.upper()
+        if not symbol.endswith("USDT"):
+            symbol = f"{symbol}USDT"
+
+        for host in self.BINANCE_HOSTS:
+            try:
+                async with httpx.AsyncClient() as client:
+                    logger.info(f"📊 [BINANCE] Fetching 24h ticker: {symbol} via {host}")
+                    response = await client.get(
+                        f"{host}/api/v3/ticker/24hr",
+                        params={"symbol": symbol},
+                        timeout=10
+                    )
+
+                    if response.status_code == 451:
+                        logger.warning(f"[BINANCE] 451 geo-block on {host} for {symbol} ticker — trying fallback")
+                        continue
+
+                    if response.status_code == 200:
+                        data = response.json()
+                        logger.info(f"✅ [BINANCE] 24h ticker fetched: {symbol} price=${data.get('lastPrice', 'N/A')} (via {host})")
+                        ticker_24h = {
+                            "symbol": symbol,
+                            "price": float(data.get("lastPrice", 0)),
+                            "change_24h": float(data.get("priceChangePercent", 0)),
+                            "high_24h": float(data.get("highPrice", 0)),
+                            "low_24h": float(data.get("lowPrice", 0)),
+                            "volume_24h": float(data.get("volume", 0)),
+                            "quote_asset_volume": float(data.get("quoteAssetVolume", 0)),
+                            "number_of_trades": int(data.get("count", 0)),
+                        }
+                        self.cache[cache_key] = ticker_24h
+                        self.update_times[cache_key] = datetime.now()
+                        return ticker_24h
+
+                    logger.error(f"[BINANCE] {host} ticker HTTP {response.status_code} for {symbol}")
+            except Exception as e:
+                logger.error(f"[BINANCE] Error fetching 24h ticker from {host} for {symbol}: {e}")
+
         return {"symbol": symbol, "error": "Failed to fetch 24h ticker"}
     
     async def get_market_data(self, symbol: str) -> Dict[str, Any]:
@@ -203,51 +209,56 @@ class MarketDataCollector:
         
         return {"symbol": symbol, "error": "Failed to fetch market data"}
     
+    # Binance endpoints (mainnet first, US as fallback for geo-restricted regions)
+    BINANCE_HOSTS = [
+        "https://api.binance.com",
+        "https://api.binance.us",
+    ]
+
     async def _fetch_binance_candles(
         self,
         symbol: str,
         timeframe: str,
         limit: int
     ) -> List[Dict[str, Any]]:
-        """Fetch candles from Binance API"""
+        """Fetch candles from Binance API with Binance.US fallback for 451 geo-blocks."""
         # Ensure symbol format for Binance (e.g BTC -> BTCUSDT, BTC/USDT -> BTCUSDT)
-        symbol = symbol.upper().strip()
-        # Remove any slashes
-        symbol = symbol.replace('/', '')
-        # Add USDT if missing
+        symbol = symbol.upper().strip().replace('/', '')
         if not symbol.endswith("USDT"):
             symbol = f"{symbol}USDT"
 
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"https://api.binance.com/api/v3/klines",
-                    params={
-                        "symbol": symbol,
-                        "interval": timeframe,
-                        "limit": limit
-                    },
-                    timeout=10
-                )
-                
-                if response.status_code == 200:
-                    candles_raw = response.json()
-                    candles = []
-                    
-                    for candle in candles_raw:
-                        candles.append({
-                            "timestamp": candle[0],
-                            "open": float(candle[1]),
-                            "high": float(candle[2]),
-                            "low": float(candle[3]),
-                            "close": float(candle[4]),
-                            "volume": float(candle[7]),
-                        })
-                    
-                    return candles
-        except Exception as e:
-            logger.error(f"Error fetching Binance candles for {symbol}: {str(e)}")
-        
+        for host in self.BINANCE_HOSTS:
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(
+                        f"{host}/api/v3/klines",
+                        params={"symbol": symbol, "interval": timeframe, "limit": limit},
+                        timeout=10
+                    )
+
+                    if response.status_code == 451:
+                        logger.warning(f"[BINANCE] 451 geo-block on {host} for {symbol} candles — trying fallback")
+                        continue
+
+                    if response.status_code == 200:
+                        candles_raw = response.json()
+                        return [
+                            {
+                                "timestamp": candle[0],
+                                "open": float(candle[1]),
+                                "high": float(candle[2]),
+                                "low": float(candle[3]),
+                                "close": float(candle[4]),
+                                "volume": float(candle[7]),
+                            }
+                            for candle in candles_raw
+                        ]
+
+                    logger.error(f"[BINANCE] {host} candles HTTP {response.status_code} for {symbol}")
+            except Exception as e:
+                logger.error(f"[BINANCE] Error fetching candles from {host} for {symbol}: {e}")
+
+        logger.error(f"[BINANCE] All hosts failed for {symbol} candles")
         return []
     
     def _is_cache_valid(self, cache_key: str) -> bool:

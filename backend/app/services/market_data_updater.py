@@ -32,6 +32,7 @@ class MarketDataUpdater:
     """
     
     BINANCE_API_URL = "https://api.binance.com/api/v3"
+    BINANCE_US_API_URL = "https://api.binance.us/api/v3"  # fallback for geo-blocked (451) regions
     
     # Update intervals (seconds)
     TIER1_INTERVAL = 60      # 1 minute
@@ -93,15 +94,28 @@ class MarketDataUpdater:
         Refresh the symbol tier rankings based on 24h volume.
         Should be called periodically (e.g., every hour).
         """
-        url = f"{self.BINANCE_API_URL}/ticker/24hr"
-        
+        tickers = None
+        for base_url in [self.BINANCE_API_URL, self.BINANCE_US_API_URL]:
+            url = f"{base_url}/ticker/24hr"
+            try:
+                async with self.session.get(url) as response:
+                    if response.status == 451:
+                        logger.warning(f"[MARKET_UPDATE] 451 geo-block on {base_url} — trying fallback")
+                        continue
+                    if response.status != 200:
+                        logger.error(f"[MARKET_UPDATE] Failed to fetch tickers from {base_url}: {response.status}")
+                        continue
+                    tickers = await response.json()
+                    logger.info(f"[MARKET_UPDATE] Tickers fetched from {base_url}")
+                    break
+            except Exception as e:
+                logger.error(f"[MARKET_UPDATE] Error fetching tickers from {base_url}: {e}")
+
+        if tickers is None:
+            logger.error("[MARKET_UPDATE] All ticker sources failed — skipping tier refresh")
+            return
+
         try:
-            async with self.session.get(url) as response:
-                if response.status != 200:
-                    logger.error(f"[MARKET_UPDATE] Failed to fetch tickers: {response.status}")
-                    return
-                
-                tickers = await response.json()
             
             # Filter USDT pairs and sort by volume
             usdt_pairs = [

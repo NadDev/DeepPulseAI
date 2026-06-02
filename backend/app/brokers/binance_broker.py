@@ -46,6 +46,9 @@ class BinanceBroker(BaseBroker):
     # API URLs
     LIVE_URL = "https://api.binance.com"
     TESTNET_URL = "https://testnet.binance.vision"
+    # Public data fallback chain (for geo-restricted regions like Railway US → 451)
+    # Testnet has no historical data, so public candles/tickers always use mainnet chain
+    PUBLIC_URLS = ["https://api.binance.com", "https://api.binance.us"]
     
     # Interval mapping (internal format -> Binance format)
     INTERVAL_MAP = {
@@ -91,6 +94,30 @@ class BinanceBroker(BaseBroker):
     # MARKET DATA
     # ========================================================================
     
+    async def _public_get(self, endpoint: str, params: dict) -> dict:
+        """
+        GET a public (unauthenticated) Binance endpoint.
+        Tries mainnet first, then Binance.US as fallback for 451 geo-blocks.
+        """
+        for host in self.PUBLIC_URLS:
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(f"{host}{endpoint}", params=params, timeout=15)
+                    if response.status_code == 451:
+                        import logging
+                        logging.getLogger(__name__).warning(
+                            f"[BinanceBroker] 451 geo-block on {host}{endpoint} — trying fallback"
+                        )
+                        continue
+                    response.raise_for_status()
+                    return response.json()
+            except httpx.HTTPStatusError:
+                raise
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"[BinanceBroker] Error on {host}{endpoint}: {e}")
+        raise RuntimeError(f"All Binance hosts blocked (451) for public endpoint {endpoint}")
+
     async def get_candles(
         self,
         symbol: str,
@@ -99,33 +126,26 @@ class BinanceBroker(BaseBroker):
     ) -> List[Candle]:
         """
         Fetch OHLCV candles from Binance.
-        
-        Refactored from: market_data.py::MarketDataCollector._fetch_binance_candles()
+        Uses mainnet for public data (testnet has no historical candles).
         Endpoint: GET /api/v3/klines
         """
-        url = f"{self.base_url}/api/v3/klines"
         params = {
             "symbol": self.normalize_symbol(symbol),
             "interval": self.INTERVAL_MAP.get(interval, interval),
             "limit": limit
         }
-        
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, params=params, timeout=15)
-            response.raise_for_status()
-            data = response.json()
-        
-        candles = []
-        for k in data:
-            candles.append(Candle(
+        data = await self._public_get("/api/v3/klines", params)
+        return [
+            Candle(
                 timestamp=datetime.utcfromtimestamp(k[0] / 1000),
                 open=float(k[1]),
                 high=float(k[2]),
                 low=float(k[3]),
                 close=float(k[4]),
                 volume=float(k[5])
-            ))
-        return candles
+            )
+            for k in data
+        ]
     
     async def get_ticker(self, symbol: str) -> Ticker:
         """
@@ -134,14 +154,8 @@ class BinanceBroker(BaseBroker):
         Refactored from: market_data.py::MarketDataCollector.get_ticker_24h()
         Endpoint: GET /api/v3/ticker/24hr
         """
-        url = f"{self.base_url}/api/v3/ticker/24hr"
         params = {"symbol": self.normalize_symbol(symbol)}
-        
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-        
+        data = await self._public_get("/api/v3/ticker/24hr", params)
         return Ticker(
             symbol=data["symbol"],
             price=float(data["lastPrice"]),
@@ -161,13 +175,8 @@ class BinanceBroker(BaseBroker):
         
         Endpoint: GET /api/v3/ticker/price
         """
-        url = f"{self.base_url}/api/v3/ticker/price"
         params = {"symbol": self.normalize_symbol(symbol)}
-        
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
+        data = await self._public_get("/api/v3/ticker/price", params)
         return float(data["price"])
     
     # ========================================================================
