@@ -54,6 +54,9 @@ async def get_portfolio_summary(
     # For paper trading: portfolio is calculated from trades below (no broker call needed)
     # For live trading: always try to sync from broker on each request
     exchange_config = None
+    value_source = "db_cache"
+    broker_sync_attempted = False
+    broker_sync_success = False
     try:
         from app.models.database_models import ExchangeConfig
         exchange_config = db.query(ExchangeConfig).filter(
@@ -62,10 +65,17 @@ async def get_portfolio_summary(
         ).first()
         is_live = exchange_config and not exchange_config.paper_trading
         if is_live:
+            broker_sync_attempted = True
             from app.services.portfolio_sync_service import PortfolioSyncService
             sync_service = PortfolioSyncService()
-            await sync_service.sync_user_portfolio(str(user_id), db)
+            broker_sync_success = await sync_service.sync_user_portfolio(str(user_id), db)
+            if broker_sync_success:
+                value_source = "broker"
+            else:
+                value_source = "db_cache"
             db.refresh(portfolio)
+        elif exchange_config and exchange_config.paper_trading:
+            value_source = "paper_calculated"
     except Exception as sync_err:
         logger.debug(f"Portfolio broker sync skipped: {sync_err}")
 
@@ -111,6 +121,7 @@ async def get_portfolio_summary(
             initial = float(exchange_config.initial_balance or 100000.0)
             portfolio.cash_balance = initial + realized_pnl
             portfolio.total_value = initial + realized_pnl + unrealized_pnl
+            value_source = "paper_calculated"
     except Exception as paper_err:
         logger.debug(f"Paper portfolio calc skipped: {paper_err}")
     
@@ -164,6 +175,9 @@ async def get_portfolio_summary(
     return {
         "portfolio_value": portfolio.total_value,   # Du broker sync
         "cash_balance": portfolio.cash_balance,      # Du broker sync
+        "value_source": value_source,
+        "broker_sync_attempted": broker_sync_attempted,
+        "broker_sync_success": broker_sync_success,
         "daily_pnl": portfolio.daily_pnl,
         "total_pnl": portfolio.total_pnl,
         "win_rate": portfolio.win_rate,
